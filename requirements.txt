@@ -1,0 +1,6 @@
+Django==4.2.11
+pytest-django==4.8.0
+python-escpos==3.0a9
+pyserial==3.5
+Pillow==10.2.0
+pytest==8.1.1
