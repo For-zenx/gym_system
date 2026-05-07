@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Plan, Membership
+from .models import Plan, Membership, Invoice
 
 @admin.register(Plan)
 class PlanAdmin(admin.ModelAdmin):
@@ -15,3 +15,9 @@ class MembershipAdmin(admin.ModelAdmin):
         return obj.es_valida
     es_valida_status.boolean = True
     es_valida_status.short_description = "Vigente"
+
+@admin.register(Invoice)
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ('nro_control', 'membership', 'monto_total', 'fecha_emision')
+    search_fields = ('nro_control', 'membership__client__nombre')
+    readonly_fields = ('fecha_emision',)
