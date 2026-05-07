@@ -20,7 +20,6 @@ class TestBillingLogic:
     def test_membership_expiration_calculation_daily(self, sample_client, daily_plan):
         """Validar que un plan de 1 día vence mañana."""
         start_date = date.today()
-        # Borrar si existe para evitar conflictos de OneToOne
         if hasattr(sample_client, 'membership'):
             sample_client.membership.delete() 
         
@@ -35,7 +34,7 @@ class TestBillingLogic:
 
     def test_es_valida_property(self, sample_client, monthly_plan):
         """Validar que la propiedad es_valida detecta vencimientos."""
-        start_date = date.today() - timedelta(days=31) # Hace 31 días
+        start_date = date.today() - timedelta(days=31)
         if hasattr(sample_client, 'membership'):
             sample_client.membership.delete()
         
@@ -44,7 +43,6 @@ class TestBillingLogic:
             plan=monthly_plan,
             fecha_inicio=start_date
         )
-        # Forzar fecha_fin para simular pasado
         membership.fecha_fin = start_date + timedelta(days=30)
         membership.save()
         
