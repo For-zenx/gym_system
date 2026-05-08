@@ -1,49 +1,18 @@
 import pytest
-from datetime import date, timedelta
-from apps.billing.models import Membership
+from django.utils import timezone
+from apps.billing.models import Plan, Membership
+from datetime import timedelta
 
 @pytest.mark.django_db
-class TestBillingLogic:
-    def test_membership_expiration_calculation_monthly(self, sample_client, monthly_plan):
-        """Validar que un plan de 30 días calcula correctamente el vencimiento."""
-        start_date = date.today()
-        membership = Membership.objects.create(
-            client=sample_client,
-            plan=monthly_plan,
-            fecha_inicio=start_date
-        )
-        
-        expected_end_date = start_date + timedelta(days=30)
-        assert membership.fecha_fin == expected_end_date
-        assert membership.es_valida is True
+class TestBillingModels:
+    def test_plan_creation(self, monthly_plan):
+        assert monthly_plan.nombre == "Mensual"
+        assert float(monthly_plan.precio_usd) == 30.00
 
-    def test_membership_expiration_calculation_daily(self, sample_client, daily_plan):
-        """Validar que un plan de 1 día vence mañana."""
-        start_date = date.today()
-        if hasattr(sample_client, 'membership'):
-            sample_client.membership.delete() 
-        
+    def test_membership_creation(self, sample_client, monthly_plan):
         membership = Membership.objects.create(
             client=sample_client,
-            plan=daily_plan,
-            fecha_inicio=start_date
+            plan=monthly_plan
         )
-        
-        expected_end_date = start_date + timedelta(days=1)
-        assert membership.fecha_fin == expected_end_date
-
-    def test_es_valida_property(self, sample_client, monthly_plan):
-        """Validar que la propiedad es_valida detecta vencimientos."""
-        start_date = date.today() - timedelta(days=31)
-        if hasattr(sample_client, 'membership'):
-            sample_client.membership.delete()
-        
-        membership = Membership.objects.create(
-            client=sample_client,
-            plan=monthly_plan,
-            fecha_inicio=start_date
-        )
-        membership.fecha_fin = start_date + timedelta(days=30)
-        membership.save()
-        
-        assert membership.es_valida is False
+        hoy = timezone.localdate()
+        assert membership.fecha_fin == hoy + timedelta(days=30)

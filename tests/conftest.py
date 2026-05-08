@@ -1,6 +1,7 @@
 import pytest
+from decimal import Decimal
 from apps.clients.models import Client
-from apps.billing.models import Plan
+from apps.billing.models import Plan, ExchangeRate
 
 @pytest.fixture
 def sample_client(db):
@@ -16,7 +17,7 @@ def monthly_plan(db):
     return Plan.objects.create(
         nombre="Mensual",
         dias_duracion=30,
-        precio=500.00
+        precio_usd=Decimal("30.00")
     )
 
 @pytest.fixture
@@ -24,5 +25,12 @@ def daily_plan(db):
     return Plan.objects.create(
         nombre="Diario",
         dias_duracion=1,
-        precio=50.00
+        precio_usd=Decimal("2.00")
+    )
+
+@pytest.fixture
+def current_rate(db):
+    """Tasa de cambio de prueba: 1 USD = 50 VES."""
+    return ExchangeRate.objects.create(
+        tasa_ves=Decimal("50.0000")
     )
