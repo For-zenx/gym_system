@@ -1,16 +1,28 @@
 """
-ASGI config for config project.
+ASGI config for gym_system project.
 
-It exposes the ASGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/4.2/howto/deployment/asgi/
+Enruta el tráfico HTTP normal hacia Django y el tráfico WebSocket
+(ws://) hacia los consumidores de Django Channels.
 """
 
 import os
 
 from django.core.asgi import get_asgi_application
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.security.websocket import AllowedHostsOriginValidator
+
+import apps.access.routing
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-application = get_asgi_application()
+django_asgi_app = get_asgi_application()
+
+application = ProtocolTypeRouter({
+    "http": django_asgi_app,
+
+    "websocket": AllowedHostsOriginValidator(
+        URLRouter(
+            apps.access.routing.websocket_urlpatterns
+        )
+    ),
+})
