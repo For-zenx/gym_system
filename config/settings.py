@@ -32,13 +32,19 @@ ALLOWED_HOSTS = ['*']  # Permitir acceso desde Tablet y otros dispositivos en la
 # Application definition
 
 INSTALLED_APPS = [
+    # daphne debe ir primero para asumir el control del servidor ASGI
+    'daphne',
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
+    # WebSockets
+    'channels',
+
     # Local Apps
     'apps.users',
     'apps.clients',
@@ -76,6 +82,15 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+
+# Servidor ASGI para WebSockets
+ASGI_APPLICATION = 'config.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
 
 
 # Database
