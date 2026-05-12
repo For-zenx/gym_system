@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+body {
+    background-color: #0d1117;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+}
+
+h1 { 
+    font-size: 3.5rem; 
+    margin-bottom: 1rem; 
+    letter-spacing: -1px; 
+}
+
+h1 span { 
+    color: #10b981; /* Emerald 500 */
+}
+
+.user-info { 
+    font-size: 1.25rem; 
+    color: #9ca3af; 
+    margin-bottom: 2.5rem; 
+}
+
+.user-info strong { 
+    color: #fff; 
+}
+
+.btn-logout {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 0.875rem 2rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-logout:hover {
+    background-color: #ef4444;
+    color: white;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-logout:active {
+    transform: scale(0.95);
+}
+
+.badge {
+    display: inline-block;
+    background-color: rgba(16, 185, 129, 0.1); /* Emerald background */
+    color: #10b981; /* Emerald 500 */
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(16, 185, 129, 0.2); /* Emerald border */
+}
