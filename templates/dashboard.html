@@ -1,20 +1,13 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - PerfectLine II</title>
-    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
-</head>
-<body>
-    <div class="badge">Acceso Autorizado</div>
-    <h1>Bienvenido a Perfect<span>Line II</span></h1>
-    <div class="user-info">Sesión iniciada como: <strong>{{ user.username }}</strong></div>
-    
-    <form action="{% url 'logout' %}?next=/login/" method="post">
-        {% csrf_token %}
-        <button type="submit" class="btn-logout">Cerrar Sesión Segura</button>
-    </form>
-</body>
-</html>
+{% extends 'base.html' %}
+
+{% block title %}Inicio - PerfectLine{% endblock %}
+{% block page_title %}Inicio{% endblock %}
+
+{% block content %}
+    <div class="card" style="text-align: center; padding: 4rem 2rem;">
+        <h2 style="margin-bottom: 1rem;">¡Bienvenido de vuelta, {{ user.username }}!</h2>
+        <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto;">
+            El sistema se encuentra operando con normalidad. Selecciona una opción del menú lateral para comenzar.
+        </p>
+    </div>
+{% endblock %}

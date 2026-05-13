@@ -1,0 +1,53 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PerfectLine{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <h2>Perfect<span>Line II</span></h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Inicio</a>
+                <a href="#" class="nav-item">Afiliados</a>
+                <a href="#" class="nav-item">Historial de acceso</a>
+                <a href="#" class="nav-item">Historial de facturas</a>
+                <a href="#" class="nav-item">Enrolamiento</a>
+                <a href="#" class="nav-item">Conf. de planes</a>
+            </nav>
+        </aside>
+
+        <!-- Main Wrapper -->
+        <div class="main-wrapper">
+            <!-- Navbar -->
+            <header class="navbar">
+                <div class="navbar-title">
+                    <h3>{% block page_title %}Dashboard{% endblock %}</h3>
+                </div>
+                <div class="navbar-user">
+                    <span class="user-greeting">Hola, <strong>{{ user.username }}</strong></span>
+                    <form action="{% url 'logout' %}?next=/login/" method="post" style="margin: 0;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger-outline">Cerrar Sesión</button>
+                    </form>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                {% block content %}
+                {% endblock %}
+            </main>
+        </div>
+    </div>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
