@@ -137,6 +137,12 @@ body, html {
     text-align: center;
 }
 
+@media (max-width: 1024px) {
+    .login-box {
+        padding: 2.5rem;
+    }
+}
+
 @media (max-width: 768px) {
     .right-panel {
         display: none;

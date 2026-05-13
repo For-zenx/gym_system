@@ -5,11 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}PerfectLine{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=1.1">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <div class="app-container">
+    <div class="app-container" id="appContainer">
+        <!-- Overlay for mobile sidebar -->
+        <div id="sidebarOverlay" class="sidebar-overlay"></div>
+        
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-brand">
@@ -29,7 +32,8 @@
         <div class="main-wrapper">
             <!-- Navbar -->
             <header class="navbar">
-                <div class="navbar-title">
+                <div class="navbar-title" style="display: flex; align-items: center; gap: 1rem;">
+                    <button id="sidebarToggle" class="btn-icon" style="display: none;">☰</button>
                     <h3>{% block page_title %}Dashboard{% endblock %}</h3>
                 </div>
                 <div class="navbar-user">
@@ -49,5 +53,19 @@
         </div>
     </div>
     {% block extra_js %}{% endblock %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            const appContainer = document.getElementById('appContainer');
+
+            function toggleSidebar() {
+                appContainer.classList.toggle('sidebar-open');
+            }
+
+            if (sidebarToggle) sidebarToggle.addEventListener('click', toggleSidebar);
+            if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
+        });
+    </script>
 </body>
 </html>
