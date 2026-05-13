@@ -209,3 +209,65 @@ h1, h2, h3, h4, h5, h6 {
     padding: 2rem;
     overflow-y: auto;
 }
+
+/* --- Responsive & Interactive Components --- */
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 5;
+    display: none;
+    backdrop-filter: blur(2px);
+}
+
+.sidebar-open .sidebar-overlay {
+    display: block;
+}
+
+/* Media Queries */
+@media (max-width: 1024px) {
+    :root {
+        --sidebar-width: 220px;
+    }
+    .content-area {
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        box-shadow: var(--shadow-lg);
+    }
+    
+    .sidebar-open .sidebar {
+        transform: translateX(0);
+    }
+
+    .navbar-title .btn-icon {
+        display: block !important;
+    }
+    
+    .content-area {
+        padding: 1rem;
+    }
+}
