@@ -62,7 +62,7 @@
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         window.DASHBOARD_WS_URL = wsScheme + "://" + window.location.host + "/ws/dashboard/";
     </script>
-    <script src="{% static 'js/dashboard_ws.js' %}?v=1.1"></script>
+    <script src="{% static 'js/dashboard_ws.js' %}?v=1.2"></script>
     
     {% block extra_js %}{% endblock %}
     

@@ -42,7 +42,15 @@ class TabletConsumer(AsyncWebsocketConsumer):
         if message_type == "FRAME":
             await self._handle_frame(payload)
         elif message_type == "ENROLLMENT_PHOTO":
-            await self._handle_enrollment_photo(payload)
+            # Reenviar al dashboard para previsualización
+            await self.channel_layer.group_send(
+                DASHBOARD_GROUP,
+                {
+                    "type": "enrollment_photo_forward",
+                    "photoType": payload.get("photoType"),
+                    "image": payload.get("image")
+                }
+            )
         else:
             logger.warning("Tipo de mensaje desconocido recibido: %s", message_type)
             await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{message_type}'"}))
@@ -135,6 +143,8 @@ class TabletConsumer(AsyncWebsocketConsumer):
         else:
             await self.send(json.dumps(data))
 
+    async def enrollment_photo_forward(self, event):
+        pass
 
 class DashboardConsumer(AsyncWebsocketConsumer):
     """
@@ -177,4 +187,12 @@ class DashboardConsumer(AsyncWebsocketConsumer):
         # comandos (ej. ENROLLMENT_START). Como estos comandos son para la tablet,
         # simplemente los ignoramos en la PC para evitar el error "No handler".
         pass
+
+    async def enrollment_photo_forward(self, event):
+        # Enviar la foto recibida desde la tablet al frontend de la PC
+        await self.send(json.dumps({
+            "type": "ENROLLMENT_PHOTO",
+            "photoType": event.get("photoType"),
+            "image": event.get("image")
+        }))
 
