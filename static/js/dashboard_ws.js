@@ -33,6 +33,7 @@ function connectDashboardWebSocket() {
                 } else {
                     setTabletOffline();
                 }
+                window.dispatchEvent(new CustomEvent('tabletStatusChanged', { detail: { online: data.online } }));
             }
         } catch (err) {
             console.error('[Dashboard] Error parseando mensaje:', event.data);

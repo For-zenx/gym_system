@@ -1,0 +1,100 @@
+.enrollment-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.form-section, .camera-section {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+.camera-section {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 2px dashed var(--border-color);
+}
+
+.photo-slots {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+    max-width: 450px; /* Contiene el ancho para que el aspect-ratio no lo haga gigante */
+    margin-top: 1.5rem;
+}
+
+.photo-slot {
+    flex: 1;
+    aspect-ratio: 3/4;
+    background-color: #1e293b; /* slate-800 */
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    overflow: hidden;
+}
+
+.photo-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.form-group input {
+    width: 100%;
+    box-sizing: border-box; /* Evita que el padding sume al ancho total del 100% */
+    padding: 0.75rem 1rem;
+    background-color: #0f172a;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 1rem;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #10b981;
+}
+
+.offline-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(15, 23, 42, 0.9);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    text-align: center;
+    padding: 2rem;
+    opacity: 1; /* Oculto por defecto usando JS, aquí inicia visible hasta que enganche */
+    transition: opacity 0.3s;
+}
+
+.offline-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}

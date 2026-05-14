@@ -7,9 +7,8 @@ class Client(models.Model):
     telefono = models.CharField("Teléfono", max_length=20, blank=True, null=True)
     codigo_afiliado = models.CharField("Cód. Afiliado", max_length=20, unique=True)
     fecha_ingreso = models.DateField(auto_now_add=True)
-    foto = models.ImageField(upload_to='clients/photos/', blank=True, null=True)
 
-    # Las 3 fotos de enrolamiento son el insumo del ai_engine; foto es solo para display.
+    # Las 3 fotos de enrolamiento son el insumo del ai_engine; foto_frente se usa también para display en UI.
     foto_frente = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
     foto_perfil_izq = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
     foto_perfil_der = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)

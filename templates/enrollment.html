@@ -1,41 +1,116 @@
 {% extends 'base.html' %}
 
-{% block title %}Enrolamiento — PerfectLine II{% endblock %}
+{% block title %}Alta de Nuevo Afiliado — PerfectLine II{% endblock %}
 {% block page_title %}Enrolamiento de Nuevo Afiliado{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=1.0">
+{% endblock %}
+
 {% block content %}
-<div class="card" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 3rem 1rem;">
-    <h2>Modo Enrolamiento Activo</h2>
-    <p style="color: var(--text-muted); margin-top: 1rem;">
-        La tablet de acceso acaba de cambiar a "Modo Enrolamiento".<br>
-        En las próximas tareas, aquí construiremos el formulario completo de registro y veremos las fotos en tiempo real.
-    </p>
+<div class="enrollment-container">
     
-    <div style="margin-top: 3rem;">
-        <a href="{% url 'dashboard' %}" class="btn btn-primary">Volver al Inicio</a>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Al salir de esta página, la tablet volverá a Modo Normal.</p>
+    <!-- Sección Superior: Cámara y Fotos -->
+    <div class="camera-section">
+        
+        <!-- Overlay de Error de Conexión -->
+        <div id="tablet-offline-overlay" class="offline-overlay">
+            <span style="font-size: 3rem; margin-bottom: 1rem;">📡</span>
+            <h3 style="color: #ef4444; margin-bottom: 0.5rem;">Tablet Desconectada</h3>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem; max-width: 350px;">
+                Se ha perdido la conexión con la tablet de enrolamiento o está apagada.
+            </p>
+            <button type="button" class="btn btn-primary" onclick="reconnectTablet()" style="padding: 0.75rem 1.5rem;">Intentar Reconectar</button>
+        </div>
+
+        <div style="text-align: center; z-index: 5;">
+            <div style="display: inline-block; padding: 0.5rem 1rem; background-color: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 9999px; font-weight: 600; font-size: 0.85rem; margin-bottom: 1rem;">
+                CÁMARA DE ENROLAMIENTO
+            </div>
+            <p style="color: var(--text-muted); max-width: 400px; margin: 0 auto;">
+                Pídele al usuario que se pare frente a la tablet.
+            </p>
+        </div>
+
+        <div class="photo-slots" style="z-index: 5;">
+            <div class="photo-slot">
+                <span>Frente</span>
+            </div>
+            <div class="photo-slot">
+                <span>Perfil Izq</span>
+            </div>
+            <div class="photo-slot">
+                <span>Perfil Der</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección Inferior: Datos del Afiliado -->
+    <div class="form-section">
+        <h2 style="margin-bottom: 1.5rem; color: #10b981;">Datos del Afiliado</h2>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div style="padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; background-color: {% if message.tags == 'error' %}rgba(239, 68, 68, 0.1){% else %}rgba(16, 185, 129, 0.1){% endif %}; color: {% if message.tags == 'error' %}#ef4444{% else %}#10b981{% endif %}; border: 1px solid currentColor;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="POST" action="{% url 'enrollment' %}">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="cedula">Cédula de Identidad</label>
+                <input type="text" id="cedula" name="cedula" required placeholder="Ej: V-12345678">
+            </div>
+            
+            <div class="form-group">
+                <label for="nombre">Nombre Completo</label>
+                <input type="text" id="nombre" name="nombre" required placeholder="Ej: Juan Pérez">
+            </div>
+            
+            <div class="form-group">
+                <label for="telefono">Teléfono (Opcional)</label>
+                <input type="text" id="telefono" name="telefono" placeholder="Ej: 0414-1234567">
+            </div>
+            
+            <div style="margin-top: 2rem;">
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem;">Guardar Afiliado</button>
+                <a href="{% url 'dashboard' %}" class="btn" style="width: 100%; text-align: center; margin-top: 1rem; display: inline-block;">Cancelar y Volver</a>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Esta página tiene un comportamiento especial:
-    // Al cargar, enciende el modo enrolamiento en la tablet.
-    // Al salir, apaga el modo enrolamiento en la tablet.
+    const offlineOverlay = document.getElementById('tablet-offline-overlay');
+
+    // Escuchar el evento personalizado de dashboard_ws.js
+    window.addEventListener('tabletStatusChanged', (e) => {
+        if (e.detail.online) {
+            offlineOverlay.classList.add('hidden');
+        } else {
+            offlineOverlay.classList.remove('hidden');
+        }
+    });
+
+    function reconnectTablet() {
+        window.sendDashboardCommand({ type: "ENROLLMENT_START" });
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
-        // Le damos 500ms al WebSocket del dashboard para que conecte primero
         setTimeout(() => {
             window.sendDashboardCommand({ type: "ENROLLMENT_START" });
-            console.log("Enrolamiento iniciado.");
+            console.log("Comando de Enrolamiento enviado.");
         }, 500);
     });
 
     window.addEventListener('beforeunload', () => {
-        // Apaga la tablet justo antes de que el navegador cambie de página
         window.sendDashboardCommand({ type: "ENROLLMENT_END" });
-        console.log("Enrolamiento finalizado.");
+        console.log("Comando de fin de Enrolamiento enviado.");
     });
 </script>
 {% endblock %}
