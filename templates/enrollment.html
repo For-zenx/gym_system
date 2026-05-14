@@ -36,12 +36,15 @@
         <div class="photo-slots" style="z-index: 5;">
             <div class="photo-slot">
                 <span>Frente</span>
+                <img id="img-frente" src="" alt="Frente" style="display: none; width: 100%; height: 100%; object-fit: cover;">
             </div>
             <div class="photo-slot">
                 <span>Perfil Izq</span>
+                <img id="img-perfil-izq" src="" alt="Perfil Izquierdo" style="display: none; width: 100%; height: 100%; object-fit: cover;">
             </div>
             <div class="photo-slot">
                 <span>Perfil Der</span>
+                <img id="img-perfil-der" src="" alt="Perfil Derecho" style="display: none; width: 100%; height: 100%; object-fit: cover;">
             </div>
         </div>
     </div>
@@ -60,6 +63,10 @@
 
         <form method="POST" action="{% url 'enrollment' %}">
             {% csrf_token %}
+            <!-- Inputs ocultos para las fotos en Base64 -->
+            <input type="hidden" name="foto_frente_base64" id="input-foto-frente">
+            <input type="hidden" name="foto_perfil_izq_base64" id="input-foto-perfil-izq">
+            <input type="hidden" name="foto_perfil_der_base64" id="input-foto-perfil-der">
             
             <div class="form-group">
                 <label for="cedula">Cédula de Identidad</label>
@@ -101,6 +108,33 @@
         }
     });
 
+    // Escuchar fotos entrantes desde la tablet
+    window.addEventListener('enrollmentPhotoReceived', (e) => {
+        const { photoType, image } = e.detail;
+        let imgId = '';
+        let inputId = '';
+        
+        if (photoType === 'FRONT') {
+            imgId = 'img-frente';
+            inputId = 'input-foto-frente';
+        } else if (photoType === 'LEFT') {
+            imgId = 'img-perfil-izq';
+            inputId = 'input-foto-perfil-izq';
+        } else if (photoType === 'RIGHT') {
+            imgId = 'img-perfil-der';
+            inputId = 'input-foto-perfil-der';
+        }
+
+        if (imgId && inputId) {
+            const imgElement = document.getElementById(imgId);
+            imgElement.src = image;
+            imgElement.style.display = 'block';
+            imgElement.previousElementSibling.style.display = 'none'; // Ocultar el span de texto
+            
+            document.getElementById(inputId).value = image;
+        }
+    });
+
     function reconnectTablet() {
         window.sendDashboardCommand({ type: "ENROLLMENT_START" });
     }
@@ -124,7 +158,21 @@
             console.log("Pestaña visible. Enrolamiento reanudado.");
             
             if (wasHidden) {
-                // Aquí a futuro limpiaremos las fotos si el proceso quedó a medias
+                // Limpiar las fotos ya que la tablet reiniciará el proceso
+                const slots = ['frente', 'perfil-izq', 'perfil-der'];
+                slots.forEach(slot => {
+                    const img = document.getElementById(`img-${slot}`);
+                    const input = document.getElementById(`input-foto-${slot}`);
+                    if (img && input) {
+                        img.src = '';
+                        img.style.display = 'none';
+                        if (img.previousElementSibling) {
+                            img.previousElementSibling.style.display = 'block'; // Mostrar span (Frente, Perfil...)
+                        }
+                        input.value = '';
+                    }
+                });
+
                 alert("Has vuelto a la pestaña de enrolamiento.\n\nLa cámara de la tablet se ha reiniciado por seguridad. Si estabas en medio de la captura de fotos, deberás tomarlas nuevamente. Los datos de texto están a salvo.");
                 wasHidden = false;
             }

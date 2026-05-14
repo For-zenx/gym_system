@@ -176,7 +176,14 @@ function capturarFoto(tipoFoto) {
     const dataURL = canvas.toDataURL('image/jpeg', 0.85);
     console.log(`[Tablet] 📸 Captura en memoria exitosa (${tipoFoto}). Peso aprox: ${Math.round(dataURL.length/1024)} KB`);
     
-    // En el futuro (TASK-012), aquí acumularemos las fotos y las enviaremos
+    // Enviar foto al Dashboard a través del servidor
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            type: 'ENROLLMENT_PHOTO',
+            photoType: tipoFoto,
+            image: dataURL
+        }));
+    }
 }
 
 // ─────────────────────────────────────────────
