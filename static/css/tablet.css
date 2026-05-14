@@ -28,6 +28,17 @@ html, body {
     transform: scaleX(-1); /* Corrige el efecto espejo */
 }
 
+#overlay-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2; /* Encima del video, debajo de la UI */
+    pointer-events: none; /* Dejar pasar los clicks */
+    transform: scaleX(-1); /* Alinear con el espejo del video */
+}
+
 /* --- Overlays (sobre el video) --- */
 .overlay {
     position: fixed;
@@ -79,43 +90,87 @@ html, body {
     background-color: #ef4444; /* Rojo: desconectado */
 }
 
-/* Panel central: instrucción de modo */
-#overlay-mode {
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    background-color: rgba(15, 23, 42, 0.85); /* Slate oscuro muy notorio */
-    opacity: 0;    /* Oculto en reposo */
+/* --- UI Enrolamiento: Foco --- */
+.focus-frame {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border-left: 20vw solid rgba(0, 0, 0, 0.75);
+    border-right: 20vw solid rgba(0, 0, 0, 0.75);
+    z-index: 3;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease, border-width 0.4s ease;
 }
 
-#overlay-mode.visible {
+.focus-frame.active {
     opacity: 1;
 }
 
-#mode-badge {
-    display: inline-block;
-    background-color: rgba(16, 185, 129, 0.15);
-    border: 1px solid rgba(16, 185, 129, 0.4);
-    color: #10b981;
-    font-size: 0.875rem;
-    font-weight: 600;
-    padding: 0.35rem 1rem;
-    border-radius: 9999px;
-    margin-bottom: 1rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+@media (max-width: 768px) {
+    .focus-frame {
+        border-left-width: 5vw;
+        border-right-width: 5vw;
+    }
 }
 
-#mode-instruction {
-    font-size: 2.5rem;
-    font-weight: 700;
-    text-shadow: 0 4px 16px rgba(0,0,0,0.9);
-    max-width: 600px;
-    line-height: 1.2;
+/* --- UI Enrolamiento: HUD Burbuja Inferior --- */
+.hud-bubble {
+    position: fixed;
+    bottom: 3rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 1rem 2.5rem;
+    border-radius: 9999px;
+    z-index: 4;
+    font-size: 1.25rem;
+    font-weight: 600;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 15px rgba(16, 185, 129, 0.2);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.hud-bubble.hidden {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    pointer-events: none;
+}
+
+/* --- UI Enrolamiento: Flechas Animadas --- */
+.nav-arrow {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 4;
+    color: rgba(255, 255, 255, 0.9);
+    width: 100px;
+    height: 100px;
+    filter: drop-shadow(0 0 10px rgba(0,0,0,0.8));
+    transition: opacity 0.3s ease;
+}
+
+.nav-arrow.hidden {
+    opacity: 0;
+}
+
+.arrow-left {
+    left: 5%;
+    animation: bounceLeft 1.5s infinite;
+}
+
+.arrow-right {
+    right: 5%;
+    animation: bounceRight 1.5s infinite;
+}
+
+@keyframes bounceLeft {
+    0%, 100% { transform: translateY(-50%) translateX(0); }
+    50% { transform: translateY(-50%) translateX(-30px); }
+}
+
+@keyframes bounceRight {
+    0%, 100% { transform: translateY(-50%) translateX(0); }
+    50% { transform: translateY(-50%) translateX(30px); }
 }
