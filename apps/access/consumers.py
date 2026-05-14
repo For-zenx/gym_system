@@ -129,4 +129,52 @@ class TabletConsumer(AsyncWebsocketConsumer):
         pass
 
     async def dashboard_message(self, event):
-        await self.send(json.dumps(event.get("data", {})))
+        data = event.get("data", {})
+        if data.get("type") == "TABLET_STATUS_REQUEST":
+            await self.channel_layer.group_send(DASHBOARD_GROUP, {"type": "tablet_status", "online": True})
+        else:
+            await self.send(json.dumps(data))
+
+
+class DashboardConsumer(AsyncWebsocketConsumer):
+    """
+    WebSocket pasivo para la interfaz administrativa (PC).
+    """
+    async def connect(self):
+        await self.accept()
+        await self.channel_layer.group_add(DASHBOARD_GROUP, self.channel_name)
+        logger.info("Dashboard (PC) conectado. Canal: %s", self.channel_name)
+        
+        # Al conectarse, preguntamos al grupo si hay alguna tablet conectada
+        await self.channel_layer.group_send(
+            DASHBOARD_GROUP, 
+            {"type": "dashboard_message", "data": {"type": "TABLET_STATUS_REQUEST"}}
+        )
+
+    async def disconnect(self, code):
+        await self.channel_layer.group_discard(DASHBOARD_GROUP, self.channel_name)
+        logger.info("Dashboard (PC) desconectado. Canal: %s", self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        try:
+            payload = json.loads(text_data)
+            await self.channel_layer.group_send(
+                DASHBOARD_GROUP,
+                {"type": "dashboard_message", "data": payload}
+            )
+        except Exception as e:
+            logger.error("Error procesando mensaje desde Dashboard: %s", e)
+
+    async def tablet_status(self, event):
+        # Cuando la tablet cambia de estado, notificamos a la PC
+        await self.send(json.dumps({
+            "type": "tablet_status",
+            "online": event.get("online", False)
+        }))
+
+    async def dashboard_message(self, event):
+        # Este consumidor también está en el grupo 'dashboard', por lo que recibe los
+        # comandos (ej. ENROLLMENT_START). Como estos comandos son para la tablet,
+        # simplemente los ignoramos en la PC para evitar el error "No handler".
+        pass
+

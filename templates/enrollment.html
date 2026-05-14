@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}Enrolamiento — PerfectLine II{% endblock %}
+{% block page_title %}Enrolamiento de Nuevo Afiliado{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 3rem 1rem;">
+    <h2>Modo Enrolamiento Activo</h2>
+    <p style="color: var(--text-muted); margin-top: 1rem;">
+        La tablet de acceso acaba de cambiar a "Modo Enrolamiento".<br>
+        En las próximas tareas, aquí construiremos el formulario completo de registro y veremos las fotos en tiempo real.
+    </p>
+    
+    <div style="margin-top: 3rem;">
+        <a href="{% url 'dashboard' %}" class="btn btn-primary">Volver al Inicio</a>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Al salir de esta página, la tablet volverá a Modo Normal.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Esta página tiene un comportamiento especial:
+    // Al cargar, enciende el modo enrolamiento en la tablet.
+    // Al salir, apaga el modo enrolamiento en la tablet.
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Le damos 500ms al WebSocket del dashboard para que conecte primero
+        setTimeout(() => {
+            window.sendDashboardCommand({ type: "ENROLLMENT_START" });
+            console.log("Enrolamiento iniciado.");
+        }, 500);
+    });
+
+    window.addEventListener('beforeunload', () => {
+        // Apaga la tablet justo antes de que el navegador cambie de página
+        window.sendDashboardCommand({ type: "ENROLLMENT_END" });
+        console.log("Enrolamiento finalizado.");
+    });
+</script>
+{% endblock %}

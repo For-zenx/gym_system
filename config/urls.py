@@ -27,6 +27,7 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('', core_views.dashboard, name='dashboard'),
+    path('enrolamiento/', core_views.enrollment, name='enrollment'),
     path('tablet/', access_views.tablet_view, name='tablet'),
 ]
 
