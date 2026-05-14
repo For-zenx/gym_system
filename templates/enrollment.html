@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Alta de Nuevo Afiliado — PerfectLine II{% endblock %}
 {% block page_title %}Enrolamiento de Nuevo Afiliado{% endblock %}
@@ -92,6 +93,9 @@
     window.addEventListener('tabletStatusChanged', (e) => {
         if (e.detail.online) {
             offlineOverlay.classList.add('hidden');
+            if (document.visibilityState === 'visible') {
+                reconnectTablet();
+            }
         } else {
             offlineOverlay.classList.remove('hidden');
         }
@@ -106,6 +110,25 @@
             window.sendDashboardCommand({ type: "ENROLLMENT_START" });
             console.log("Comando de Enrolamiento enviado.");
         }, 500);
+    });
+
+    // CASO 2: Manejo de múltiples pestañas (API de Visibilidad)
+    let wasHidden = false;
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+            window.sendDashboardCommand({ type: "ENROLLMENT_END" });
+            wasHidden = true;
+            console.log("Pestaña oculta. Enrolamiento pausado.");
+        } else {
+            window.sendDashboardCommand({ type: "ENROLLMENT_START" });
+            console.log("Pestaña visible. Enrolamiento reanudado.");
+            
+            if (wasHidden) {
+                // Aquí a futuro limpiaremos las fotos si el proceso quedó a medias
+                alert("Has vuelto a la pestaña de enrolamiento.\n\nLa cámara de la tablet se ha reiniciado por seguridad. Si estabas en medio de la captura de fotos, deberás tomarlas nuevamente. Los datos de texto están a salvo.");
+                wasHidden = false;
+            }
+        }
     });
 
     window.addEventListener('beforeunload', () => {
