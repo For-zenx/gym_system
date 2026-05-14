@@ -7,16 +7,18 @@
     <title>PerfectLine II — Acceso</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=1.1">
+    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=1.4">
 </head>
 <body>
 
     <!-- Cámara: capa base fullscreen -->
     <video id="camera-feed" autoplay playsinline muted></video>
+    <!-- Canvas para dibujar los landmarks de la IA -->
+    <canvas id="overlay-canvas"></canvas>
 
     <!-- Overlay: nombre del sistema (esquina superior izquierda) -->
     <div id="overlay-brand" class="overlay">
-        Perfect<span>Line II</span> | <span id="current-mode-text" style="color: #6b7280; font-size: 1rem; font-weight: 600;">MODO NORMAL</span>
+        Perfect<span>Line II</span>
     </div>
 
     <!-- Overlay: estado de conexión (esquina superior derecha) -->
@@ -25,10 +27,20 @@
         <span id="status-text">Conectando...</span>
     </div>
 
-    <!-- Overlay: modo activo (centro de la pantalla, oculto en reposo) -->
-    <div id="overlay-mode" class="overlay">
-        <div id="mode-badge">Enrolamiento</div>
-        <p id="mode-instruction">Modo Enrolamiento activado</p>
+    <!-- UI Enrolamiento: Marco de Enfoque Oscuro -->
+    <div id="focus-frame" class="focus-frame"></div>
+
+    <!-- UI Enrolamiento: Flechas de Dirección (SVG) -->
+    <div id="arrow-left" class="nav-arrow arrow-left hidden">
+        <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+    </div>
+    <div id="arrow-right" class="nav-arrow arrow-right hidden">
+        <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+    </div>
+
+    <!-- UI Enrolamiento: HUD de Instrucciones -->
+    <div id="hud-instruction" class="hud-bubble hidden">
+        <span id="hud-text">Cargando...</span>
     </div>
 
     <!-- Inyectar la URL del WebSocket desde Django al contexto JS -->
