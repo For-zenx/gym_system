@@ -1,0 +1,120 @@
+/* tablet.css — Hoja de estilos exclusiva de la interfaz de la tablet */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #000;
+    font-family: 'Inter', sans-serif;
+    color: #fff;
+    user-select: none;
+}
+
+/* --- Video Feed --- */
+#camera-feed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+}
+
+/* --- Overlays (sobre el video) --- */
+.overlay {
+    position: fixed;
+    z-index: 10;
+    pointer-events: none; /* No interfieren con la cámara */
+    transition: opacity 0.5s ease;
+}
+
+/* Esquina superior izquierda: nombre del sistema */
+#overlay-brand {
+    top: 1.5rem;
+    left: 1.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    opacity: 0.85;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
+
+#overlay-brand span {
+    color: #10b981; /* Emerald — coherente con la marca */
+}
+
+/* Indicador de estado WebSocket: esquina superior derecha */
+#overlay-status {
+    top: 1.5rem;
+    right: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    opacity: 0.7;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
+
+#status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #6b7280; /* Gris: estado inicial */
+    transition: background-color 0.3s ease;
+}
+
+#status-dot.connected {
+    background-color: #10b981; /* Emerald: conectado */
+}
+
+#status-dot.disconnected {
+    background-color: #ef4444; /* Rojo: desconectado */
+}
+
+/* Panel central: instrucción de modo */
+#overlay-mode {
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background-color: rgba(15, 23, 42, 0.85); /* Slate oscuro muy notorio */
+    opacity: 0;    /* Oculto en reposo */
+}
+
+#overlay-mode.visible {
+    opacity: 1;
+}
+
+#mode-badge {
+    display: inline-block;
+    background-color: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #10b981;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.35rem 1rem;
+    border-radius: 9999px;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#mode-instruction {
+    font-size: 2.5rem;
+    font-weight: 700;
+    text-shadow: 0 4px 16px rgba(0,0,0,0.9);
+    max-width: 600px;
+    line-height: 1.2;
+}

@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PerfectLine II — Acceso</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=1.1">
+</head>
+<body>
+
+    <!-- Cámara: capa base fullscreen -->
+    <video id="camera-feed" autoplay playsinline muted></video>
+
+    <!-- Overlay: nombre del sistema (esquina superior izquierda) -->
+    <div id="overlay-brand" class="overlay">
+        Perfect<span>Line II</span> | <span id="current-mode-text" style="color: #6b7280; font-size: 1rem; font-weight: 600;">MODO NORMAL</span>
+    </div>
+
+    <!-- Overlay: estado de conexión (esquina superior derecha) -->
+    <div id="overlay-status" class="overlay">
+        <div id="status-dot"></div>
+        <span id="status-text">Conectando...</span>
+    </div>
+
+    <!-- Overlay: modo activo (centro de la pantalla, oculto en reposo) -->
+    <div id="overlay-mode" class="overlay">
+        <div id="mode-badge">Enrolamiento</div>
+        <p id="mode-instruction">Modo Enrolamiento activado</p>
+    </div>
+
+    <!-- Inyectar la URL del WebSocket desde Django al contexto JS -->
+    <script>
+        window.TABLET_WS_URL = "{{ ws_url }}";
+    </script>
+    <script src="{% static 'js/tablet.js' %}?v=1.1"></script>
+
+</body>
+</html>
