@@ -5,6 +5,7 @@ import base64
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from apps.clients.models import Client
+from apps.access import ai_engine
 
 def get_next_codigo_afiliado():
     last_client = Client.objects.order_by('id').last()
@@ -84,7 +85,13 @@ def enrollment(request):
             if perfil_der_file: client.foto_perfil_der = perfil_der_file
             
             client.save()
-            messages.success(request, f"Afiliado {nombre} {msg_action} exitosamente.")
+            
+            try:
+                ai_engine.update_client_embeddings(client)
+                messages.success(request, f"Afiliado {nombre} {msg_action} exitosamente y procesado por IA.")
+            except Exception as e:
+                messages.warning(request, f"Afiliado {nombre} {msg_action}, pero falló el procesamiento de IA: {str(e)}")
+
             return redirect('dashboard')
         except Exception as e:
             messages.error(request, f"Error al guardar: {str(e)}")

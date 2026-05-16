@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 TOLERANCE = 0.5
 
 
+import io
+from PIL import Image
+
 def _decode_base64_to_rgb(base64_string: str) -> np.ndarray:
     if "," in base64_string:
         base64_string = base64_string.split(",", 1)[1]
@@ -21,13 +24,12 @@ def _decode_base64_to_rgb(base64_string: str) -> np.ndarray:
     except Exception as exc:
         raise ValueError(f"Base64 inválido: {exc}") from exc
 
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    bgr_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-
-    if bgr_image is None:
-        raise ValueError("Los bytes decodificados no forman una imagen válida.")
-
-    return cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+        image = image.convert("RGB")
+        return np.array(image)
+    except Exception as exc:
+        raise ValueError(f"Error procesando la imagen con PIL: {exc}")
 
 
 def generate_embedding(image_path: Path) -> list:
@@ -71,14 +73,18 @@ def update_client_embeddings(client) -> None:
         try:
             embeddings.append(generate_embedding(image_path))
             logger.info("Embedding generado para %s - %s", client.nombre, field_name)
-        except (ValueError, FileNotFoundError) as exc:
-            logger.error("Error al procesar %s del afiliado %s: %s", field_name, client.nombre, exc)
+        except ValueError as exc:
+            logger.warning("IA ignoró %s para %s (Rostro no detectable): %s", field_name, client.nombre, exc)
+        except FileNotFoundError as exc:
+            logger.error("Archivo físico no encontrado para %s de %s: %s", field_name, client.nombre, exc)
             raise
+
+    if not embeddings:
+        raise ValueError(f"No se pudo detectar un rostro en NINGUNA de las 3 fotos del afiliado {client.nombre}.")
 
     client.face_id_embeddings = np.mean(np.array(embeddings), axis=0).tolist()
     client.save(update_fields=["face_id_embeddings"])
-    logger.info("Embedding actualizado para afiliado: %s", client.nombre)
-
+    logger.info("Embedding promedio actualizado para afiliado: %s", client.nombre)
 
 def recognize_face(base64_image: str):
     """
