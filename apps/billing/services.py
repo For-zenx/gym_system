@@ -5,7 +5,7 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import Membership, Invoice, ExchangeRate
 
-def register_membership_renewal(client, plan, nro_control, monto_ves=None):
+def register_membership_renewal(client, plan, nro_control=None, monto_ves=None):
     """
     Registra administrativamente la renovación.
     Si monto_ves es None, lo calcula usando la tasa más reciente.
@@ -37,7 +37,11 @@ def register_membership_renewal(client, plan, nro_control, monto_ves=None):
         invoice = Invoice.objects.create(
             membership=membership,
             monto_total=monto_ves,
-            nro_control=nro_control
+            nro_control=nro_control or "PENDING"
         )
+        
+        if not nro_control:
+            invoice.nro_control = f"F-{timezone.now().strftime('%Y%m%d')}-{invoice.pk:05d}"
+            invoice.save(update_fields=['nro_control'])
 
         return membership, invoice

@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Perfil: {{ client.nombre }} - PerfectLine{% endblock %}
+{% block page_title %}Perfil del Afiliado{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=1.0">
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" style="padding: 1rem; background: rgba(16,185,129,0.1); border-left: 4px solid var(--success); color: var(--success); margin-bottom: 1rem; border-radius: 6px;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="profile-header {% if membership %}{% if membership.es_valida %}status-active{% else %}status-expired{% endif %}{% endif %}">
+        
+        <div class="profile-avatar-container">
+            {% if client.foto_frente %}
+                <img src="{{ client.foto_frente.url }}" alt="Foto" class="profile-avatar">
+            {% else %}
+                <span style="color: var(--text-muted); font-weight: 600;">Sin Foto</span>
+            {% endif %}
+        </div>
+        
+        <div class="profile-info-wrapper">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h1>{{ client.nombre }}</h1>
+                    <div class="cedula">C.I: {{ client.cedula }} | Cód: {{ client.codigo_afiliado }} | Tlf: {{ client.telefono|default:"N/A" }}</div>
+                </div>
+                <button class="btn btn-secondary" onclick="openEditModal()">
+                    <svg style="width:16px;height:16px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    Editar Datos
+                </button>
+            </div>
+            
+            <div style="margin-top: 1.5rem;">
+                {% if membership %}
+                    {% if membership.es_valida %}
+                        <span class="status-pill active">Plan Activo</span>
+                    {% else %}
+                        <span class="status-pill expired">Plan Vencido</span>
+                    {% endif %}
+                {% else %}
+                    <span class="status-pill none">Sin Plan Asignado</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="profile-content">
+        <!-- Columna Izquierda: Membresía -->
+        <div class="card membership-card" style="height: fit-content;">
+            <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem;">Estado de Membresía</h3>
+            
+            {% if membership %}
+                <div class="plan-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Plan Actual</span>
+                        <span class="detail-value">{{ membership.plan.nombre }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Fecha de Inicio</span>
+                        <span class="detail-value">{{ membership.fecha_inicio|date:"d/m/Y" }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Vencimiento</span>
+                        <span class="detail-value" style="{% if not membership.es_valida %}color: var(--danger);{% endif %}">{{ membership.fecha_fin|date:"d/m/Y" }}</span>
+                    </div>
+                </div>
+                
+                <button class="btn-renew" onclick="openRenewModal()">Renovar Plan</button>
+            {% else %}
+                <div style="text-align: center; padding: 2rem 0;">
+                    <svg style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <p style="color: var(--text-muted); margin-bottom: 2rem;">Este afiliado no tiene un plan activo.</p>
+                    <button class="btn-renew" onclick="openRenewModal()">Asignar Primer Plan</button>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Columna Derecha: Historial -->
+        <div class="card history-card">
+            <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem;">Historial de Facturación</h3>
+            {% if invoices %}
+                <ul class="invoice-list">
+                    {% for invoice in invoices %}
+                    <li class="invoice-item">
+                        <div class="invoice-info">
+                            <strong>{{ invoice.nro_control }}</strong>
+                            <span>{{ invoice.fecha_emision|date:"d/m/Y H:i" }} - {{ invoice.membership.plan.nombre }}</span>
+                        </div>
+                        <div style="display: flex; gap: 1.5rem; align-items: center;">
+                            <span class="invoice-amount">Bs {{ invoice.monto_total }}</span>
+                            <button class="btn btn-primary-outline">Imprimir</button>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div style="text-align: center; padding: 3rem 0; color: var(--text-muted);">
+                    No hay facturas registradas para este afiliado.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Renovación -->
+<div class="modal-overlay" id="renewModal">
+    <div class="modal-content">
+        <h2>{% if membership %}Renovar Plan{% else %}Asignar Plan{% endif %}</h2>
+        <form method="POST" action="{% url 'billing:renew_plan' client.codigo_afiliado %}">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="plan_id">Seleccione el Plan</label>
+                <select name="plan_id" id="plan_id" required onchange="updatePrice()">
+                    <option value="" disabled selected>-- Seleccione un plan disponible --</option>
+                    {% for plan in planes %}
+                        <option value="{{ plan.id }}" data-usd="{{ plan.precio_usd|stringformat:'f' }}">{{ plan.nombre }} ({{ plan.dias_duracion }} días)</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="price-preview">
+                <div class="usd" id="price_usd">Precio: $0.00</div>
+                <div class="ves" id="price_ves">Bs 0.00</div>
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem;">
+                    Tasa del día: {{ latest_rate.tasa_ves|default:"No Configurada" }} Bs/$
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeRenewModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnConfirm" disabled style="padding: 0.75rem 2rem; font-size: 1rem;">Generar Factura</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal de Edición -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-content">
+        <h2>Editar Datos Personales</h2>
+        <form method="POST" action="{% url 'clients:edit_client' client.codigo_afiliado %}">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="nombre">Nombre Completo</label>
+                <input type="text" id="nombre" name="nombre" value="{{ client.nombre }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="cedula">Cédula o Pasaporte</label>
+                <input type="text" id="cedula" name="cedula" value="{{ client.cedula }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="telefono">Número de Teléfono</label>
+                <input type="text" id="telefono" name="telefono" value="{{ client.telefono|default:'' }}">
+            </div>
+            
+            <div class="modal-actions" style="margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1rem;">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
+    const tasaDia = parseFloat(tasaDiaStr);
+
+    function openRenewModal() {
+        if (tasaDia <= 0 || isNaN(tasaDia)) {
+            alert("Atención: No hay una tasa de cambio configurada en el sistema para el día de hoy.");
+            return;
+        }
+        document.getElementById('renewModal').classList.add('show');
+    }
+
+    function closeRenewModal() {
+        document.getElementById('renewModal').classList.remove('show');
+        document.getElementById('plan_id').value = "";
+        updatePrice();
+    }
+
+    function openEditModal() {
+        document.getElementById('editModal').classList.add('show');
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').classList.remove('show');
+    }
+
+    function updatePrice() {
+        const select = document.getElementById('plan_id');
+        const btnConfirm = document.getElementById('btnConfirm');
+        
+        if (!select.value) {
+            document.getElementById('price_usd').textContent = "Precio: $0.00";
+            document.getElementById('price_ves').textContent = "Bs 0.00";
+            btnConfirm.disabled = true;
+            return;
+        }
+        
+        const option = select.options[select.selectedIndex];
+        const priceUsd = parseFloat(option.getAttribute('data-usd').replace(',', '.'));
+        const priceVes = priceUsd * tasaDia;
+        
+        document.getElementById('price_usd').textContent = `Precio: $${priceUsd.toFixed(2)}`;
+        document.getElementById('price_ves').textContent = `Bs ${priceVes.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        
+        btnConfirm.disabled = false;
+    }
+</script>
+{% endblock %}
