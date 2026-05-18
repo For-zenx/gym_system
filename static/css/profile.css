@@ -16,7 +16,7 @@
     box-shadow: var(--shadow-sm);
     position: relative;
     overflow: hidden;
-    min-height: 200px;
+    height: 210px;
 }
 
 .profile-header::before {

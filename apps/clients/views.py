@@ -38,7 +38,6 @@ class EditClientView(LoginRequiredMixin, View):
         telefono = request.POST.get('telefono')
         
         if nombre and cedula:
-            # Comprobar si la cédula ya existe en otro cliente
             if Client.objects.filter(cedula=cedula).exclude(pk=client.pk).exists():
                 messages.error(request, "Ya existe otro afiliado con esa cédula.")
             else:
@@ -46,8 +45,11 @@ class EditClientView(LoginRequiredMixin, View):
                 client.cedula = cedula
                 client.telefono = telefono
                 client.save()
-                messages.success(request, "Datos personales actualizados correctamente.")
+                messages.success(request, "Datos actualizados correctamente.")
         else:
             messages.error(request, "El nombre y la cédula son obligatorios.")
             
+        next_url = request.POST.get('next')
+        if next_url:
+            return redirect(next_url)
         return redirect('clients:profile', codigo_afiliado=codigo_afiliado)

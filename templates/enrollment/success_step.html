@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}¡Éxito! - PerfectLine II{% endblock %}
+{% block page_title %}Inscripción Completada{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=1.1">
+{% endblock %}
+
+{% block content %}
+<div class="success-container">
+    <div class="success-icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+    </div>
+    
+    <h1 style="color: var(--success); margin-bottom: 1rem;">¡Cobro Exitoso!</h1>
+    <p style="font-size: 1.1rem; color: var(--text-muted);">
+        Se ha registrado la membresía de <strong>{{ client.nombre }}</strong> correctamente.
+    </p>
+    
+    <div class="invoice-details">
+        <div style="font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">Factura Generada</div>
+        <div style="font-size: 2rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">{{ invoice.nro_control }}</div>
+        <div style="color: var(--success); font-weight: 600;">Total: Bs {{ invoice.monto_total }}</div>
+    </div>
+    
+    <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 3rem;">
+        <!-- En el futuro, este botón llamará al endpoint de impresión -->
+        <button class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1.1rem;" onclick="alert('Imprimiendo...')">
+            <svg style="width:20px;height:20px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+            Imprimir Factura
+        </button>
+        
+        <a href="{% url 'clients:profile' client.codigo_afiliado %}" class="btn btn-secondary" style="padding: 1rem 2rem; font-size: 1.1rem;">
+            Ir al Perfil
+        </a>
+    </div>
+</div>
+{% endblock %}
