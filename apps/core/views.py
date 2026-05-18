@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 import base64
@@ -6,6 +6,8 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from apps.clients.models import Client
 from apps.access import ai_engine
+from apps.billing.models import Plan, ExchangeRate
+from apps.billing.services import register_membership_renewal
 
 def get_next_codigo_afiliado():
     last_client = Client.objects.order_by('id').last()
@@ -92,8 +94,38 @@ def enrollment(request):
             except Exception as e:
                 messages.warning(request, f"Afiliado {nombre} {msg_action}, pero falló el procesamiento de IA: {str(e)}")
 
-            return redirect('dashboard')
+            return redirect('enrollment_billing', codigo_afiliado=client.codigo_afiliado)
         except Exception as e:
             messages.error(request, f"Error al guardar: {str(e)}")
             
     return render(request, 'enrollment.html')
+
+@login_required
+def enrollment_billing(request, codigo_afiliado):
+    client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+    
+    if request.method == "POST":
+        plan_id = request.POST.get('plan_id')
+        if not plan_id:
+            messages.error(request, "Debe seleccionar un plan válido.")
+            return redirect('enrollment_billing', codigo_afiliado=codigo_afiliado)
+            
+        plan = get_object_or_404(Plan, id=plan_id)
+        
+        try:
+            membership, invoice = register_membership_renewal(client, plan)
+            return render(request, 'enrollment/success_step.html', {
+                'client': client,
+                'invoice': invoice,
+                'membership': membership
+            })
+        except Exception as e:
+            messages.error(request, f"Error al generar factura: {str(e)}")
+            return redirect('enrollment_billing', codigo_afiliado=codigo_afiliado)
+            
+    context = {
+        'client': client,
+        'planes': Plan.objects.all(),
+        'latest_rate': ExchangeRate.get_latest()
+    }
+    return render(request, 'enrollment/billing_step.html', context)

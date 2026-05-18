@@ -28,6 +28,7 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('', core_views.dashboard, name='dashboard'),
     path('enrolamiento/', core_views.enrollment, name='enrollment'),
+    path('enrolamiento/facturacion/<str:codigo_afiliado>/', core_views.enrollment_billing, name='enrollment_billing'),
     path('tablet/', access_views.tablet_view, name='tablet'),
     path('afiliados/', include('apps.clients.urls')),
     path('billing/', include('apps.billing.urls')),
