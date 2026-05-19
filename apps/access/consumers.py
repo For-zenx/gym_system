@@ -98,12 +98,14 @@ class TabletConsumer(AsyncWebsocketConsumer):
                 "name": client.nombre,
                 "cedula": client.cedula,
                 "codigo": client.codigo_afiliado,
+                "telefono": client.telefono,
+                "fecha_ingreso": client.fecha_ingreso.strftime('%d/%m/%Y'),
                 "photo_url": photo_url,
                 "granted": granted,
                 "detail": detail,
                 "plan_name": plan_name,
                 "plan_vencimiento": plan_vencimiento,
-                "timestamp": datetime.datetime.now().strftime('%H:%M:%S')
+                "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S')
             }
         )
 
@@ -236,6 +238,8 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             "name": event.get("name"),
             "cedula": event.get("cedula"),
             "codigo": event.get("codigo"),
+            "telefono": event.get("telefono"),
+            "fecha_ingreso": event.get("fecha_ingreso"),
             "photo_url": event.get("photo_url"),
             "granted": event.get("granted"),
             "detail": event.get("detail"),

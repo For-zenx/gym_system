@@ -6,32 +6,50 @@
 
 {% block content %}
     <div style="margin-bottom: 2rem;">
-        <h2 style="font-weight: 600; margin-bottom: 0.5rem;">Accesos Recientes</h2>
         <p style="color: var(--text-muted); font-size: 0.875rem;">Monitoreo en tiempo real de los afiliados que ingresan por la tablet biométrica.</p>
     </div>
 
-    <div class="feed-grid-large" id="live-feed-grid">
+    <div class="feed-grid-xl" id="live-feed-grid">
         {% for log in logs %}
-            <a href="{% url 'clients:profile' log.client.codigo_afiliado %}" class="feed-card-lg {% if log.resultado %}granted{% else %}denied{% endif %}" id="log-{{ log.id }}">
-                <img src="{% if log.client.foto_frente %}{{ log.client.foto_frente.url }}{% else %}{% static 'img/gym_bg.png' %}{% endif %}" alt="Foto" class="feed-avatar-lg">
-                <div class="feed-info-lg">
-                    <div class="feed-header">
-                        <h3 class="feed-name-lg">{{ log.client.nombre }}</h3>
-                        <span class="feed-time-lg">{{ log.timestamp|date:"H:i:s" }}</span>
+            <a href="{% url 'clients:profile' log.client.codigo_afiliado %}" class="feed-card-xl {% if log.resultado %}granted{% else %}denied{% endif %}" id="log-{{ log.id }}">
+                <div class="feed-header-xl">
+                    <img src="{% if log.client.foto_frente %}{{ log.client.foto_frente.url }}{% else %}{% static 'img/gym_bg.png' %}{% endif %}" alt="Foto" class="feed-avatar-xl">
+                    <div class="feed-title-container">
+                        <h3 class="feed-name-xl">{{ log.client.nombre }}</h3>
+                        <div class="feed-badge-container">
+                            <span class="feed-status-badge-xl {% if log.resultado %}success{% else %}danger{% endif %}">{{ log.motivo }}</span>
+                        </div>
+                        <div class="feed-time-xl">
+                            <span style="font-size: 1.2rem;">⏱</span> {{ log.timestamp|date:"d/m/Y - H:i:s" }}
+                        </div>
                     </div>
-                    <div class="feed-meta">
-                        <span><strong>C.I:</strong> {{ log.client.cedula }}</span> &bull; 
-                        <span><strong>Cód:</strong> {{ log.client.codigo_afiliado }}</span>
+                </div>
+                <div class="feed-details-grid">
+                    <div class="feed-data-item">
+                        <span class="feed-data-label">Cédula de Identidad</span>
+                        <span class="feed-data-value">{{ log.client.cedula }}</span>
                     </div>
-                    <div class="feed-plan">
-                        {% if log.client.membership %}
-                            <strong>Plan:</strong> {{ log.client.membership.plan.nombre }} (Vence: {{ log.client.membership.fecha_fin|date:"d/m/Y" }})
-                        {% else %}
-                            <strong>Plan:</strong> Sin Plan
-                        {% endif %}
+                    <div class="feed-data-item">
+                        <span class="feed-data-label">Código Afiliado</span>
+                        <span class="feed-data-value">{{ log.client.codigo_afiliado }}</span>
                     </div>
-                    <div class="feed-status-badge {% if log.resultado %}success{% else %}danger{% endif %}">
-                        {{ log.motivo }}
+                    <div class="feed-data-item">
+                        <span class="feed-data-label">Teléfono</span>
+                        <span class="feed-data-value">{{ log.client.telefono|default:"No registrado" }}</span>
+                    </div>
+                    <div class="feed-data-item">
+                        <span class="feed-data-label">Ingreso al Sistema</span>
+                        <span class="feed-data-value">{{ log.client.fecha_ingreso|date:"d/m/Y" }}</span>
+                    </div>
+                    <div class="feed-data-item" style="grid-column: 1 / -1; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.5rem;">
+                        <span class="feed-data-label">Estado de Membresía</span>
+                        <span class="feed-data-value">
+                            {% if log.client.membership %}
+                                {{ log.client.membership.plan.nombre }} (Vence: {{ log.client.membership.fecha_fin|date:"d/m/Y" }})
+                            {% else %}
+                                Sin Plan Activo
+                            {% endif %}
+                        </span>
                     </div>
                 </div>
             </a>
@@ -55,7 +73,7 @@
 
         const card = document.createElement('a');
         card.href = `/afiliados/${data.codigo}/`;
-        card.className = `feed-card-lg ${data.granted ? 'granted' : 'denied'}`;
+        card.className = `feed-card-xl ${data.granted ? 'granted' : 'denied'}`;
         
         // Initial state for animation
         card.style.opacity = '0';
@@ -63,24 +81,42 @@
 
         const photoUrl = data.photo_url ? data.photo_url : '{% static "img/gym_bg.png" %}';
         
-        let planText = data.plan_name !== "Sin Plan" ? `${data.plan_name} (Vence: ${data.plan_vencimiento})` : 'Sin Plan';
+        let planText = data.plan_name !== "Sin Plan" ? `${data.plan_name} (Vence: ${data.plan_vencimiento})` : 'Sin Plan Activo';
+        const telText = data.telefono ? data.telefono : 'No registrado';
 
         card.innerHTML = `
-            <img src="${photoUrl}" alt="Foto" class="feed-avatar-lg">
-            <div class="feed-info-lg">
-                <div class="feed-header">
-                    <h3 class="feed-name-lg">${data.name}</h3>
-                    <span class="feed-time-lg">${data.timestamp}</span>
+            <div class="feed-header-xl">
+                <img src="${photoUrl}" alt="Foto" class="feed-avatar-xl">
+                <div class="feed-title-container">
+                    <h3 class="feed-name-xl">${data.name}</h3>
+                    <div class="feed-badge-container">
+                        <span class="feed-status-badge-xl ${data.granted ? 'success' : 'danger'}">${data.detail}</span>
+                    </div>
+                    <div class="feed-time-xl">
+                        <span style="font-size: 1.2rem;">⏱</span> ${data.timestamp}
+                    </div>
                 </div>
-                <div class="feed-meta">
-                    <span><strong>C.I:</strong> ${data.cedula}</span> &bull; 
-                    <span><strong>Cód:</strong> ${data.codigo}</span>
+            </div>
+            <div class="feed-details-grid">
+                <div class="feed-data-item">
+                    <span class="feed-data-label">Cédula de Identidad</span>
+                    <span class="feed-data-value">${data.cedula}</span>
                 </div>
-                <div class="feed-plan">
-                    <strong>Plan:</strong> ${planText}
+                <div class="feed-data-item">
+                    <span class="feed-data-label">Código Afiliado</span>
+                    <span class="feed-data-value">${data.codigo}</span>
                 </div>
-                <div class="feed-status-badge ${data.granted ? 'success' : 'danger'}">
-                    ${data.detail}
+                <div class="feed-data-item">
+                    <span class="feed-data-label">Teléfono</span>
+                    <span class="feed-data-value">${telText}</span>
+                </div>
+                <div class="feed-data-item">
+                    <span class="feed-data-label">Ingreso al Sistema</span>
+                    <span class="feed-data-value">${data.fecha_ingreso}</span>
+                </div>
+                <div class="feed-data-item" style="grid-column: 1 / -1; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.5rem;">
+                    <span class="feed-data-label">Estado de Membresía</span>
+                    <span class="feed-data-value">${planText}</span>
                 </div>
             </div>
         `;
@@ -96,7 +132,7 @@
         });
 
         // Keep only 4 cards
-        const cards = grid.querySelectorAll('.feed-card-lg');
+        const cards = grid.querySelectorAll('.feed-card-xl');
         if (cards.length > 4) {
             cards[cards.length - 1].remove();
         }
