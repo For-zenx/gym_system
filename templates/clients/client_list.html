@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Afiliados - PerfectLine{% endblock %}
+{% block page_title %}Lista de Afiliados{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <form method="GET" action="{% url 'clients:client_list' %}" style="display: flex; gap: 0.5rem;">
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Buscar por cédula, código o nombre..." 
+                   style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main); width: 300px;">
+            <button type="submit" class="btn btn-primary">Buscar</button>
+            {% if request.GET.q %}
+            <a href="{% url 'clients:client_list' %}" class="btn btn-secondary">Limpiar</a>
+            {% endif %}
+        </form>
+    </div>
+    <a href="{% url 'enrollment' %}" class="btn btn-primary">+ Nuevo Afiliado</a>
+</div>
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Foto</th>
+                <th>Nombre</th>
+                <th>Cédula</th>
+                <th>Código</th>
+                <th>Ingreso</th>
+                <th>Plan</th>
+                <th>Biometría</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+            <tr onclick="window.location='{% url 'clients:profile' client.codigo_afiliado %}'" style="cursor: pointer;">
+                <td>
+                    {% if client.foto_frente %}
+                        <img src="{{ client.foto_frente.url }}" alt="{{ client.nombre }}" class="avatar-sm">
+                    {% else %}
+                        <div class="avatar-sm" style="background-color: var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--text-muted);">Sin foto</div>
+                    {% endif %}
+                </td>
+                <td style="font-weight: 500;">{{ client.nombre }}</td>
+                <td>{{ client.cedula }}</td>
+                <td style="color: var(--text-muted);">{{ client.codigo_afiliado }}</td>
+                <td>{{ client.fecha_ingreso|date:"d/m/Y" }}</td>
+                <td>
+                    {% if client.membership %}
+                        {% if client.membership.es_valida %}
+                            <span class="badge badge-success">Activo</span>
+                        {% else %}
+                            <span class="badge badge-danger">Vencido</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge badge-warning">Sin Plan</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if client.is_enrolled %}
+                        <span class="badge badge-success">Enrolado</span>
+                    {% else %}
+                        <span class="badge badge-danger">Pendiente</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    No se encontraron afiliados.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Paginación -->
+{% if is_paginated %}
+<div style="display: flex; justify-content: center; margin-top: 2rem; gap: 0.5rem;">
+    {% if page_obj.has_previous %}
+        <a href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">&laquo; Primera</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">Anterior</a>
+    {% endif %}
+    
+    <span class="btn btn-secondary" style="cursor: default; background-color: var(--border-color);">
+        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+    </span>
+    
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">Siguiente</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">Última &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

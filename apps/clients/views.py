@@ -1,8 +1,26 @@
 from django.shortcuts import render, get_object_or_404
-from django.views.generic import DetailView
+from django.views.generic import DetailView, ListView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
 from .models import Client
 from apps.billing.models import Plan, ExchangeRate
+
+class ClientListView(LoginRequiredMixin, ListView):
+    model = Client
+    template_name = 'clients/client_list.html'
+    context_object_name = 'clients'
+    paginate_by = 10
+    
+    def get_queryset(self):
+        queryset = Client.objects.select_related('membership').all().order_by('-fecha_ingreso', '-id')
+        q = self.request.GET.get('q', '')
+        if q:
+            queryset = queryset.filter(
+                Q(cedula__icontains=q) |
+                Q(codigo_afiliado__icontains=q) |
+                Q(nombre__icontains=q)
+            )
+        return queryset
 
 class ClientProfileView(LoginRequiredMixin, DetailView):
     model = Client

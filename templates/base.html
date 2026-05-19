@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}PerfectLine{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=1.2">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=1.3">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -20,7 +20,7 @@
             </div>
             <nav class="sidebar-nav">
                 <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Inicio</a>
-                <a href="#" class="nav-item">Afiliados</a>
+                <a href="{% url 'clients:client_list' %}" class="nav-item {% if request.resolver_match.url_name == 'client_list' %}active{% endif %}">Afiliados</a>
                 <a href="#" class="nav-item">Historial de acceso</a>
                 <a href="#" class="nav-item">Historial de facturas</a>
                 <a href="{% url 'enrollment' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment' %}active{% endif %}">Enrolamiento</a>
