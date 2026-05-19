@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}PerfectLine{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=1.3">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=1.5">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -62,7 +62,7 @@
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         window.DASHBOARD_WS_URL = wsScheme + "://" + window.location.host + "/ws/dashboard/";
     </script>
-    <script src="{% static 'js/dashboard_ws.js' %}?v=1.2"></script>
+    <script src="{% static 'js/dashboard_ws.js' %}?v=1.5"></script>
     
     {% block extra_js %}{% endblock %}
     

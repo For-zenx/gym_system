@@ -67,14 +67,45 @@ class TabletConsumer(AsyncWebsocketConsumer):
             await self.send(json.dumps({"status": "DENIED", "reason": "No reconocido"}))
             return
 
+        def get_membership_data(client_obj):
+            mem = getattr(client_obj, "membership", None)
+            if mem:
+                return {
+                    "plan_name": mem.plan.nombre,
+                    "fecha_fin": mem.fecha_fin.strftime('%d/%m/%Y'),
+                    "days_left": (mem.fecha_fin - datetime.date.today()).days
+                }
+            return None
+
+        mem_data = await database_sync_to_async(get_membership_data)(client)
         granted, detail = await database_sync_to_async(check_access_integrity)(client)
 
         if granted:
-            membership = await database_sync_to_async(lambda: getattr(client, "membership", None))()
-            days_left = (membership.fecha_fin - datetime.date.today()).days if membership else 0
+            days_left = mem_data["days_left"] if mem_data else 0
             await self.send(json.dumps({"status": "GRANTED", "name": client.nombre, "days_left": max(days_left, 0)}))
         else:
             await self.send(json.dumps({"status": "DENIED", "name": client.nombre, "reason": detail}))
+
+        # Send live feed update to dashboard
+        photo_url = client.foto_frente.url if client.foto_frente else ""
+        plan_name = mem_data["plan_name"] if mem_data else "Sin Plan"
+        plan_vencimiento = mem_data["fecha_fin"] if mem_data else "N/A"
+        
+        await self.channel_layer.group_send(
+            DASHBOARD_GROUP,
+            {
+                "type": "new_access_log",
+                "name": client.nombre,
+                "cedula": client.cedula,
+                "codigo": client.codigo_afiliado,
+                "photo_url": photo_url,
+                "granted": granted,
+                "detail": detail,
+                "plan_name": plan_name,
+                "plan_vencimiento": plan_vencimiento,
+                "timestamp": datetime.datetime.now().strftime('%H:%M:%S')
+            }
+        )
 
     async def _handle_enrollment_photo(self, payload: dict):
         client_id = payload.get("client_id")
@@ -146,6 +177,9 @@ class TabletConsumer(AsyncWebsocketConsumer):
     async def enrollment_photo_forward(self, event):
         pass
 
+    async def new_access_log(self, event):
+        pass
+
 class DashboardConsumer(AsyncWebsocketConsumer):
     """
     WebSocket pasivo para la interfaz administrativa (PC).
@@ -194,5 +228,19 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             "type": "ENROLLMENT_PHOTO",
             "photoType": event.get("photoType"),
             "image": event.get("image")
+        }))
+
+    async def new_access_log(self, event):
+        await self.send(json.dumps({
+            "type": "NEW_ACCESS_LOG",
+            "name": event.get("name"),
+            "cedula": event.get("cedula"),
+            "codigo": event.get("codigo"),
+            "photo_url": event.get("photo_url"),
+            "granted": event.get("granted"),
+            "detail": event.get("detail"),
+            "plan_name": event.get("plan_name"),
+            "plan_vencimiento": event.get("plan_vencimiento"),
+            "timestamp": event.get("timestamp")
         }))
 

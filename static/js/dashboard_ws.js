@@ -36,6 +36,8 @@ function connectDashboardWebSocket() {
                 window.dispatchEvent(new CustomEvent('tabletStatusChanged', { detail: { online: data.online } }));
             } else if (data.type === 'ENROLLMENT_PHOTO') {
                 window.dispatchEvent(new CustomEvent('enrollmentPhotoReceived', { detail: { photoType: data.photoType, image: data.image } }));
+            } else if (data.type === 'NEW_ACCESS_LOG') {
+                window.dispatchEvent(new CustomEvent('newAccessLog', { detail: data }));
             }
         } catch (err) {
             console.error('[Dashboard] Error parseando mensaje:', event.data);

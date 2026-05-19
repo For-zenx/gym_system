@@ -23,9 +23,12 @@ def get_next_codigo_afiliado():
             pass
     return 'M-00001-00'
 
+from apps.access.models import AccessLog
+
 @login_required
 def dashboard(request):
-    return render(request, 'dashboard.html')
+    latest_logs = AccessLog.objects.select_related('client', 'client__membership', 'client__membership__plan').order_by('-timestamp')[:4]
+    return render(request, 'dashboard.html', {'logs': latest_logs})
 
 @login_required
 def enrollment(request):
