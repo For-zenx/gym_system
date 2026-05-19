@@ -17,7 +17,7 @@ def check_access_integrity(client):
             resultado=True,
             motivo="Acceso concedido"
         )
-        return True, "OK"
+        return True, "Acceso concedido"
     else:
         AccessLog.objects.create(
             client=client,

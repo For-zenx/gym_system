@@ -385,122 +385,144 @@ h1, h2, h3, h4, h5, h6 {
     border: 2px solid var(--border-color);
 }
 
-/* --- Live Feed Component (Detailed) --- */
-.feed-grid-large {
+/* --- Live Feed Component (Extra Detailed) --- */
+.feed-grid-xl {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
+    gap: 2rem;
 }
 
 @media (max-width: 1024px) {
-    .feed-grid-large {
+    .feed-grid-xl {
         grid-template-columns: 1fr;
     }
 }
 
-.feed-card-lg {
+.feed-card-xl {
     display: flex;
+    flex-direction: column;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: 1rem;
-    padding: 1.5rem;
+    padding: 2rem;
     text-decoration: none;
     color: var(--text-main);
     box-shadow: var(--shadow-sm);
     transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-    gap: 1.5rem;
     position: relative;
     overflow: hidden;
+    min-height: 280px;
 }
 
-.feed-card-lg:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-md);
+.feed-card-xl:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
     background-color: rgba(255, 255, 255, 0.02);
 }
 
-.feed-card-lg::before {
+.feed-card-xl::before {
     content: '';
     position: absolute;
     left: 0;
     top: 0;
-    bottom: 0;
     width: 6px;
+    height: 100%;
 }
 
-.feed-card-lg.granted::before { background-color: var(--success); }
-.feed-card-lg.denied::before { background-color: var(--danger); }
+.feed-card-xl.granted::before { background-color: var(--success); }
+.feed-card-xl.denied::before { background-color: var(--danger); }
 
-.feed-avatar-lg {
-    width: 110px;
-    height: 110px;
-    border-radius: 0.75rem;
+.feed-header-xl {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1.5rem;
+}
+
+.feed-avatar-xl {
+    width: 140px;
+    height: 140px;
+    border-radius: 1rem;
     object-fit: cover;
-    border: 2px solid var(--border-color);
+    border: 3px solid var(--border-color);
     background-color: var(--bg-main);
     flex-shrink: 0;
+    box-shadow: var(--shadow-md);
 }
 
-.feed-info-lg {
+.feed-title-container {
     flex: 1;
-    min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
 }
 
-.feed-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.5rem;
-}
-
-.feed-name-lg {
-    margin: 0;
-    font-size: 1.25rem;
+.feed-name-xl {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--text-main);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding-right: 1rem;
 }
 
-.feed-time-lg {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    font-weight: 500;
-    flex-shrink: 0;
-}
-
-.feed-meta {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+.feed-badge-container {
     margin-bottom: 0.5rem;
 }
 
-.feed-plan {
-    font-size: 0.9rem;
-    color: var(--text-main);
-    margin-bottom: 0.75rem;
-}
-
-.feed-status-badge {
+.feed-status-badge-xl {
     display: inline-flex;
-    padding: 0.35rem 0.75rem;
+    padding: 0.5rem 1rem;
     border-radius: 0.5rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    width: fit-content;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.feed-status-badge.success {
+.feed-status-badge-xl.success {
     background-color: rgba(16, 185, 129, 0.15);
     color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
-.feed-status-badge.danger {
+.feed-status-badge-xl.danger {
     background-color: rgba(239, 68, 68, 0.15);
     color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.feed-time-xl {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.feed-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.feed-data-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.feed-data-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.feed-data-value {
+    font-size: 1rem;
+    color: var(--text-main);
+    font-weight: 500;
 }
