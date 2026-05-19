@@ -1,13 +1,105 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Inicio - PerfectLine{% endblock %}
-{% block page_title %}Inicio{% endblock %}
+{% block page_title %}Live Feed{% endblock %}
 
 {% block content %}
-    <div class="card" style="text-align: center; padding: 4rem 2rem;">
-        <h2 style="margin-bottom: 1rem;">¡Bienvenido de vuelta, {{ user.username }}!</h2>
-        <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto;">
-            El sistema se encuentra operando con normalidad. Selecciona una opción del menú lateral para comenzar.
-        </p>
+    <div style="margin-bottom: 2rem;">
+        <h2 style="font-weight: 600; margin-bottom: 0.5rem;">Accesos Recientes</h2>
+        <p style="color: var(--text-muted); font-size: 0.875rem;">Monitoreo en tiempo real de los afiliados que ingresan por la tablet biométrica.</p>
     </div>
+
+    <div class="feed-grid-large" id="live-feed-grid">
+        {% for log in logs %}
+            <a href="{% url 'clients:profile' log.client.codigo_afiliado %}" class="feed-card-lg {% if log.resultado %}granted{% else %}denied{% endif %}" id="log-{{ log.id }}">
+                <img src="{% if log.client.foto_frente %}{{ log.client.foto_frente.url }}{% else %}{% static 'img/gym_bg.png' %}{% endif %}" alt="Foto" class="feed-avatar-lg">
+                <div class="feed-info-lg">
+                    <div class="feed-header">
+                        <h3 class="feed-name-lg">{{ log.client.nombre }}</h3>
+                        <span class="feed-time-lg">{{ log.timestamp|date:"H:i:s" }}</span>
+                    </div>
+                    <div class="feed-meta">
+                        <span><strong>C.I:</strong> {{ log.client.cedula }}</span> &bull; 
+                        <span><strong>Cód:</strong> {{ log.client.codigo_afiliado }}</span>
+                    </div>
+                    <div class="feed-plan">
+                        {% if log.client.membership %}
+                            <strong>Plan:</strong> {{ log.client.membership.plan.nombre }} (Vence: {{ log.client.membership.fecha_fin|date:"d/m/Y" }})
+                        {% else %}
+                            <strong>Plan:</strong> Sin Plan
+                        {% endif %}
+                    </div>
+                    <div class="feed-status-badge {% if log.resultado %}success{% else %}danger{% endif %}">
+                        {{ log.motivo }}
+                    </div>
+                </div>
+            </a>
+        {% empty %}
+            <div id="empty-feed-msg" style="text-align: center; color: var(--text-muted); grid-column: 1 / -1; padding: 4rem; background: var(--bg-surface); border-radius: 0.75rem; border: 1px dashed var(--border-color); box-sizing: border-box;">
+                No hay accesos recientes. El feed en vivo está esperando a que alguien ingrese.
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.addEventListener('newAccessLog', function(e) {
+        const data = e.detail;
+        const grid = document.getElementById('live-feed-grid');
+        if (!grid) return;
+
+        const emptyMsg = document.getElementById('empty-feed-msg');
+        if (emptyMsg) emptyMsg.remove();
+
+        const card = document.createElement('a');
+        card.href = `/afiliados/${data.codigo}/`;
+        card.className = `feed-card-lg ${data.granted ? 'granted' : 'denied'}`;
+        
+        // Initial state for animation
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(-10px)';
+
+        const photoUrl = data.photo_url ? data.photo_url : '{% static "img/gym_bg.png" %}';
+        
+        let planText = data.plan_name !== "Sin Plan" ? `${data.plan_name} (Vence: ${data.plan_vencimiento})` : 'Sin Plan';
+
+        card.innerHTML = `
+            <img src="${photoUrl}" alt="Foto" class="feed-avatar-lg">
+            <div class="feed-info-lg">
+                <div class="feed-header">
+                    <h3 class="feed-name-lg">${data.name}</h3>
+                    <span class="feed-time-lg">${data.timestamp}</span>
+                </div>
+                <div class="feed-meta">
+                    <span><strong>C.I:</strong> ${data.cedula}</span> &bull; 
+                    <span><strong>Cód:</strong> ${data.codigo}</span>
+                </div>
+                <div class="feed-plan">
+                    <strong>Plan:</strong> ${planText}
+                </div>
+                <div class="feed-status-badge ${data.granted ? 'success' : 'danger'}">
+                    ${data.detail}
+                </div>
+            </div>
+        `;
+
+        grid.insertBefore(card, grid.firstChild);
+
+        // Animate in
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Keep only 4 cards
+        const cards = grid.querySelectorAll('.feed-card-lg');
+        if (cards.length > 4) {
+            cards[cards.length - 1].remove();
+        }
+    });
+</script>
 {% endblock %}
