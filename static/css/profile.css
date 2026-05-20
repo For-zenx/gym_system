@@ -274,3 +274,49 @@
     color: var(--success);
     font-size: 1.1rem;
 }
+
+/* --- Access Log Card & Scroll Container --- */
+.access-scroll-container {
+    max-height: 300px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+    padding-right: 0.5rem;
+}
+
+.access-scroll-container::-webkit-scrollbar {
+    width: 6px;
+}
+.access-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.access-scroll-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.access-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.access-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.access-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.access-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+

@@ -41,6 +41,7 @@ class ClientProfileView(LoginRequiredMixin, DetailView):
             
         context['planes'] = Plan.objects.all()
         context['latest_rate'] = ExchangeRate.get_latest()
+        context['access_logs'] = self.object.access_logs.all()[:20]
         return context
 
 from django.views import View

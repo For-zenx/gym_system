@@ -32,6 +32,7 @@ urlpatterns = [
     path('tablet/', access_views.tablet_view, name='tablet'),
     path('afiliados/', include('apps.clients.urls')),
     path('billing/', include('apps.billing.urls')),
+    path('historial/', include('apps.access.urls')),
 ]
 
 if settings.DEBUG:

@@ -21,7 +21,7 @@
             <nav class="sidebar-nav">
                 <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Inicio</a>
                 <a href="{% url 'clients:client_list' %}" class="nav-item {% if request.resolver_match.url_name == 'client_list' %}active{% endif %}">Afiliados</a>
-                <a href="#" class="nav-item">Historial de acceso</a>
+                <a href="{% url 'access:access_log_list' %}" class="nav-item {% if request.resolver_match.url_name == 'access_log_list' %}active{% endif %}">Historial de acceso</a>
                 <a href="#" class="nav-item">Historial de facturas</a>
                 <a href="{% url 'enrollment' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment' %}active{% endif %}">Enrolamiento</a>
                 <a href="#" class="nav-item">Conf. de planes</a>

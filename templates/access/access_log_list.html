@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Historial de Acceso - PerfectLine{% endblock %}
+{% block page_title %}Historial de Acceso{% endblock %}
+
+{% block content %}
+<div
+    style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; gap: 1rem; flex-wrap: wrap;">
+    <form method="GET" action="{% url 'access:access_log_list' %}"
+        style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+        <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Buscar por nombre, cédula o código..."
+            style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main); width: 280px;">
+
+        <select name="resultado"
+            style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main);">
+            <option value="" {% if not request.GET.resultado %}selected{% endif %}>Todos los resultados</option>
+            <option value="concedido" {% if request.GET.resultado == 'concedido' %}selected{% endif %}>Concedido</option>
+            <option value="denegado" {% if request.GET.resultado == 'denegado' %}selected{% endif %}>Denegado</option>
+        </select>
+
+        <input type="date" name="fecha" value="{{ request.GET.fecha }}"
+            style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main);">
+
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        {% if request.GET.q or request.GET.resultado or request.GET.fecha %}
+        <a href="{% url 'access:access_log_list' %}" class="btn btn-secondary">Limpiar</a>
+        {% endif %}
+    </form>
+
+    <div style="color: var(--text-muted); font-size: 0.875rem; padding-top: 0.625rem;">
+        {{ paginator.count }} registro{{ paginator.count|pluralize:",s" }} encontrado{{ paginator.count|pluralize:",s" }}
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Foto</th>
+                <th>Nombre</th>
+                <th>Cédula</th>
+                <th>Código</th>
+                <th>Resultado</th>
+                <th>Motivo / Detalle</th>
+                <th>Fecha y Hora</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr onclick="window.location='{% url 'clients:profile' log.client.codigo_afiliado %}'"
+                style="cursor: pointer;">
+                <td>
+                    {% if log.client.foto_frente %}
+                    <img src="{{ log.client.foto_frente.url }}" alt="{{ log.client.nombre }}" class="avatar-sm">
+                    {% else %}
+                    <div class="avatar-sm"
+                        style="background-color: var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--text-muted);">
+                        S/F</div>
+                    {% endif %}
+                </td>
+                <td style="font-weight: 500;">{{ log.client.nombre }}</td>
+                <td>{{ log.client.cedula }}</td>
+                <td style="color: var(--text-muted);">{{ log.client.codigo_afiliado }}</td>
+                <td>
+                    {% if log.resultado %}
+                    <span class="badge badge-success">Concedido</span>
+                    {% else %}
+                    <span class="badge badge-danger">Denegado</span>
+                    {% endif %}
+                </td>
+                <td style="color: var(--text-muted); font-size: 0.875rem;">{{ log.motivo|default:"—" }}</td>
+                <td style="color: var(--text-muted); font-size: 0.875rem; white-space: nowrap;">
+                    {{ log.timestamp|date:"d/m/Y" }}<br>
+                    <span style="color: var(--text-main); font-weight: 500;">{{ log.timestamp|date:"H:i:s" }}</span>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    No se encontraron registros de acceso.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if is_paginated %}
+<div style="display: flex; justify-content: center; margin-top: 2rem; gap: 0.5rem; flex-wrap: wrap;">
+    {% if page_obj.has_previous %}
+    <a href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.resultado %}&resultado={{ request.GET.resultado }}{% endif %}{% if request.GET.fecha %}&fecha={{ request.GET.fecha }}{% endif %}"
+        class="btn btn-secondary">&laquo; Primera</a>
+    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.resultado %}&resultado={{ request.GET.resultado }}{% endif %}{% if request.GET.fecha %}&fecha={{ request.GET.fecha }}{% endif %}"
+        class="btn btn-secondary">Anterior</a>
+    {% endif %}
+
+    <span class="btn btn-secondary" style="cursor: default; background-color: var(--border-color);">
+        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+    </span>
+
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.resultado %}&resultado={{ request.GET.resultado }}{% endif %}{% if request.GET.fecha %}&fecha={{ request.GET.fecha }}{% endif %}"
+        class="btn btn-secondary">Siguiente</a>
+    <a href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.resultado %}&resultado={{ request.GET.resultado }}{% endif %}{% if request.GET.fecha %}&fecha={{ request.GET.fecha }}{% endif %}"
+        class="btn btn-secondary">Última &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
