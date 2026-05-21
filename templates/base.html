@@ -49,7 +49,7 @@
                     <!-- Rate Widget Editable -->
                     {% if latest_rate %}
                     <div class="rate-widget" onclick="openRateModal()" title="Editar Tasa de Cambio">
-                        <span class="rate-widget-value">{{ latest_rate.tasa_ves }} Bs/$</span>
+                        <span class="rate-widget-value">{{ latest_rate.tasa_ves }} VES/$</span>
                         <svg class="rate-edit-btn" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     </div>
                     {% else %}
@@ -85,7 +85,7 @@
                 
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label for="tasa_ves" style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Nueva Tasa de Cambio (VES/$)</label>
-                    <input type="text" id="tasa_ves" name="tasa_ves" placeholder="Ej. 36.50" value="{{ latest_rate.tasa_ves|default:'' }}" required style="width: 100%; padding: 0.85rem; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; box-sizing: border-box; font-size: 1.1rem; outline: none;">
+                    <input type="number" step="0.01" min="0" id="tasa_ves" name="tasa_ves" placeholder="Ej. 36.50" value="{{ latest_rate.tasa_ves|default:'' }}" required style="width: 100%; padding: 0.85rem; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; box-sizing: border-box; font-size: 1.1rem; outline: none;">
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
