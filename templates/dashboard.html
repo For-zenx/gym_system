@@ -44,11 +44,13 @@
                     <div class="feed-data-item" style="grid-column: 1 / -1; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.5rem;">
                         <span class="feed-data-label">Estado de Membresía</span>
                         <span class="feed-data-value">
-                            {% if log.client.membership %}
-                                {{ log.client.membership.plan.nombre }} (Vence: {{ log.client.membership.fecha_fin|date:"d/m/Y" }})
-                            {% else %}
-                                Sin Plan Activo
-                            {% endif %}
+                            {% with mem=log.client.active_memberships.first %}
+                                {% if mem %}
+                                    {{ mem.plan.nombre }} (Vence: {{ mem.fecha_fin|date:"d/m/Y" }})
+                                {% else %}
+                                    Sin Plan Activo
+                                {% endif %}
+                            {% endwith %}
                         </span>
                     </div>
                 </div>

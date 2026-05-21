@@ -68,14 +68,20 @@ class TabletConsumer(AsyncWebsocketConsumer):
             return
 
         def get_membership_data(client_obj):
-            mem = getattr(client_obj, "membership", None)
-            if mem:
-                return {
-                    "plan_name": mem.plan.nombre,
-                    "fecha_fin": mem.fecha_fin.strftime('%d/%m/%Y'),
-                    "days_left": (mem.fecha_fin - datetime.date.today()).days
-                }
-            return None
+            from django.utils import timezone
+            active_mems = client_obj.active_memberships
+            if not active_mems.exists():
+                return None
+                
+            current_time = timezone.localtime().time()
+            valid_now = [m for m in active_mems if m.is_valid_now(current_time)]
+            mem = valid_now[0] if valid_now else active_mems.order_by('-fecha_fin').first()
+            
+            return {
+                "plan_name": mem.plan.nombre,
+                "fecha_fin": mem.fecha_fin.strftime('%d/%m/%Y'),
+                "days_left": (mem.fecha_fin - datetime.date.today()).days
+            }
 
         mem_data = await database_sync_to_async(get_membership_data)(client)
         granted, detail = await database_sync_to_async(check_access_integrity)(client)

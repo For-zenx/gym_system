@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if object %}Editar Plan{% else %}Nuevo Plan{% endif %} - PerfectLine{% endblock %}
+{% block page_title %}{% if object %}Editar Plan{% else %}Nuevo Plan{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 1rem auto 3rem auto;
+        padding: 2.5rem;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        backdrop-filter: blur(12px);
+        box-shadow: var(--shadow-lg), 0 0 20px rgba(16, 185, 129, 0.03);
+        box-sizing: border-box;
+    }
+
+    .form-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: 1.75rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: var(--text-main);
+    }
+
+    .form-title-icon {
+        color: var(--primary);
+        font-size: 1.75rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        box-sizing: border-box;
+    }
+
+    .form-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        text-align: left;
+    }
+
+    .form-control {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 0.8rem 1rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+        background-color: var(--bg-main);
+        color: var(--text-main);
+        transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+        background-color: rgba(2, 6, 23, 0.8);
+    }
+
+    .optional-section {
+        background: rgba(30, 41, 59, 0.2);
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        border: 1px dashed var(--border-color);
+        margin: 1.75rem 0;
+        box-sizing: border-box;
+    }
+
+    .optional-section-title {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .optional-section-desc {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin: 0 0 1.25rem 0;
+        line-height: 1.4;
+    }
+
+    .grid-2col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 600px) {
+        .grid-2col {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .form-container {
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h3 class="form-title">
+        {% if object %}Modificar Plan: {{ object.nombre }}{% else %}Crear Nuevo Plan{% endif %}
+    </h3>
+
+    <form method="POST" style="display: flex; flex-direction: column; gap: 0.5rem;">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_nombre">Nombre del Plan</label>
+            <input type="text" name="nombre" id="id_nombre" value="{{ form.nombre.value|default:'' }}" required
+                class="form-control" placeholder="Ej. Plan Mensual VIP">
+        </div>
+
+        <div class="grid-2col">
+            <div class="form-group">
+                <label for="id_dias_duracion">Días de Duración</label>
+                <input type="number" name="dias_duracion" id="id_dias_duracion"
+                    value="{{ form.dias_duracion.value|default:'' }}" required min="1" class="form-control"
+                    placeholder="Ej. 30">
+            </div>
+
+            <div class="form-group">
+                <label for="id_precio_usd">Precio (USD)</label>
+                <input type="number" name="precio_usd" id="id_precio_usd" value="{{ form.precio_usd.value|default:'' }}"
+                    required step="0.01" min="0" class="form-control" placeholder="Ej. 29.99">
+            </div>
+        </div>
+
+        <div class="optional-section">
+            <h4 class="optional-section-title">⏱ Horario Restringido (Opcional)</h4>
+            <p class="optional-section-desc">Si dejas estos campos en blanco, el plan permitirá el acceso a cualquier
+                hora (Tiempo Completo).</p>
+
+            <div class="grid-2col">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="id_hora_inicio">Hora de Entrada</label>
+                    <input type="time" name="hora_inicio" id="id_hora_inicio"
+                        value="{{ form.hora_inicio.value|default:'' }}" class="form-control"
+                        style="color-scheme: dark;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="id_hora_fin">Hora de Salida Máxima</label>
+                    <input type="time" name="hora_fin" id="id_hora_fin" value="{{ form.hora_fin.value|default:'' }}"
+                        class="form-control" style="color-scheme: dark;">
+                </div>
+            </div>
+        </div>
+
+        {% if form.errors %}
+        <div
+            style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--danger); color: var(--danger); border-radius: 6px; font-size: 0.9rem; margin-bottom: 1.5rem; text-align: left; box-sizing: border-box;">
+            <strong style="display: block; margin-bottom: 0.5rem;">Por favor, corrige los errores en el
+                formulario:</strong>
+            <ul style="margin: 0; padding-left: 1.25rem; line-height: 1.5;">
+                {% for field in form %}
+                {% for error in field.errors %}
+                <li><strong>{{ field.label }}</strong>: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1rem;">
+            <a href="{% url 'billing:plan_list' %}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar Plan</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

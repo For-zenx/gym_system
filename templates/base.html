@@ -24,7 +24,7 @@
                 <a href="{% url 'access:access_log_list' %}" class="nav-item {% if request.resolver_match.url_name == 'access_log_list' %}active{% endif %}">Historial de acceso</a>
                 <a href="#" class="nav-item">Historial de facturas</a>
                 <a href="{% url 'enrollment' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment' %}active{% endif %}">Enrolamiento</a>
-                <a href="#" class="nav-item">Conf. de planes</a>
+                <a href="{% url 'billing:plan_list' %}" class="nav-item {% if 'planes' in request.path %}active{% endif %}">Conf. de planes</a>
             </nav>
         </aside>
 

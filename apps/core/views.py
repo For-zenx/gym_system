@@ -5,6 +5,7 @@ import base64
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from apps.clients.models import Client
+from apps.access.models import AccessLog
 from apps.access import ai_engine
 from apps.billing.models import Plan, ExchangeRate
 from apps.billing.services import register_membership_renewal
@@ -23,11 +24,9 @@ def get_next_codigo_afiliado():
             pass
     return 'M-00001-00'
 
-from apps.access.models import AccessLog
-
 @login_required
 def dashboard(request):
-    latest_logs = AccessLog.objects.select_related('client', 'client__membership', 'client__membership__plan').order_by('-timestamp')[:4]
+    latest_logs = AccessLog.objects.select_related('client').order_by('-timestamp')[:4]
     return render(request, 'dashboard.html', {'logs': latest_logs})
 
 @login_required
@@ -128,7 +127,7 @@ def enrollment_billing(request, codigo_afiliado):
             
     context = {
         'client': client,
-        'planes': Plan.objects.all(),
+        'planes': Plan.objects.filter(is_active=True),
         'latest_rate': ExchangeRate.get_latest()
     }
     return render(request, 'enrollment/billing_step.html', context)

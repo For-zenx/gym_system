@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Planes - PerfectLine{% endblock %}
+{% block page_title %}Configuración de Planes{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 2rem;">
+    <a href="{% url 'billing:plan_create' %}" class="btn btn-primary">+ Nuevo Plan</a>
+</div>
+
+{% if messages %}
+<div class="messages">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}"
+        style="padding: 1rem; background: rgba(16,185,129,0.1); border-left: 4px solid var(--success); color: var(--success); margin-bottom: 1.5rem; border-radius: 6px;">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre del Plan</th>
+                <th>Duración</th>
+                <th>Horario Permitido</th>
+                <th>Precio (USD)</th>
+                <th style="text-align: right;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for plan in planes %}
+            <tr>
+                <td style="color: var(--text-muted);">#{{ plan.id }}</td>
+                <td style="font-weight: 500;">{{ plan.nombre }}</td>
+                <td>{{ plan.dias_duracion }} días</td>
+                <td>
+                    {% if plan.hora_inicio and plan.hora_fin %}
+                    <span class="badge badge-warning">{{ plan.hora_inicio|time:"g:i A" }} - {{ plan.hora_fin|time:"g:i A" }}</span>
+                    {% else %}
+                    <span class="badge badge-success">Tiempo Completo</span>
+                    {% endif %}
+                </td>
+                <td style="font-weight: 600; color: var(--success);">${{ plan.precio_usd }}</td>
+                <td style="text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <a href="{% url 'billing:plan_update' plan.id %}" class="btn btn-secondary"
+                        style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Editar</a>
+                    <form method="POST" action="{% url 'billing:plan_delete' plan.id %}" style="display: inline;"
+                        onsubmit="return confirm('¿Estás seguro de eliminar este plan? Los usuarios actuales mantendrán su plan hasta que venza.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger"
+                            style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    No hay planes configurados.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

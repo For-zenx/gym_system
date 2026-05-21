@@ -47,14 +47,14 @@
                 <td style="color: var(--text-muted);">{{ client.codigo_afiliado }}</td>
                 <td>{{ client.fecha_ingreso|date:"d/m/Y" }}</td>
                 <td>
-                    {% if client.membership %}
-                        {% if client.membership.es_valida %}
-                            <span class="badge badge-success">Activo</span>
-                        {% else %}
-                            <span class="badge badge-danger">Vencido</span>
-                        {% endif %}
+                    {% if client.active_memberships %}
+                        <span class="badge badge-success">Activo</span>
                     {% else %}
-                        <span class="badge badge-warning">Sin Plan</span>
+                        {% if client.memberships.all %}
+                            <span class="badge badge-danger">Vencido</span>
+                        {% else %}
+                            <span class="badge badge-warning">Sin Plan</span>
+                        {% endif %}
                     {% endif %}
                 </td>
                 <td>

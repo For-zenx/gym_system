@@ -25,3 +25,9 @@ class Client(models.Model):
     @property
     def is_enrolled(self):
         return bool(self.foto_frente and self.foto_perfil_izq and self.foto_perfil_der and self.face_id_embeddings)
+
+    @property
+    def active_memberships(self):
+        from datetime import date
+        today = date.today()
+        return self.memberships.filter(fecha_inicio__lte=today, fecha_fin__gte=today)

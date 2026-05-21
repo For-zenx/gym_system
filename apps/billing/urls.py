@@ -1,8 +1,12 @@
 from django.urls import path
-from .views import RenewPlanView
+from .views import RenewPlanView, PlanListView, PlanCreateView, PlanUpdateView, PlanDeleteView
 
 app_name = 'billing'
 
 urlpatterns = [
     path('renovar/<str:codigo_afiliado>/', RenewPlanView.as_view(), name='renew_plan'),
+    path('planes/', PlanListView.as_view(), name='plan_list'),
+    path('planes/nuevo/', PlanCreateView.as_view(), name='plan_create'),
+    path('planes/editar/<int:pk>/', PlanUpdateView.as_view(), name='plan_update'),
+    path('planes/borrar/<int:pk>/', PlanDeleteView.as_view(), name='plan_delete'),
 ]
