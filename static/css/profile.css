@@ -85,8 +85,52 @@
 .status-pill.none { background: var(--border-color); color: var(--text-muted); }
 
 .profile-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.membership-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    text-align: left;
+    margin-bottom: 1.5rem;
+}
+
+.membership-table th {
+    padding: 1rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.membership-table td {
+    padding: 1rem;
+    border-bottom: 1px dashed var(--border-color);
+    vertical-align: middle;
+    color: var(--text-main);
+}
+
+.membership-table tr:last-child td {
+    border-bottom: none;
+}
+
+.muted-plan {
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.muted-plan:hover {
+    opacity: 0.8;
+}
+
+.history-split-container {
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 1fr 1fr;
     gap: 2rem;
 }
 

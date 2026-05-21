@@ -5,7 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView
 from django.urls import reverse_lazy
 from apps.clients.models import Client
-from .models import Plan
+from .models import Plan, Membership
 from .services import register_membership_renewal
 
 class RenewPlanView(LoginRequiredMixin, View):
@@ -75,3 +75,18 @@ class PlanDeleteView(LoginRequiredMixin, View):
         plan.save()
         messages.success(request, "Plan eliminado exitosamente.")
         return redirect('billing:plan_list')
+
+class MembershipDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        membership = get_object_or_404(Membership, pk=pk)
+        client_code = membership.client.codigo_afiliado
+        
+        # We only allow deleting if it hasn't started yet (queued)
+        from datetime import date
+        if membership.fecha_inicio > date.today():
+            membership.delete()
+            messages.success(request, "Membresía encolada cancelada exitosamente.")
+        else:
+            messages.error(request, "No se puede eliminar una membresía activa o pasada.")
+            
+        return redirect('clients:profile', codigo_afiliado=client_code)
