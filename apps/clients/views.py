@@ -39,6 +39,7 @@ class ClientProfileView(LoginRequiredMixin, DetailView):
         
         active_mems = self.object.active_memberships
         queued_mems = self.object.memberships.filter(fecha_inicio__gt=today).order_by('fecha_inicio')
+        historical_mems = self.object.memberships.filter(fecha_fin__lt=today).order_by('-fecha_fin')
         
         if active_mems.exists():
             context['membership'] = active_mems.order_by('-fecha_fin').first()
@@ -48,6 +49,7 @@ class ClientProfileView(LoginRequiredMixin, DetailView):
             context['active_memberships'] = []
             
         context['queued_memberships'] = queued_mems
+        context['historical_memberships'] = historical_mems
             
         context['invoices'] = Invoice.objects.filter(membership__client=self.object).order_by('-fecha_emision')[:10]
             
