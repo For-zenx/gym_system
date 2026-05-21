@@ -11,7 +11,7 @@ class TestAccessServices:
         """Validar denegación para clientes sin membresía."""
         allowed, reason = check_access_integrity(sample_client)
         assert allowed is False
-        assert reason == "Sin membresía"
+        assert reason == "Sin membresía registrada"
         assert AccessLog.objects.filter(client=sample_client, resultado=False).exists()
 
     def test_check_access_expired(self, sample_client, monthly_plan):
@@ -36,5 +36,5 @@ class TestAccessServices:
         )
         allowed, reason = check_access_integrity(sample_client)
         assert allowed is True
-        assert reason == "OK"
+        assert reason == "Acceso concedido"
         assert AccessLog.objects.filter(client=sample_client, resultado=True).exists()

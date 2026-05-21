@@ -35,7 +35,7 @@ class AccessLogListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = AccessLog.objects.select_related(
-            'client', 'client__membership'
+            'client'
         ).all()
 
         q = self.request.GET.get('q', '').strip()

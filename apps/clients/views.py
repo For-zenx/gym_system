@@ -1,9 +1,12 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import DetailView, ListView
+from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib import messages
 from django.db.models import Q
+from datetime import date
 from .models import Client
-from apps.billing.models import Plan, ExchangeRate
+from apps.billing.models import Plan, ExchangeRate, Invoice
 
 class ClientListView(LoginRequiredMixin, ListView):
     model = Client
@@ -12,7 +15,7 @@ class ClientListView(LoginRequiredMixin, ListView):
     paginate_by = 10
     
     def get_queryset(self):
-        queryset = Client.objects.select_related('membership').all().order_by('-fecha_ingreso', '-id')
+        queryset = Client.objects.prefetch_related('memberships').all().order_by('-fecha_ingreso', '-id')
         q = self.request.GET.get('q', '')
         if q:
             queryset = queryset.filter(
@@ -32,21 +35,26 @@ class ClientProfileView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        if hasattr(self.object, 'membership'):
-            context['membership'] = self.object.membership
-            context['invoices'] = self.object.membership.invoices.all().order_by('-fecha_emision')[:10]
+        today = date.today()
+        
+        active_mems = self.object.active_memberships
+        queued_mems = self.object.memberships.filter(fecha_inicio__gt=today).order_by('fecha_inicio')
+        
+        if active_mems.exists():
+            context['membership'] = active_mems.order_by('-fecha_fin').first()
+            context['active_memberships'] = active_mems
         else:
             context['membership'] = None
-            context['invoices'] = []
+            context['active_memberships'] = []
             
-        context['planes'] = Plan.objects.all()
+        context['queued_memberships'] = queued_mems
+            
+        context['invoices'] = Invoice.objects.filter(membership__client=self.object).order_by('-fecha_emision')[:10]
+            
+        context['planes'] = Plan.objects.filter(is_active=True)
         context['latest_rate'] = ExchangeRate.get_latest()
         context['access_logs'] = self.object.access_logs.all()[:20]
         return context
-
-from django.views import View
-from django.shortcuts import redirect
-from django.contrib import messages
 
 class EditClientView(LoginRequiredMixin, View):
     def post(self, request, codigo_afiliado):

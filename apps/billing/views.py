@@ -2,6 +2,8 @@ from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import ListView, CreateView, UpdateView
+from django.urls import reverse_lazy
 from apps.clients.models import Client
 from .models import Plan
 from .services import register_membership_renewal
@@ -24,3 +26,52 @@ class RenewPlanView(LoginRequiredMixin, View):
             messages.error(request, f"Error al asignar plan: {str(e)}")
             
         return redirect('clients:profile', codigo_afiliado=codigo_afiliado)
+
+class PlanListView(LoginRequiredMixin, ListView):
+    model = Plan
+    template_name = 'billing/plan_list.html'
+    context_object_name = 'planes'
+    
+    def get_queryset(self):
+        return Plan.objects.filter(is_active=True).order_by('-id')
+
+class PlanCreateView(LoginRequiredMixin, CreateView):
+    model = Plan
+    template_name = 'billing/plan_form.html'
+    fields = ['nombre', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
+    success_url = reverse_lazy('billing:plan_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, "Plan creado exitosamente.")
+        return super().form_valid(form)
+
+class PlanUpdateView(LoginRequiredMixin, UpdateView):
+    model = Plan
+    template_name = 'billing/plan_form.html'
+    fields = ['nombre', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
+    success_url = reverse_lazy('billing:plan_list')
+
+    def form_valid(self, form):
+        old_plan = self.get_object()
+        old_plan.is_active = False
+        old_plan.save()
+        
+        Plan.objects.create(
+            nombre=form.cleaned_data['nombre'],
+            dias_duracion=form.cleaned_data['dias_duracion'],
+            precio_usd=form.cleaned_data['precio_usd'],
+            hora_inicio=form.cleaned_data['hora_inicio'],
+            hora_fin=form.cleaned_data['hora_fin'],
+            is_active=True
+        )
+        
+        messages.success(self.request, "Plan actualizado exitosamente (Se conservó el historial de la versión anterior).")
+        return redirect('billing:plan_list')
+
+class PlanDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        plan = get_object_or_404(Plan, pk=pk)
+        plan.is_active = False
+        plan.save()
+        messages.success(request, "Plan eliminado exitosamente.")
+        return redirect('billing:plan_list')

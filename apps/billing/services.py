@@ -17,22 +17,18 @@ def register_membership_renewal(client, plan, nro_control=None, monto_ves=None):
         monto_ves = plan.precio_usd * tasa.tasa_ves
 
     with transaction.atomic():
-        membership, created = Membership.objects.get_or_create(
-            client=client,
-            defaults={'plan': plan, 'fecha_inicio': timezone.localdate()}
-        )
-
         hoy = timezone.localdate()
+        fecha_inicio_nueva = hoy
         
-        if not created:
-            membership.plan = plan
-            if membership.es_valida:
-                membership.fecha_fin = membership.fecha_fin + timedelta(days=plan.dias_duracion)
-            else:
-                membership.fecha_inicio = hoy
-                membership.fecha_fin = hoy + timedelta(days=plan.dias_duracion)
-        
-        membership.save()
+        latest_membership = client.memberships.order_by('-fecha_fin').first()
+        if latest_membership and latest_membership.fecha_fin >= hoy:
+            fecha_inicio_nueva = latest_membership.fecha_fin + timedelta(days=1)
+            
+        membership = Membership.objects.create(
+            client=client,
+            plan=plan,
+            fecha_inicio=fecha_inicio_nueva
+        )
 
         invoice = Invoice.objects.create(
             membership=membership,

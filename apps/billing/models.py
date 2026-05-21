@@ -8,6 +8,9 @@ class Plan(models.Model):
     nombre = models.CharField("Nombre del Plan", max_length=50) 
     dias_duracion = models.PositiveIntegerField("Días de Duración") 
     precio_usd = models.DecimalField("Precio (USD)", max_digits=12, decimal_places=2) 
+    hora_inicio = models.TimeField("Hora de Inicio", null=True, blank=True, help_text="Dejar en blanco para acceso todo el día")
+    hora_fin = models.TimeField("Hora de Fin", null=True, blank=True, help_text="Dejar en blanco para acceso todo el día")
+    is_active = models.BooleanField("Activo", default=True, help_text="Si se desactiva, no podrá ser comprado pero mantendrá el historial")
 
     class Meta:
         verbose_name = "Plan"
@@ -33,7 +36,7 @@ class ExchangeRate(models.Model):
         return f"{self.fecha}: {self.tasa_ves} VES/$"
 
 class Membership(models.Model):
-    client = models.OneToOneField(Client, on_delete=models.CASCADE, related_name='membership', verbose_name="Afiliado")
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='memberships', verbose_name="Afiliado")
     plan = models.ForeignKey(Plan, on_delete=models.PROTECT, verbose_name="Plan")
     fecha_inicio = models.DateField("Fecha de Inicio", default=timezone.now)
     fecha_fin = models.DateField("Fecha de Vencimiento", editable=False) 
@@ -56,7 +59,18 @@ class Membership(models.Model):
     @property
     def es_valida(self):
         from datetime import date
-        return date.today() <= self.fecha_fin
+        return self.fecha_inicio <= date.today() <= self.fecha_fin
+        
+    def is_valid_now(self, current_time=None):
+        if not current_time:
+            current_time = timezone.localtime().time()
+        
+        if not self.es_valida:
+            return False
+            
+        if self.plan.hora_inicio and self.plan.hora_fin:
+            return self.plan.hora_inicio <= current_time <= self.plan.hora_fin
+        return True
 
     def __str__(self):
         return f"Membresía de {self.client.nombre} - Vence: {self.fecha_fin}"

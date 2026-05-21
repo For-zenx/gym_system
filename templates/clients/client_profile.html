@@ -62,23 +62,63 @@
         <div class="card membership-card" style="height: fit-content;">
             <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem;">Estado de Membresía</h3>
             
-            {% if membership %}
-                <div class="plan-details">
-                    <div class="detail-item">
-                        <span class="detail-label">Plan Actual</span>
-                        <span class="detail-value">{{ membership.plan.nombre }}</span>
+            {% if active_memberships or queued_memberships %}
+                {% if active_memberships %}
+                    <div class="active-plans">
+                        {% for mem in active_memberships %}
+                        <div class="plan-details" style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px dashed var(--border-color);">
+                            <div class="detail-item">
+                                <span class="detail-label">Plan Activo</span>
+                                <span class="detail-value">{{ mem.plan.nombre }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Horario</span>
+                                <span class="detail-value" style="font-size: 0.9em;">
+                                    {% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{ mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}
+                                </span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Vigencia</span>
+                                <span class="detail-value">{{ mem.fecha_inicio|date:"d/m/Y" }} a {{ mem.fecha_fin|date:"d/m/Y" }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Fecha de Inicio</span>
-                        <span class="detail-value">{{ membership.fecha_inicio|date:"d/m/Y" }}</span>
+                {% else %}
+                    <div style="padding: 1rem; background: rgba(245, 158, 11, 0.1); border-left: 4px solid var(--warning); border-radius: 6px; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; box-sizing: border-box;">
+                        No tiene un plan activo para el día de hoy, pero tiene planes en cola.
                     </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Vencimiento</span>
-                        <span class="detail-value" style="{% if not membership.es_valida %}color: var(--danger);{% endif %}">{{ membership.fecha_fin|date:"d/m/Y" }}</span>
+                {% endif %}
+
+                {% if queued_memberships %}
+                    <h4 style="color: var(--primary); margin: 1.5rem 0 1rem 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Planes Encolados</h4>
+                    <div class="queued-plans">
+                        {% for mem in queued_memberships %}
+                        <div class="plan-details" style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px dashed var(--border-color);">
+                            <div class="detail-item">
+                                <span class="detail-label">Plan</span>
+                                <span class="detail-value" style="color: var(--text-muted);">{{ mem.plan.nombre }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Horario</span>
+                                <span class="detail-value" style="font-size: 0.9em; color: var(--text-muted);">
+                                    {% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{ mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}
+                                </span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Vigencia</span>
+                                <span class="detail-value" style="color: var(--text-muted);">{{ mem.fecha_inicio|date:"d/m/Y" }} a {{ mem.fecha_fin|date:"d/m/Y" }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Estado</span>
+                                <span class="badge badge-warning" style="font-size: 0.75rem;">En Cola</span>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
-                </div>
+                {% endif %}
                 
-                <button class="btn-renew" onclick="openRenewModal()">Renovar Plan</button>
+                <button class="btn-renew" onclick="openRenewModal()">Asignar Otro Plan (Encolar)</button>
             {% else %}
                 <div style="text-align: center; padding: 2rem 0;">
                     <svg style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
