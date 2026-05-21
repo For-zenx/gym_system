@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}PerfectLine{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=1.5">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=1.6">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -26,6 +26,14 @@
                 <a href="{% url 'enrollment' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment' %}active{% endif %}">Enrolamiento</a>
                 <a href="{% url 'billing:plan_list' %}" class="nav-item {% if 'planes' in request.path %}active{% endif %}">Conf. de planes</a>
             </nav>
+            <div class="sidebar-footer">
+                <form action="{% url 'logout' %}" method="post" style="width: 100%; margin: 0;">
+                    {% csrf_token %}
+                    <button type="submit" class="nav-item nav-item-logout" style="width: 100%; border: none; text-align: left; cursor: pointer; font-size: 1rem; font-family: inherit;">
+                        Cerrar Sesión
+                    </button>
+                </form>
+            </div>
         </aside>
 
         <!-- Main Wrapper -->
@@ -36,17 +44,26 @@
                     <button id="sidebarToggle" class="btn-icon" style="display: none;">☰</button>
                     <h3>{% block page_title %}Dashboard{% endblock %}</h3>
                 </div>
-                <div class="navbar-user" style="display: flex; align-items: center; gap: 1rem;">
+                <div class="navbar-user" style="display: flex; align-items: center; gap: 1.5rem;">
+                    
+                    <!-- Rate Widget Editable -->
+                    {% if latest_rate %}
+                    <div class="rate-widget" onclick="openRateModal()" title="Editar Tasa de Cambio">
+                        <span class="rate-widget-value">{{ latest_rate.tasa_ves }} Bs/$</span>
+                        <svg class="rate-edit-btn" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    </div>
+                    {% else %}
+                    <div class="rate-widget" onclick="openRateModal()" title="Configurar Tasa de Cambio">
+                        <span class="rate-widget-value" style="color: var(--warning);">Configurar Tasa</span>
+                        <svg class="rate-edit-btn" style="color: var(--warning);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    </div>
+                    {% endif %}
+
+                    <!-- Tablet Status -->
                     <div id="pc-tablet-status" class="tablet-status-pill">
                         <div class="tablet-status-dot"></div>
                         <span class="status-text">Tablet Offline</span>
                     </div>
-                    
-                    <span class="user-name">Hola, {{ request.user.username|default:"Admin" }}</span>
-                    <form action="{% url 'logout' %}" method="post" style="display: inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-danger-outline">Cerrar Sesión</button>
-                    </form>
                 </div>
             </header>
 
@@ -58,11 +75,46 @@
         </div>
     </div>
     
+    <!-- Modal Global de Tasa de Cambio -->
+    <div class="rate-modal-overlay" id="rateModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div class="modal-content" style="background: var(--bg-surface); padding: 2rem; border-radius: 12px; border: 1px solid var(--border-color); width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <h2 style="margin-top: 0; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; color: var(--text-main);">Actualizar Tasa VES/$</h2>
+            <form method="POST" action="{% url 'billing:update_rate' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}">
+                
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label for="tasa_ves" style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Nueva Tasa de Cambio (VES/$)</label>
+                    <input type="text" id="tasa_ves" name="tasa_ves" placeholder="Ej. 36.50" value="{{ latest_rate.tasa_ves|default:'' }}" required style="width: 100%; padding: 0.85rem; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; box-sizing: border-box; font-size: 1.1rem; outline: none;">
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeRateModal()" style="padding: 0.6rem 1.2rem;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.2rem;">Guardar Tasa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         window.DASHBOARD_WS_URL = wsScheme + "://" + window.location.host + "/ws/dashboard/";
+        
+        function openRateModal() {
+            const modal = document.getElementById('rateModal');
+            modal.style.display = 'flex';
+            setTimeout(() => {
+                const input = document.getElementById('tasa_ves');
+                input.focus();
+                input.select(); // auto-select para sobreescribir rápido
+            }, 100);
+        }
+        
+        function closeRateModal() {
+            document.getElementById('rateModal').style.display = 'none';
+        }
     </script>
-    <script src="{% static 'js/dashboard_ws.js' %}?v=1.5"></script>
+    <script src="{% static 'js/dashboard_ws.js' %}?v=1.6"></script>
     
     {% block extra_js %}{% endblock %}
     
@@ -78,6 +130,16 @@
 
             if (sidebarToggle) sidebarToggle.addEventListener('click', toggleSidebar);
             if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
+            
+            // Cerrar modal al dar clic fuera
+            const rateModal = document.getElementById('rateModal');
+            if (rateModal) {
+                rateModal.addEventListener('click', function(e) {
+                    if (e.target === rateModal) {
+                        closeRateModal();
+                    }
+                });
+            }
         });
     </script>
 </body>

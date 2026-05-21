@@ -5,7 +5,7 @@
 {% block page_title %}Perfil del Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=1.4">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=1.5">
 {% endblock %}
 
 {% block content %}
@@ -14,16 +14,12 @@
     {% if messages %}
     <div class="messages">
         {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}"
-            style="padding: 1rem; background: rgba(16,185,129,0.1); border-left: 4px solid var(--success); color: var(--success); margin-bottom: 1rem; border-radius: 6px;">
-            {{ message }}
-        </div>
+        <div class="alert alert-{{ message.tags }}" style="padding: 1rem; background: rgba(16,185,129,0.1); border-left: 4px solid var(--success); color: var(--success); margin-bottom: 1rem; border-radius: 6px;">{{ message }}</div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <div
-        class="profile-header {% if membership %}{% if membership.es_valida %}status-active{% else %}status-expired{% endif %}{% endif %}">
+    <div class="profile-header {% if membership %}{% if membership.es_valida %}status-active{% else %}status-expired{% endif %}{% endif %}">
 
         <div class="profile-avatar-container">
             {% if client.foto_frente %}
@@ -37,27 +33,21 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
                     <h1>{{ client.nombre }}</h1>
-                    <div class="cedula">C.I: {{ client.cedula }} | Cód: {{ client.codigo_afiliado }} | Tlf: {{
-                        client.telefono|default:"N/A" }}</div>
+                    <div class="cedula">C.I: {{ client.cedula }} | Cód: {{ client.codigo_afiliado }} | Tlf: {{ client.telefono|default:"N/A" }}</div>
                 </div>
                 <button class="btn btn-secondary" onclick="openEditModal()">
-                    <svg style="width:16px;height:16px;margin-right:8px;vertical-align:text-bottom" fill="none"
-                        stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z">
-                        </path>
-                    </svg>
+                    <svg style="width:16px;height:16px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     Editar Datos
                 </button>
             </div>
 
             <div style="margin-top: 1.5rem;">
                 {% if membership %}
-                {% if membership.es_valida %}
-                <span class="status-pill active">Plan Activo</span>
-                {% else %}
-                <span class="status-pill expired">Plan Vencido</span>
-                {% endif %}
+                    {% if membership.es_valida %}
+                    <span class="status-pill active">Plan Activo</span>
+                    {% else %}
+                    <span class="status-pill expired">Plan Vencido</span>
+                    {% endif %}
                 {% else %}
                 <span class="status-pill none">Sin Plan Asignado</span>
                 {% endif %}
@@ -66,10 +56,10 @@
     </div>
 
     <div class="profile-content">
+
         <!-- Tabla de Membresías -->
         <div class="card membership-card" style="margin-bottom: 2rem;">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
                 <h3 style="margin: 0;">Estado de Membresía</h3>
                 <button class="btn btn-primary" onclick="openRenewModal()">+ Asignar Plan</button>
             </div>
@@ -87,56 +77,39 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- Active Plans -->
                         {% for mem in active_memberships %}
                         <tr>
                             <td><strong style="color: var(--text-main);">{{ mem.plan.nombre }}</strong></td>
-                            <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{
-                                mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
+                            <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{ mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
                             <td>{{ mem.fecha_inicio|date:"d/m/Y" }} a {{ mem.fecha_fin|date:"d/m/Y" }}</td>
                             <td><span class="badge badge-success">Activo</span></td>
                             <td>-</td>
                         </tr>
                         {% endfor %}
 
-                        <!-- Queued Plans -->
                         {% for mem in queued_memberships %}
                         <tr>
                             <td><strong style="color: var(--text-main);">{{ mem.plan.nombre }}</strong></td>
-                            <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{
-                                mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
+                            <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{ mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
                             <td>{{ mem.fecha_inicio|date:"d/m/Y" }} a {{ mem.fecha_fin|date:"d/m/Y" }}</td>
                             <td><span class="badge badge-warning">En Cola</span></td>
                             <td>
-                                <form method="POST" action="{% url 'billing:membership_delete' mem.id %}"
-                                    style="margin: 0;">
+                                <form method="POST" action="{% url 'billing:membership_delete' mem.id %}" style="margin: 0;">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-danger-outline"
-                                        style="padding: 0.4rem; display: flex; align-items: center; justify-content: center; border-radius: 6px;"
-                                        title="Eliminar Plan Encolado"
-                                        onclick="return confirm('¿Está seguro de cancelar este plan encolado?');">
-                                        <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                            </path>
-                                        </svg>
+                                    <button type="submit" class="btn btn-danger-outline" style="padding: 0.4rem; display: flex; align-items: center; border-radius: 6px;" title="Cancelar plan" onclick="return confirm('¿Está seguro de cancelar este plan encolado?');">
+                                        <svg style="width:18px;height:18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     </button>
                                 </form>
                             </td>
                         </tr>
                         {% endfor %}
 
-                        <!-- Historical Plans -->
                         {% for mem in historical_memberships %}
                         <tr class="muted-plan">
                             <td>{{ mem.plan.nombre }}</td>
-                            <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{
-                                mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
+                            <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{ mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
                             <td>{{ mem.fecha_inicio|date:"d/m/Y" }} a {{ mem.fecha_fin|date:"d/m/Y" }}</td>
-                            <td><span class="badge"
-                                    style="background: var(--border-color); color: var(--text-muted);">Expirado</span>
-                            </td>
+                            <td><span class="badge" style="background: var(--border-color); color: var(--text-muted);">Expirado</span></td>
                             <td>-</td>
                         </tr>
                         {% endfor %}
@@ -145,86 +118,62 @@
             </div>
             {% else %}
             <div style="text-align: center; padding: 2rem 0;">
-                <svg style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;" fill="none"
-                    stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
+                <svg style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <p style="color: var(--text-muted); margin-bottom: 2rem;">Este afiliado no tiene un plan activo.</p>
                 <button class="btn-renew" onclick="openRenewModal()">Asignar Primer Plan</button>
             </div>
             {% endif %}
         </div>
 
-        <!-- Columna Derecha: Historiales -->
+        <!-- Historiales lado a lado -->
         <div class="history-split-container">
 
             <!-- Historial de Facturación -->
-            <div class="card history-card" style="display: flex; flex-direction: column; max-height: 600px;">
-                <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem;">
-                    Historial de Facturación</h3>
+            <div class="card history-card" style="display: flex; flex-direction: column; max-height: 400px;">
+                <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem; margin-top: 0; flex-shrink: 0;">Historial de Facturación</h3>
                 <div style="overflow-y: auto; flex: 1; padding-right: 0.5rem;">
                     {% if invoices %}
-                    <ul class="invoice-list" style="margin: 0; padding: 0; list-style: none;">
+                    <ul class="invoice-list">
                         {% for invoice in invoices %}
-                        <li class="invoice-item"
-                            style="padding: 1rem 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                            <div class="invoice-info" style="display: flex; flex-direction: column; gap: 0.25rem;">
+                        <li class="invoice-item">
+                            <div class="invoice-info">
                                 <strong>{{ invoice.nro_control }}</strong>
-                                <span style="font-size: 0.85rem; color: var(--text-muted);">{{
-                                    invoice.fecha_emision|date:"d/m/Y" }}</span>
-                                <span style="font-size: 0.85rem; color: var(--text-muted);">{{
-                                    invoice.membership.plan.nombre }}</span>
+                                <span>{{ invoice.fecha_emision|date:"d/m/Y" }}</span>
+                                <span>{{ invoice.membership.plan.nombre }}</span>
                             </div>
                             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;">
-                                <span class="invoice-amount" style="font-weight: 600; color: var(--primary);">Bs {{
-                                    invoice.monto_total }}</span>
-                                <button class="btn btn-primary-outline"
-                                    style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">Imprimir</button>
+                                <span class="invoice-amount">Bs {{ invoice.monto_total }}</span>
+                                <button class="btn btn-primary-outline" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">Imprimir</button>
                             </div>
                         </li>
                         {% endfor %}
                     </ul>
                     {% else %}
-                    <div style="text-align: center; padding: 3rem 0; color: var(--text-muted);">
-                        No hay facturas registradas.
-                    </div>
+                    <div style="text-align: center; padding: 3rem 0; color: var(--text-muted);">No hay facturas registradas.</div>
                     {% endif %}
                 </div>
             </div>
 
             <!-- Historial de Accesos -->
-            <div class="card access-card" style="display: flex; flex-direction: column; max-height: 600px;">
-                <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem;">
-                    Historial de Accesos</h3>
+            <div class="card access-card" style="display: flex; flex-direction: column; max-height: 400px;">
+                <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem; margin-top: 0; flex-shrink: 0;">Historial de Accesos</h3>
                 <div style="overflow-y: auto; flex: 1; padding-right: 0.5rem;">
                     {% if access_logs %}
-                    <ul class="access-list" style="margin: 0; padding: 0; list-style: none;">
+                    <ul class="access-list">
                         {% for log in access_logs %}
-                        <li class="access-item" style="padding: 1rem 0; border-bottom: 1px solid var(--border-color);">
+                        <li class="access-item">
                             <div class="access-info">
-                                <div
-                                    style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
                                     <strong style="font-size: 0.95rem;">{{ log.timestamp|date:"d/m/Y H:i:s" }}</strong>
-                                    {% if log.resultado %}
-                                    <span class="badge badge-success" style="font-size: 0.75rem;">Concedido</span>
-                                    {% else %}
-                                    <span class="badge badge-danger" style="font-size: 0.75rem;">Denegado</span>
-                                    {% endif %}
+                                    {% if log.resultado %}<span class="badge badge-success" style="font-size: 0.75rem;">Concedido</span>{% else %}<span class="badge badge-danger" style="font-size: 0.75rem;">Denegado</span>{% endif %}
                                 </div>
-                                {% if log.motivo %}
-                                <span
-                                    style="display: block; margin-top: 0.4rem; font-size: 0.85rem; color: var(--text-muted);">{{
-                                    log.motivo }}</span>
-                                {% endif %}
+                                {% if log.motivo %}<span style="display: block; margin-top: 0.4rem; font-size: 0.85rem; color: var(--text-muted);">{{ log.motivo }}</span>{% endif %}
                             </div>
                         </li>
                         {% endfor %}
                     </ul>
                     {% else %}
-                    <div style="text-align: center; padding: 3rem 0; color: var(--text-muted);">
-                        No hay registros de acceso.
-                    </div>
+                    <div style="text-align: center; padding: 3rem 0; color: var(--text-muted);">No hay registros de acceso.</div>
                     {% endif %}
                 </div>
             </div>
@@ -238,30 +187,21 @@
             <h2>{% if membership %}Renovar Plan{% else %}Asignar Plan{% endif %}</h2>
             <form method="POST" action="{% url 'billing:renew_plan' client.codigo_afiliado %}">
                 {% csrf_token %}
-
                 <div class="form-group">
                     <label for="plan_id">Seleccione el Plan</label>
                     <select name="plan_id" id="plan_id" required onchange="updatePrice()">
                         <option value="" disabled selected>-- Seleccione un plan disponible --</option>
-                        {% for plan in planes %}
-                        <option value="{{ plan.id }}" data-usd="{{ plan.precio_usd|stringformat:'f' }}">{{ plan.nombre
-                            }} ({{ plan.dias_duracion }} días)</option>
-                        {% endfor %}
+                        {% for plan in planes %}<option value="{{ plan.id }}" data-usd="{{ plan.precio_usd|stringformat:'f' }}">{{ plan.nombre }} ({{ plan.dias_duracion }} días)</option>{% endfor %}
                     </select>
                 </div>
-
                 <div class="price-preview">
                     <div class="usd" id="price_usd">Precio: $0.00</div>
                     <div class="ves" id="price_ves">Bs 0.00</div>
-                    <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem;">
-                        Tasa del día: {{ latest_rate.tasa_ves|default:"No Configurada" }} Bs/$
-                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem;">Tasa del día: {{ latest_rate.tasa_ves|default:"No Configurada" }} Bs/$</div>
                 </div>
-
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeRenewModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="btnConfirm" disabled
-                        style="padding: 0.75rem 2rem; font-size: 1rem;">Generar Factura</button>
+                    <button type="submit" class="btn btn-primary" id="btnConfirm" disabled style="padding: 0.75rem 2rem; font-size: 1rem;">Generar Factura</button>
                 </div>
             </form>
         </div>
@@ -273,79 +213,71 @@
             <h2>Editar Datos Personales</h2>
             <form method="POST" action="{% url 'clients:edit_client' client.codigo_afiliado %}">
                 {% csrf_token %}
-
                 <div class="form-group">
                     <label for="nombre">Nombre Completo</label>
                     <input type="text" id="nombre" name="nombre" value="{{ client.nombre }}" required>
                 </div>
-
                 <div class="form-group">
                     <label for="cedula">Cédula o Pasaporte</label>
                     <input type="text" id="cedula" name="cedula" value="{{ client.cedula }}" required>
                 </div>
-
                 <div class="form-group">
                     <label for="telefono">Número de Teléfono</label>
                     <input type="text" id="telefono" name="telefono" value="{{ client.telefono|default:'' }}">
                 </div>
-
                 <div class="modal-actions" style="margin-top: 2rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary"
-                        style="padding: 0.75rem 2rem; font-size: 1rem;">Guardar Cambios</button>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1rem;">Guardar Cambios</button>
                 </div>
             </form>
         </div>
     </div>
 
-    {% endblock %}
+</div>
+{% endblock %}
 
-    {% block extra_js %}
-    <script>
-        const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
-        const tasaDia = parseFloat(tasaDiaStr);
+{% block extra_js %}
+<script>
+    const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
+    const tasaDia = parseFloat(tasaDiaStr);
 
-        function openRenewModal() {
-            if (tasaDia <= 0 || isNaN(tasaDia)) {
-                alert("Atención: No hay una tasa de cambio configurada en el sistema para el día de hoy.");
-                return;
-            }
-            document.getElementById('renewModal').classList.add('show');
+    function openRenewModal() {
+        if (tasaDia <= 0 || isNaN(tasaDia)) {
+            alert("Atención: No hay una tasa de cambio configurada en el sistema para el día de hoy.");
+            return;
         }
+        document.getElementById('renewModal').classList.add('show');
+    }
 
-        function closeRenewModal() {
-            document.getElementById('renewModal').classList.remove('show');
-            document.getElementById('plan_id').value = "";
-            updatePrice();
+    function closeRenewModal() {
+        document.getElementById('renewModal').classList.remove('show');
+        document.getElementById('plan_id').value = "";
+        updatePrice();
+    }
+
+    function openEditModal() {
+        document.getElementById('editModal').classList.add('show');
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').classList.remove('show');
+    }
+
+    function updatePrice() {
+        const select = document.getElementById('plan_id');
+        const btnConfirm = document.getElementById('btnConfirm');
+        if (!select.value) {
+            document.getElementById('price_usd').textContent = "Precio: $0.00";
+            document.getElementById('price_ves').textContent = "Bs 0.00";
+            btnConfirm.disabled = true;
+            return;
         }
-
-        function openEditModal() {
-            document.getElementById('editModal').classList.add('show');
-        }
-
-        function closeEditModal() {
-            document.getElementById('editModal').classList.remove('show');
-        }
-
-        function updatePrice() {
-            const select = document.getElementById('plan_id');
-            const btnConfirm = document.getElementById('btnConfirm');
-
-            if (!select.value) {
-                document.getElementById('price_usd').textContent = "Precio: $0.00";
-                document.getElementById('price_ves').textContent = "Bs 0.00";
-                btnConfirm.disabled = true;
-                return;
-            }
-
-            const option = select.options[select.selectedIndex];
-            const priceUsd = parseFloat(option.getAttribute('data-usd').replace(',', '.'));
-            const priceVes = priceUsd * tasaDia;
-
-            document.getElementById('price_usd').textContent = `Precio: $${priceUsd.toFixed(2)}`;
-            document.getElementById('price_ves').textContent = `Bs ${priceVes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-            btnConfirm.disabled = false;
-        }
-    </script>
-    {% endblock %}
+        const option = select.options[select.selectedIndex];
+        const priceUsd = parseFloat(option.getAttribute('data-usd').replace(',', '.'));
+        const priceVes = priceUsd * tasaDia;
+        document.getElementById('price_usd').textContent = `Precio: $${priceUsd.toFixed(2)}`;
+        document.getElementById('price_ves').textContent = `Bs ${priceVes.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        btnConfirm.disabled = false;
+    }
+</script>
+{% endblock %}

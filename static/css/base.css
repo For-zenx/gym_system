@@ -526,3 +526,67 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-main);
     font-weight: 500;
 }
+
+/* --- Rate Widget --- */
+.rate-widget {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    background-color: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.rate-widget:hover {
+    background-color: rgba(16, 185, 129, 0.2);
+    transform: translateY(-1px);
+}
+
+.rate-widget-value {
+    color: var(--success);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.rate-edit-btn {
+    width: 16px;
+    height: 16px;
+    color: var(--success);
+    opacity: 0.8;
+}
+
+/* --- Sidebar Footer & Logout --- */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-nav {
+    flex: 1;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
+.nav-item-logout {
+    color: var(--danger);
+    background-color: rgba(239, 68, 68, 0.05);
+    display: block;
+    padding: 0.85rem 1.25rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+}
+
+.nav-item-logout:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+}
+

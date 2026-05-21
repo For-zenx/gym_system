@@ -5,8 +5,29 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView
 from django.urls import reverse_lazy
 from apps.clients.models import Client
-from .models import Plan, Membership
+from .models import Plan, Membership, ExchangeRate
 from .services import register_membership_renewal
+
+class ExchangeRateUpdateView(LoginRequiredMixin, View):
+    def post(self, request):
+        try:
+            tasa_str = request.POST.get('tasa_ves')
+            if not tasa_str:
+                raise ValueError("La tasa no puede estar vacía.")
+            
+            tasa = float(tasa_str.replace(',', '.'))
+            if tasa <= 0:
+                raise ValueError("La tasa debe ser mayor a 0.")
+                
+            ExchangeRate.objects.create(tasa_ves=tasa)
+            messages.success(request, f"Tasa VES/$ actualizada a {tasa:.2f}")
+        except ValueError as e:
+            messages.error(request, f"Valor de tasa inválido: {str(e)}")
+        except Exception as e:
+            messages.error(request, f"Error al actualizar la tasa: {str(e)}")
+            
+        next_url = request.POST.get('next') or request.META.get('HTTP_REFERER', '/')
+        return redirect(next_url)
 
 class RenewPlanView(LoginRequiredMixin, View):
     def post(self, request, codigo_afiliado):

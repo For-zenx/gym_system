@@ -20,7 +20,7 @@ class Plan(models.Model):
         return f"{self.nombre} ({self.dias_duracion} días) - ${self.precio_usd}"
 
 class ExchangeRate(models.Model):
-    tasa_ves = models.DecimalField("Tasa VES/$", max_digits=12, decimal_places=4)
+    tasa_ves = models.DecimalField("Tasa VES/$", max_digits=12, decimal_places=2)
     fecha = models.DateField("Fecha", auto_now_add=True)
 
     class Meta:
