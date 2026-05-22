@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RenewPlanView, PlanListView, PlanCreateView, PlanUpdateView, PlanDeleteView, MembershipDeleteView, ExchangeRateUpdateView
+from .views import RenewPlanView, PlanListView, PlanCreateView, PlanUpdateView, PlanDeleteView, MembershipDeleteView, ExchangeRateUpdateView, InvoiceListView
 
 app_name = 'billing'
 
@@ -11,4 +11,5 @@ urlpatterns = [
     path('planes/borrar/<int:pk>/', PlanDeleteView.as_view(), name='plan_delete'),
     path('membresia/eliminar/<int:pk>/', MembershipDeleteView.as_view(), name='membership_delete'),
     path('tasa/actualizar/', ExchangeRateUpdateView.as_view(), name='update_rate'),
+    path('facturas/', InvoiceListView.as_view(), name='invoice_list'),
 ]

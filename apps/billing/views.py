@@ -5,7 +5,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView
 from django.urls import reverse_lazy
 from apps.clients.models import Client
-from .models import Plan, Membership, ExchangeRate
+from django.db.models import Q
+from .models import Plan, Membership, ExchangeRate, Invoice
 from .services import register_membership_renewal
 
 class ExchangeRateUpdateView(LoginRequiredMixin, View):
@@ -111,3 +112,26 @@ class MembershipDeleteView(LoginRequiredMixin, View):
             messages.error(request, "No se puede eliminar una membresía activa o pasada.")
             
         return redirect('clients:profile', codigo_afiliado=client_code)
+
+class InvoiceListView(LoginRequiredMixin, ListView):
+    model = Invoice
+    template_name = 'billing/invoice_list.html'
+    context_object_name = 'invoices'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Invoice.objects.select_related('client', 'membership__plan').order_by('-fecha_emision', '-id')
+        q = self.request.GET.get('q', '').strip()
+        if q:
+            queryset = queryset.filter(
+                Q(nro_control__icontains=q) |
+                Q(client__nombre__icontains=q) |
+                Q(client__cedula__icontains=q) |
+                Q(client__codigo_afiliado__icontains=q)
+            )
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['query'] = self.request.GET.get('q', '')
+        return context

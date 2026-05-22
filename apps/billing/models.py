@@ -76,7 +76,9 @@ class Membership(models.Model):
         return f"Membresía de {self.client.nombre} - Vence: {self.fecha_fin}"
 
 class Invoice(models.Model):
-    membership = models.ForeignKey(Membership, on_delete=models.CASCADE, related_name='invoices', verbose_name="Membresía")
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='invoices', verbose_name="Afiliado", null=True, blank=True)
+    membership = models.ForeignKey(Membership, on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices', verbose_name="Membresía")
+    plan_snapshot = models.CharField("Plan Comprado", max_length=100, blank=True)
     monto_total = models.DecimalField("Monto Total (VES)", max_digits=12, decimal_places=2)
     nro_control = models.CharField("Nro. Control Fiscal", max_length=50)
     fecha_emision = models.DateTimeField("Fecha de Emisión", auto_now_add=True)

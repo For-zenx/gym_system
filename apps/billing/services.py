@@ -31,7 +31,9 @@ def register_membership_renewal(client, plan, nro_control=None, monto_ves=None):
         )
 
         invoice = Invoice.objects.create(
+            client=client,
             membership=membership,
+            plan_snapshot=f"{plan.nombre} ({plan.dias_duracion} días)",
             monto_total=monto_ves,
             nro_control=nro_control or "PENDING"
         )

@@ -590,3 +590,56 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--danger);
 }
 
+/* --- Invoice List Page --- */
+.invoice-page { max-width: 1200px; margin: 0 auto; }
+
+.membership-deleted {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.client-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+.client-link:hover { color: #818cf8; }
+
+.badge-print {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.pagination-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+}
+.page-btn {
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+.page-btn:hover { background: rgba(255,255,255,0.06); }
+.page-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    font-weight: 700;
+}
+.page-btn.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+

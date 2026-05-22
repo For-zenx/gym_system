@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Historial de Facturas — PerfectLine{% endblock %}
+{% block page_title %}Historial de Facturas{% endblock %}
+
+{% block content %}
+<div class="invoice-page">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <form method="GET" action="{% url 'billing:invoice_list' %}" style="display: flex; gap: 0.5rem;">
+                <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nro. factura, nombre, cédula o código..."
+                       style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main); width: 300px;">
+                <button type="submit" class="btn btn-primary">Buscar</button>
+                {% if query %}<a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">Limpiar</a>{% endif %}
+            </form>
+        </div>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">{{ paginator.count }} factura{{ paginator.count|pluralize:"s" }} en total</span>
+    </div>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Nro. Control</th>
+                    <th>Afiliado</th>
+                    <th>Plan</th>
+                    <th style="text-align: right;">Monto (VES)</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}
+                <tr>
+                    <td style="color: var(--text-muted); font-size: 0.9rem; white-space: nowrap;">{{ invoice.fecha_emision|date:"d/m/Y H:i" }}</td>
+                    <td><span style="font-family: monospace; font-weight: 600; font-size: 0.9rem;">{{ invoice.nro_control }}</span></td>
+                    <td>
+                        {% if invoice.client %}
+                            <a href="{% url 'clients:profile' invoice.client.codigo_afiliado %}" class="client-link">{{ invoice.client.nombre }}</a>
+                            <br><span style="font-size: 0.8rem; color: var(--text-muted);">{{ invoice.client.codigo_afiliado }}</span>
+                        {% else %}
+                            <span class="membership-deleted">Cliente eliminado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if invoice.plan_snapshot %}
+                            {{ invoice.plan_snapshot }}
+                        {% elif invoice.membership %}
+                            {{ invoice.membership.plan.nombre }}
+                        {% else %}
+                            <span class="membership-deleted">Plan eliminado</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; font-weight: 700; color: var(--success);">Bs {{ invoice.monto_total|floatformat:2 }}</td>
+                    <td>
+                        {% if invoice.esta_impresa %}
+                            <span class="badge badge-print">Impresa</span>
+                        {% else %}
+                            <span class="badge badge-success">Por imprimir</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        {% if query %}No se encontraron facturas para "{{ query }}"{% else %}No hay facturas registradas aún{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <div class="pagination-wrapper">
+        {% if page_obj.has_previous %}
+            <a href="?{% if query %}q={{ query }}&{% endif %}page=1" class="page-btn">« Primera</a>
+            <a href="?{% if query %}q={{ query }}&{% endif %}page={{ page_obj.previous_page_number }}" class="page-btn">‹ Anterior</a>
+        {% else %}
+            <span class="page-btn disabled">« Primera</span>
+            <span class="page-btn disabled">‹ Anterior</span>
+        {% endif %}
+
+        {% for num in paginator.page_range %}
+            {% if page_obj.number == num %}
+                <span class="page-btn active">{{ num }}</span>
+            {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+                <a href="?{% if query %}q={{ query }}&{% endif %}page={{ num }}" class="page-btn">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+            <a href="?{% if query %}q={{ query }}&{% endif %}page={{ page_obj.next_page_number }}" class="page-btn">Siguiente ›</a>
+            <a href="?{% if query %}q={{ query }}&{% endif %}page={{ paginator.num_pages }}" class="page-btn">Última »</a>
+        {% else %}
+            <span class="page-btn disabled">Siguiente ›</span>
+            <span class="page-btn disabled">Última »</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
