@@ -51,7 +51,7 @@ class ClientProfileView(LoginRequiredMixin, DetailView):
         context['queued_memberships'] = queued_mems
         context['historical_memberships'] = historical_mems
             
-        context['invoices'] = Invoice.objects.filter(membership__client=self.object).order_by('-fecha_emision')[:10]
+        context['invoices'] = Invoice.objects.filter(client=self.object).order_by('-fecha_emision')[:10]
             
         context['planes'] = Plan.objects.filter(is_active=True)
         context['latest_rate'] = ExchangeRate.get_latest()

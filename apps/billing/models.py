@@ -96,4 +96,5 @@ class Invoice(models.Model):
                 raise ValidationError("No se puede editar una factura que ya ha sido impresa.")
 
     def __str__(self):
-        return f"Factura {self.nro_control} - {self.membership.client.nombre}"
+        client_name = self.client.nombre if self.client else (self.membership.client.nombre if (self.membership and self.membership.client) else "Sin Afiliado")
+        return f"Factura {self.nro_control} - {client_name}"

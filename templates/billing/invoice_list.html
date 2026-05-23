@@ -33,12 +33,12 @@
             </thead>
             <tbody>
                 {% for invoice in invoices %}
-                <tr>
+                <tr onclick="window.location='{% url 'billing:invoice_detail' invoice.id %}?next={{ request.get_full_path|urlencode }}'" style="cursor: pointer;">
                     <td style="color: var(--text-muted); font-size: 0.9rem; white-space: nowrap;">{{ invoice.fecha_emision|date:"d/m/Y H:i" }}</td>
-                    <td><span style="font-family: monospace; font-weight: 600; font-size: 0.9rem;">{{ invoice.nro_control }}</span></td>
+                    <td style="font-family: monospace; font-weight: 600; font-size: 0.9rem;">{{ invoice.nro_control }}</td>
                     <td>
                         {% if invoice.client %}
-                            <a href="{% url 'clients:profile' invoice.client.codigo_afiliado %}" class="client-link">{{ invoice.client.nombre }}</a>
+                            <span style="font-weight: 500;">{{ invoice.client.nombre }}</span>
                             <br><span style="font-size: 0.8rem; color: var(--text-muted);">{{ invoice.client.codigo_afiliado }}</span>
                         {% else %}
                             <span class="membership-deleted">Cliente eliminado</span>

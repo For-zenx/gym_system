@@ -1,9 +1,18 @@
 import os
 import pytest
+from decimal import Decimal
 from unittest.mock import patch, MagicMock
 from datetime import date
 from django.core.exceptions import ValidationError
-from apps.billing.printer import print_invoice, _build_ticket_lines, MAX_LINE_WIDTH
+from apps.billing.printer import (
+    print_invoice,
+    _build_ticket_lines,
+    build_invoice_preview_lines,
+    MAX_LINE_WIDTH,
+    PREVIEW_FISCAL_NUMBER,
+    PREVIEW_FISCAL_DATE,
+    PREVIEW_FISCAL_TIME,
+)
 from apps.billing.models import Invoice, Membership
 from apps.core.models import PrinterConfig
 
@@ -30,10 +39,13 @@ class TestPrinterService:
     def test_ticket_description_format(self, sample_client, monthly_plan):
         """Validar el formato exacto del tique replicando la factura real."""
         invoice = self._create_invoice(sample_client, monthly_plan)
+        invoice.monto_total = Decimal("1000.00")
+        invoice.save(update_fields=['monto_total'])
         lines = _build_ticket_lines(invoice)
 
         fecha_inicio = invoice.membership.fecha_inicio.strftime('%d/%m/%Y')
         fecha_fin = invoice.membership.fecha_fin.strftime('%d/%m/%Y')
+        amount = "Bs 1.000,00"
 
         text_lines = [content for kind, content in lines if kind == "text"]
 
@@ -49,6 +61,29 @@ class TestPrinterService:
         assert any("EXENTO" in l for l in text_lines)
         assert any("TOTAL" in l for l in text_lines)
         assert any("EFECTIVO 1" in l for l in text_lines)
+        assert any(amount in l for l in text_lines)
+        assert any(l.startswith("EFECTIVO 1") and amount in l for l in text_lines)
+
+    def test_invoice_preview_matches_fiscal_ticket_shape(self, sample_client, monthly_plan):
+        invoice = self._create_invoice(sample_client, monthly_plan, nro_control="00008042")
+        invoice.client = sample_client
+        invoice.monto_total = Decimal("1000.00")
+        invoice.save(update_fields=['client', 'monto_total'])
+
+        lines = build_invoice_preview_lines(invoice)
+
+        assert lines[0] == " " * 42
+        assert not any(line == "=" * 42 for line in lines)
+        assert not any("- " in line and line.strip().endswith("-") for line in lines)
+        assert any("SENIAT" in line for line in lines)
+        assert any("RIF J-403298858" in line for line in lines)
+        assert any("PERFECT LINE II, C.A" in line for line in lines)
+        assert any(line.strip() == "FACTURA" for line in lines)
+        assert any(line.startswith("FACTURA:") and line.endswith(PREVIEW_FISCAL_NUMBER) for line in lines)
+        assert any(f"FECHA: {PREVIEW_FISCAL_DATE}" in line and f"HORA: {PREVIEW_FISCAL_TIME}" in line for line in lines)
+        assert not any("00008042" in line for line in lines)
+        assert any(line.startswith("TOTAL") and line.endswith("Bs 1.000,00") for line in lines)
+        assert any(line.startswith("EFECTIVO 1") and line.endswith("Bs 1.000,00") for line in lines)
 
     def test_print_marks_invoice_as_printed(self, sample_client, monthly_plan, settings):
         """Validar que tras imprimir, esta_impresa se actualiza a True."""

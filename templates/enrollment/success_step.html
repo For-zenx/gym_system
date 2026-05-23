@@ -26,11 +26,10 @@
     </div>
     
     <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 3rem;">
-        <!-- En el futuro, este botón llamará al endpoint de impresión -->
-        <button class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1.1rem;" onclick="alert('Imprimiendo...')">
+        <a href="{% url 'billing:invoice_detail' invoice.id %}" class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1.1rem; text-decoration: none;">
             <svg style="width:20px;height:20px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
             Imprimir Factura
-        </button>
+        </a>
         
         <a href="{% url 'clients:profile' client.codigo_afiliado %}" class="btn btn-secondary" style="padding: 1rem 2rem; font-size: 1.1rem;">
             Ir al Perfil

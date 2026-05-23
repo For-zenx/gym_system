@@ -139,11 +139,11 @@
                             <div class="invoice-info">
                                 <strong>{{ invoice.nro_control }}</strong>
                                 <span>{{ invoice.fecha_emision|date:"d/m/Y" }}</span>
-                                <span>{{ invoice.membership.plan.nombre }}</span>
+                                <span>{% if invoice.plan_snapshot %}{{ invoice.plan_snapshot }}{% else %}{{ invoice.membership.plan.nombre }}{% endif %}</span>
                             </div>
                             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;">
                                 <span class="invoice-amount">Bs {{ invoice.monto_total }}</span>
-                                <button class="btn btn-primary-outline" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">Imprimir</button>
+                                <a href="{% url 'billing:invoice_detail' invoice.id %}?next={{ request.path|urlencode }}" class="btn btn-primary-outline" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; text-decoration: none;">Previsualizar</a>
                             </div>
                         </li>
                         {% endfor %}

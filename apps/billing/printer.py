@@ -2,12 +2,29 @@ import os
 import logging
 from datetime import datetime
 from django.conf import settings
+from django.utils import timezone
 from escpos.printer import Serial
 from apps.core.models import PrinterConfig
 
 logger = logging.getLogger(__name__)
 
 MAX_LINE_WIDTH = 42
+PREVIEW_LINE_WIDTH = 42
+
+FISCAL_HEADER_LINES = [
+    "SENIAT",
+    "RIF J-403298858",
+    "PERFECT LINE II, C.A",
+    "CALLE PRINCIPAL DE JUAN GRIEGO CASA",
+    "NRO 5 URB NUEVO JUAN GRIEGO JUAN GRIEGO",
+    "NUEVA ESPARTA ZONA POSTAL 6309",
+    "CONTRIBUYENTE FORMAL",
+]
+
+# Placeholders de solo previsualización: la Dascom imprime número, fecha y hora fiscales.
+PREVIEW_FISCAL_NUMBER = "00000000"
+PREVIEW_FISCAL_DATE = "xx-xx-xxxx"
+PREVIEW_FISCAL_TIME = "--:--"
 
 
 def _truncate(text, max_width):
@@ -22,13 +39,42 @@ def _right_align(label, value, width=MAX_LINE_WIDTH):
     return label + (" " * space) + value
 
 
-def _build_ticket_lines(invoice):
-    membership = invoice.membership
-    client = membership.client
+def _center(text, width=MAX_LINE_WIDTH):
+    return text[:width].center(width)
 
-    fecha_inicio = membership.fecha_inicio.strftime('%d/%m/%Y')
-    fecha_fin = membership.fecha_fin.strftime('%d/%m/%Y')
-    monto_str = f"Bs {invoice.monto_total:,.2f}"
+
+def _preview_blank(width=PREVIEW_LINE_WIDTH):
+    return " " * width
+
+
+def _preview_separator(width=PREVIEW_LINE_WIDTH):
+    return "-" * width
+
+
+def _format_currency_ves(amount):
+    normalized = f"{amount:,.2f}"
+    return "Bs " + normalized.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _get_invoice_client(invoice):
+    return invoice.client or (invoice.membership.client if invoice.membership else None)
+
+
+def _build_ticket_lines(invoice):
+    client = _get_invoice_client(invoice)
+    if not client:
+        raise ValueError("La factura no tiene un cliente asociado.")
+
+    monto_str = _format_currency_ves(invoice.monto_total)
+
+    if invoice.membership:
+        fecha_inicio = invoice.membership.fecha_inicio.strftime('%d/%m/%Y')
+        fecha_fin = invoice.membership.fecha_fin.strftime('%d/%m/%Y')
+        cuota_line = f"|CUOTA {fecha_inicio} AL {fecha_fin}|"
+    else:
+        # Fallback en caso de que la membresía haya sido removida físicamente
+        emision = invoice.fecha_emision.strftime('%d/%m/%Y')
+        cuota_line = f"|CUOTA REF EMISION: {emision}|"
 
     lines = [
         # Datos del cliente (lo que el sistema envía, el encabezado lo genera la máquina)
@@ -37,15 +83,53 @@ def _build_ticket_lines(invoice):
         ("text", f"Cod. Afil.: {client.codigo_afiliado}"),
         ("separator", None),
         # Descripción de la transacción
-        ("text", f"|CUOTA {fecha_inicio} AL {fecha_fin}|"),
+        ("text", cuota_line),
         ("text", _right_align(_truncate(client.nombre, 28) + " (E)", monto_str)),
         ("separator", None),
         # Totales
         ("text", _right_align("EXENTO", monto_str)),
         ("separator", None),
         ("text", _right_align("TOTAL", monto_str)),
-        ("text", "EFECTIVO 1"),
+        ("text", _right_align("EFECTIVO 1", monto_str)),
     ]
+    return lines
+
+
+def build_invoice_preview_lines(invoice):
+    client = _get_invoice_client(invoice)
+    issued_at = timezone.localtime(invoice.fecha_emision)
+    amount = _format_currency_ves(invoice.monto_total)
+
+    if invoice.membership:
+        fecha_inicio = invoice.membership.fecha_inicio.strftime('%d/%m/%Y')
+        fecha_fin = invoice.membership.fecha_fin.strftime('%d/%m/%Y')
+        quota_line = f"|CUOTA {fecha_inicio} AL {fecha_fin}|"
+    else:
+        quota_line = f"|CUOTA REF EMISION: {issued_at.strftime('%d/%m/%Y')}|"
+
+    client_name = client.nombre if client else "SIN AFILIADO"
+    client_id = client.cedula if client else "N/A"
+    client_code = client.codigo_afiliado if client else "N/A"
+
+    lines = [_preview_blank()]
+    lines.extend(_center(line, PREVIEW_LINE_WIDTH) for line in FISCAL_HEADER_LINES)
+    lines.extend([
+        _preview_blank(),
+        f"RIF/C.I.: {client_id}",
+        _truncate(f"RAZON SOCIAL: {client_name}", PREVIEW_LINE_WIDTH),
+        f"Cod. Afil.: {client_code}",
+        _center("FACTURA", PREVIEW_LINE_WIDTH),
+        _right_align("FACTURA:", PREVIEW_FISCAL_NUMBER, PREVIEW_LINE_WIDTH),
+        _right_align(f"FECHA: {PREVIEW_FISCAL_DATE}", f"HORA: {PREVIEW_FISCAL_TIME}", PREVIEW_LINE_WIDTH),
+        _preview_separator(),
+        _truncate(quota_line, PREVIEW_LINE_WIDTH),
+        _right_align(_truncate(client_name, 20) + " (E)", amount, PREVIEW_LINE_WIDTH),
+        _preview_separator(),
+        _right_align("EXENTO", amount, PREVIEW_LINE_WIDTH),
+        _preview_separator(),
+        _right_align("TOTAL", amount, PREVIEW_LINE_WIDTH),
+        _right_align("EFECTIVO 1", amount, PREVIEW_LINE_WIDTH),
+    ])
     return lines
 
 

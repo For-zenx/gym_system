@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Factura {{ invoice.nro_control }} | PerfectLine{% endblock %}
+{% block page_title %}Detalle de Factura{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom: 1.5rem;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        {% if next_url %}
+        <a href="{{ next_url }}" class="btn btn-secondary">&larr; Volver</a>
+        {% elif invoice.client %}
+        <a href="{% url 'clients:profile' invoice.client.codigo_afiliado %}" class="btn btn-secondary">&larr; Volver al Perfil</a>
+        {% else %}
+        <a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">&larr; Volver al Historial</a>
+        {% endif %}
+
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            {% if invoice.esta_impresa %}
+            <span class="badge badge-print" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Impresa</span>
+            <button class="btn btn-secondary" disabled style="cursor: not-allowed; opacity: 0.6;">
+                Factura ya Impresa
+            </button>
+            {% else %}
+            <span class="badge badge-success" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Por imprimir</span>
+            <form method="POST" action="{% url 'billing:print_invoice' invoice.id %}" style="margin: 0;">
+                {% csrf_token %}
+                {% if next_url %}
+                <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
+                <button type="submit" class="btn btn-primary">
+                    <svg style="width:18px;height:18px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    Imprimir Factura
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="ticket-container">
+        <div class="ticket-paper">
+            {% for line in ticket_lines %}<span class="ticket-line">{{ line }}</span>{% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

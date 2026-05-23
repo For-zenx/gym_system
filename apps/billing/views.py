@@ -1,13 +1,23 @@
+from urllib.parse import urlencode
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView, CreateView, UpdateView
-from django.urls import reverse_lazy
+from django.views.generic import ListView, CreateView, UpdateView, DetailView
+from django.urls import reverse, reverse_lazy
+from django.utils.http import url_has_allowed_host_and_scheme
 from apps.clients.models import Client
 from django.db.models import Q
 from .models import Plan, Membership, ExchangeRate, Invoice
 from .services import register_membership_renewal
+from .printer import build_invoice_preview_lines, print_invoice
+
+
+def _get_safe_next_url(request, value):
+    if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+        return value
+    return ''
+
 
 class ExchangeRateUpdateView(LoginRequiredMixin, View):
     def post(self, request):
@@ -135,3 +145,37 @@ class InvoiceListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
         return context
+
+
+class InvoiceDetailView(LoginRequiredMixin, DetailView):
+    model = Invoice
+    template_name = 'billing/invoice_detail.html'
+    context_object_name = 'invoice'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['latest_rate'] = ExchangeRate.get_latest()
+        context['next_url'] = _get_safe_next_url(self.request, self.request.GET.get('next', ''))
+        context['ticket_lines'] = build_invoice_preview_lines(self.object)
+        return context
+
+
+class PrintInvoiceActionView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        invoice = get_object_or_404(Invoice, pk=pk)
+        detail_url = reverse('billing:invoice_detail', kwargs={'pk': pk})
+        next_url = _get_safe_next_url(request, request.POST.get('next', ''))
+        if next_url:
+            detail_url = f"{detail_url}?{urlencode({'next': next_url})}"
+        
+        if invoice.esta_impresa:
+            messages.error(request, "Esta factura ya ha sido impresa y no se puede volver a imprimir.")
+            return redirect(detail_url)
+
+        try:
+            print_invoice(invoice)
+            messages.success(request, f"Factura {invoice.nro_control} enviada a la impresora con éxito.")
+        except Exception as e:
+            messages.error(request, f"Error al imprimir la factura: {str(e)}")
+
+        return redirect(detail_url)
