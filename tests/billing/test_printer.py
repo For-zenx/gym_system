@@ -28,11 +28,15 @@ class TestPrinterService:
             plan=monthly_plan,
             fecha_inicio=date.today()
         )
-        return Invoice.objects.create(
+        invoice = Invoice.objects.create(
             membership=membership,
             monto_total=monthly_plan.precio_usd,
-            nro_control=nro_control
+            nro_control=nro_control,
         )
+        invoice.set_client_snapshots(client)
+        invoice.client = client
+        invoice.save(update_fields=['client', 'client_nombre_snapshot', 'client_cedula_snapshot', 'client_codigo_snapshot'])
+        return invoice
 
     # --- Tests Originales ---
 

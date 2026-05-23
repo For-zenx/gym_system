@@ -137,7 +137,10 @@ class InvoiceListView(LoginRequiredMixin, ListView):
                 Q(nro_control__icontains=q) |
                 Q(client__nombre__icontains=q) |
                 Q(client__cedula__icontains=q) |
-                Q(client__codigo_afiliado__icontains=q)
+                Q(client__codigo_afiliado__icontains=q) |
+                Q(client_nombre_snapshot__icontains=q) |
+                Q(client_cedula_snapshot__icontains=q) |
+                Q(client_codigo_snapshot__icontains=q)
             )
         return queryset
 

@@ -37,12 +37,9 @@
                     <td style="color: var(--text-muted); font-size: 0.9rem; white-space: nowrap;">{{ invoice.fecha_emision|date:"d/m/Y H:i" }}</td>
                     <td style="font-family: monospace; font-weight: 600; font-size: 0.9rem;">{{ invoice.nro_control }}</td>
                     <td>
-                        {% if invoice.client %}
-                            <span style="font-weight: 500;">{{ invoice.client.nombre }}</span>
-                            <br><span style="font-size: 0.8rem; color: var(--text-muted);">{{ invoice.client.codigo_afiliado }}</span>
-                        {% else %}
-                            <span class="membership-deleted">Cliente eliminado</span>
-                        {% endif %}
+                        <span style="font-weight: 500;">{{ invoice.receptor_nombre }}</span>
+                        <br><span style="font-size: 0.8rem; color: var(--text-muted);">{{ invoice.receptor_codigo }}</span>
+                        {% if not invoice.client %}<br><span class="membership-deleted" style="font-size: 0.75rem;">Histórico</span>{% endif %}
                     </td>
                     <td>
                         {% if invoice.plan_snapshot %}

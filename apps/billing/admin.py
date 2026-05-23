@@ -23,7 +23,21 @@ class MembershipAdmin(admin.ModelAdmin):
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ('nro_control', 'client', 'plan_snapshot', 'monto_total', 'esta_impresa', 'fecha_emision')
+    list_display = ('nro_control', 'receptor_nombre', 'client', 'plan_snapshot', 'monto_total', 'esta_impresa', 'fecha_emision')
     list_filter = ('esta_impresa', 'fecha_emision')
-    search_fields = ('nro_control', 'client__nombre', 'client__cedula', 'client__codigo_afiliado')
-    readonly_fields = ('fecha_emision',)
+    search_fields = (
+        'nro_control',
+        'client__nombre',
+        'client__cedula',
+        'client__codigo_afiliado',
+        'client_nombre_snapshot',
+        'client_cedula_snapshot',
+        'client_codigo_snapshot',
+    )
+    readonly_fields = (
+        'fecha_emision',
+        'client_nombre_snapshot',
+        'client_cedula_snapshot',
+        'client_codigo_snapshot',
+        'plan_snapshot',
+    )

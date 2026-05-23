@@ -56,15 +56,8 @@ def _format_currency_ves(amount):
     return "Bs " + normalized.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def _get_invoice_client(invoice):
-    return invoice.client or (invoice.membership.client if invoice.membership else None)
-
-
 def _build_ticket_lines(invoice):
-    client = _get_invoice_client(invoice)
-    if not client:
-        raise ValueError("La factura no tiene un cliente asociado.")
-
+    nombre, cedula, codigo = invoice.get_receptor_for_ticket()
     monto_str = _format_currency_ves(invoice.monto_total)
 
     if invoice.membership:
@@ -78,13 +71,13 @@ def _build_ticket_lines(invoice):
 
     lines = [
         # Datos del cliente (lo que el sistema envía, el encabezado lo genera la máquina)
-        ("text", f"RIF/C.I.: {client.cedula}"),
-        ("text", _truncate(f"RAZON SOCIAL: {client.nombre}", MAX_LINE_WIDTH)),
-        ("text", f"Cod. Afil.: {client.codigo_afiliado}"),
+        ("text", f"RIF/C.I.: {cedula}"),
+        ("text", _truncate(f"RAZON SOCIAL: {nombre}", MAX_LINE_WIDTH)),
+        ("text", f"Cod. Afil.: {codigo}"),
         ("separator", None),
         # Descripción de la transacción
         ("text", cuota_line),
-        ("text", _right_align(_truncate(client.nombre, 28) + " (E)", monto_str)),
+        ("text", _right_align(_truncate(nombre, 28) + " (E)", monto_str)),
         ("separator", None),
         # Totales
         ("text", _right_align("EXENTO", monto_str)),
@@ -96,7 +89,6 @@ def _build_ticket_lines(invoice):
 
 
 def build_invoice_preview_lines(invoice):
-    client = _get_invoice_client(invoice)
     issued_at = timezone.localtime(invoice.fecha_emision)
     amount = _format_currency_ves(invoice.monto_total)
 
@@ -107,9 +99,7 @@ def build_invoice_preview_lines(invoice):
     else:
         quota_line = f"|CUOTA REF EMISION: {issued_at.strftime('%d/%m/%Y')}|"
 
-    client_name = client.nombre if client else "SIN AFILIADO"
-    client_id = client.cedula if client else "N/A"
-    client_code = client.codigo_afiliado if client else "N/A"
+    client_name, client_id, client_code = invoice.get_receptor_for_ticket()
 
     lines = [_preview_blank()]
     lines.extend(_center(line, PREVIEW_LINE_WIDTH) for line in FISCAL_HEADER_LINES)

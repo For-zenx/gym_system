@@ -76,8 +76,18 @@ class Membership(models.Model):
         return f"Membresía de {self.client.nombre} - Vence: {self.fecha_fin}"
 
 class Invoice(models.Model):
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='invoices', verbose_name="Afiliado", null=True, blank=True)
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.SET_NULL,
+        related_name='invoices',
+        verbose_name="Afiliado",
+        null=True,
+        blank=True,
+    )
     membership = models.ForeignKey(Membership, on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices', verbose_name="Membresía")
+    client_nombre_snapshot = models.CharField("Nombre del Receptor", max_length=255, blank=True)
+    client_cedula_snapshot = models.CharField("Cédula del Receptor", max_length=20, blank=True)
+    client_codigo_snapshot = models.CharField("Cód. Afiliado (snapshot)", max_length=20, blank=True)
     plan_snapshot = models.CharField("Plan Comprado", max_length=100, blank=True)
     monto_total = models.DecimalField("Monto Total (VES)", max_digits=12, decimal_places=2)
     nro_control = models.CharField("Nro. Control Fiscal", max_length=50)
@@ -89,6 +99,54 @@ class Invoice(models.Model):
         verbose_name_plural = "Facturas"
         ordering = ['-fecha_emision']
 
+    def set_client_snapshots(self, client):
+        self.client_nombre_snapshot = client.nombre
+        self.client_cedula_snapshot = client.cedula
+        self.client_codigo_snapshot = client.codigo_afiliado
+
+    @property
+    def receptor_nombre(self):
+        if self.client_nombre_snapshot:
+            return self.client_nombre_snapshot
+        if self.client:
+            return self.client.nombre
+        if self.membership and self.membership.client:
+            return self.membership.client.nombre
+        return "Sin Afiliado"
+
+    @property
+    def receptor_cedula(self):
+        if self.client_cedula_snapshot:
+            return self.client_cedula_snapshot
+        if self.client:
+            return self.client.cedula
+        if self.membership and self.membership.client:
+            return self.membership.client.cedula
+        return "N/A"
+
+    @property
+    def receptor_codigo(self):
+        if self.client_codigo_snapshot:
+            return self.client_codigo_snapshot
+        if self.client:
+            return self.client.codigo_afiliado
+        if self.membership and self.membership.client:
+            return self.membership.client.codigo_afiliado
+        return "N/A"
+
+    def get_receptor_for_ticket(self):
+        nombre = self.client_nombre_snapshot
+        cedula = self.client_cedula_snapshot
+        codigo = self.client_codigo_snapshot
+        if nombre and cedula and codigo:
+            return nombre, cedula, codigo
+        if self.client:
+            return self.client.nombre, self.client.cedula, self.client.codigo_afiliado
+        if self.membership and self.membership.client:
+            c = self.membership.client
+            return c.nombre, c.cedula, c.codigo_afiliado
+        raise ValueError("La factura no tiene datos del receptor.")
+
     def clean(self):
         if self.pk:
             original = Invoice.objects.get(pk=self.pk)
@@ -96,5 +154,4 @@ class Invoice(models.Model):
                 raise ValidationError("No se puede editar una factura que ya ha sido impresa.")
 
     def __str__(self):
-        client_name = self.client.nombre if self.client else (self.membership.client.nombre if (self.membership and self.membership.client) else "Sin Afiliado")
-        return f"Factura {self.nro_control} - {client_name}"
+        return f"Factura {self.nro_control} - {self.receptor_nombre}"

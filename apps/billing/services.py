@@ -30,13 +30,15 @@ def register_membership_renewal(client, plan, nro_control=None, monto_ves=None):
             fecha_inicio=fecha_inicio_nueva
         )
 
-        invoice = Invoice.objects.create(
+        invoice = Invoice(
             client=client,
             membership=membership,
             plan_snapshot=f"{plan.nombre} ({plan.dias_duracion} días)",
             monto_total=monto_ves,
-            nro_control=nro_control or "PENDING"
+            nro_control=nro_control or "PENDING",
         )
+        invoice.set_client_snapshots(client)
+        invoice.save()
         
         if not nro_control:
             invoice.nro_control = f"F-{timezone.now().strftime('%Y%m%d')}-{invoice.pk:05d}"
