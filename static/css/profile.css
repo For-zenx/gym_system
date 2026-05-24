@@ -14,38 +14,23 @@
     border: 1px solid var(--border-color);
     border-radius: 12px;
     box-shadow: var(--shadow-sm);
-    position: relative;
     overflow: hidden;
-    height: 210px;
+    height: 216px;
 }
-
-.profile-header::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; bottom: 0;
-    width: 6px;
-    background: var(--primary);
-    z-index: 1;
-}
-
-.profile-header.status-active::before { background: var(--success); }
-.profile-header.status-expired::before { background: var(--danger); }
 
 .profile-avatar-container {
-    width: 240px;
-    background: #020617; /* Slate 950 */
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 200px;
+    flex-shrink: 0;
+    background: #020617;
     border-right: 1px solid var(--border-color);
-    z-index: 2;
-    position: relative;
+    overflow: hidden;
 }
 
 .profile-avatar {
-    width: 100%;
-    height: 100%;
+    width: 200px;
+    height: 216px;
     object-fit: cover;
+    display: block;
 }
 
 .profile-info-wrapper {
@@ -53,29 +38,70 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 2.5rem;
+    padding: 1rem 1.5rem;
+    gap: 0.65rem;
+    min-width: 0;
 }
 
-.profile-info-wrapper h1 {
+.profile-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.25rem;
+}
+
+.profile-title-row h1 {
     margin: 0;
-    font-size: 2.2rem;
+    font-size: 1.65rem;
     font-weight: 700;
     color: var(--text-main);
     letter-spacing: -0.5px;
+    line-height: 1.2;
+    min-width: 0;
 }
 
-.profile-info-wrapper .cedula {
-    font-size: 1.1rem;
+.profile-edit-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.profile-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem 1rem;
+    margin: 0;
+}
+
+.profile-meta-item {
+    min-width: 0;
+}
+
+.profile-meta-item dt {
+    margin: 0 0 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     color: var(--text-muted);
-    margin-top: 0.4rem;
+}
+
+.profile-meta-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-main);
+    word-break: break-word;
+}
+
+.profile-status-row {
+    margin-top: 0.25rem;
 }
 
 .status-pill {
     display: inline-block;
-    padding: 0.5rem 1.25rem;
+    padding: 0.35rem 0.9rem;
     border-radius: 9999px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -347,8 +373,9 @@
 
 .access-item {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
     padding: 1.25rem 0;
     border-bottom: 1px solid var(--border-color);
 }
@@ -358,9 +385,70 @@
     padding-bottom: 0;
 }
 
-.access-info {
+.access-row-top {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+}
+
+.access-timestamp {
+    font-size: 0.95rem;
+    color: var(--text-main);
+    flex: 1;
+    min-width: 0;
+}
+
+.access-badge {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+}
+
+.access-motivo {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+    .profile-meta-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .history-split-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .profile-header {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .profile-avatar-container {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .profile-avatar {
+        width: 100%;
+        height: 200px;
+    }
+
+    .profile-title-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .profile-edit-btn {
+        width: 100%;
+    }
+
+    .profile-meta-grid {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 

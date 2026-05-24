@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=1.4">
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=1.1">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=1.2">
 {% endblock %}
 
 {% block content %}
@@ -27,6 +27,8 @@
             <div style="margin-bottom: 0.5rem;"><strong style="color: var(--text-muted);">Cédula:</strong> {{ client.cedula }}</div>
             <div style="margin-bottom: 0.5rem;"><strong style="color: var(--text-muted);">Código:</strong> {{ client.codigo_afiliado }}</div>
             <div><strong style="color: var(--text-muted);">Teléfono:</strong> {{ client.telefono|default:"No especificado" }}</div>
+            <div style="margin-bottom: 0.5rem; margin-top: 0.5rem;"><strong style="color: var(--text-muted);">Nacimiento:</strong> {% if client.fecha_nacimiento %}{{ client.fecha_nacimiento|date:"d/m/Y" }}{% else %}No especificado{% endif %}</div>
+            <div><strong style="color: var(--text-muted);">Sexo:</strong> {% if client.sexo %}{{ client.get_sexo_display }}{% else %}No especificado{% endif %}</div>
         </div>
         
         <button class="btn btn-secondary" style="width: 100%;" onclick="openEditModal()">
@@ -87,18 +89,38 @@
             <input type="hidden" name="next" value="{% url 'enrollment_billing' client.codigo_afiliado %}">
             
             <div class="form-group">
-                <label for="nombre">Nombre Completo</label>
-                <input type="text" id="nombre" name="nombre" value="{{ client.nombre }}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="cedula">Cédula o Pasaporte</label>
-                <input type="text" id="cedula" name="cedula" value="{{ client.cedula }}" required>
+                <label for="edit_nombre">Nombre Completo</label>
+                <input type="text" id="edit_nombre" name="nombre" value="{{ form_nombre }}" required>
             </div>
 
             <div class="form-group">
-                <label for="telefono">Número de Teléfono</label>
-                <input type="text" id="telefono" name="telefono" value="{{ client.telefono|default:'' }}">
+                <label for="edit_cedula_numero">Cédula / RIF</label>
+                <div class="cedula-input-group">
+                    <select id="edit_cedula_prefix" name="cedula_prefix" aria-label="Tipo de documento">
+                        <option value="V-" {% if form_cedula_prefix == 'V-' %}selected{% endif %}>V-</option>
+                        <option value="J-" {% if form_cedula_prefix == 'J-' %}selected{% endif %}>J-</option>
+                    </select>
+                    <input type="text" id="edit_cedula_numero" name="cedula_numero" required inputmode="numeric" placeholder="12345678" value="{{ form_cedula_numero }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_telefono">Número de Teléfono</label>
+                <input type="text" id="edit_telefono" name="telefono" value="{{ form_telefono }}">
+            </div>
+
+            <div class="form-group">
+                <label for="edit_fecha_nacimiento">Fecha de Nacimiento (Opcional)</label>
+                <input type="date" id="edit_fecha_nacimiento" name="fecha_nacimiento" value="{{ form_fecha_nacimiento }}">
+            </div>
+
+            <div class="form-group">
+                <label for="edit_sexo">Sexo (Opcional)</label>
+                <select id="edit_sexo" name="sexo">
+                    <option value="" {% if not form_sexo %}selected{% endif %}>Sin especificar</option>
+                    <option value="M" {% if form_sexo == 'M' %}selected{% endif %}>Masculino</option>
+                    <option value="F" {% if form_sexo == 'F' %}selected{% endif %}>Femenino</option>
+                </select>
             </div>
             
             <div class="modal-actions" style="margin-top: 2rem;">

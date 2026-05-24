@@ -2,9 +2,17 @@ from django.db import models
 
 
 class Client(models.Model):
+    SEXO_CHOICES = [
+        ('', 'Sin especificar'),
+        ('M', 'Masculino'),
+        ('F', 'Femenino'),
+    ]
+
     cedula = models.CharField("Cédula", max_length=20, unique=True)
     nombre = models.CharField("Nombre Completo", max_length=255)
     telefono = models.CharField("Teléfono", max_length=20, blank=True, null=True)
+    fecha_nacimiento = models.DateField("Fecha de Nacimiento", blank=True, null=True)
+    sexo = models.CharField("Sexo", max_length=1, choices=SEXO_CHOICES, blank=True, default='')
     codigo_afiliado = models.CharField("Cód. Afiliado", max_length=20, unique=True)
     fecha_ingreso = models.DateField(auto_now_add=True)
 

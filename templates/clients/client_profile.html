@@ -5,7 +5,8 @@
 {% block page_title %}Perfil del Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=1.5">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=1.9">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=1.2">
 {% endblock %}
 
 {% block content %}
@@ -30,18 +31,21 @@
         </div>
 
         <div class="profile-info-wrapper">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                    <h1>{{ client.nombre }}</h1>
-                    <div class="cedula">C.I: {{ client.cedula }} | Cód: {{ client.codigo_afiliado }} | Tlf: {{ client.telefono|default:"N/A" }}</div>
-                </div>
-                <button class="btn btn-secondary" onclick="openEditModal()">
+            <div class="profile-title-row">
+                <h1>{{ client.nombre }}</h1>
+                <button type="button" class="btn btn-secondary profile-edit-btn" onclick="openEditModal()">
                     <svg style="width:16px;height:16px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     Editar Datos
                 </button>
             </div>
-
-            <div style="margin-top: 1.5rem;">
+            <dl class="profile-meta-grid">
+                <div class="profile-meta-item"><dt>C.I.</dt><dd>{{ client.cedula }}</dd></div>
+                <div class="profile-meta-item"><dt>Código</dt><dd>{{ client.codigo_afiliado }}</dd></div>
+                <div class="profile-meta-item"><dt>Teléfono</dt><dd>{{ client.telefono|default:"N/A" }}</dd></div>
+                <div class="profile-meta-item"><dt>Nacimiento</dt><dd>{% if client.fecha_nacimiento %}{{ client.fecha_nacimiento|date:"d/m/Y" }}{% else %}N/A{% endif %}</dd></div>
+                <div class="profile-meta-item"><dt>Sexo</dt><dd>{% if client.sexo %}{{ client.get_sexo_display }}{% else %}N/A{% endif %}</dd></div>
+            </dl>
+            <div class="profile-status-row">
                 {% if membership %}
                     {% if membership.es_valida %}
                     <span class="status-pill active">Plan Activo</span>
@@ -58,7 +62,7 @@
     <div class="profile-content">
 
         <!-- Tabla de Membresías -->
-        <div class="card membership-card" style="margin-bottom: 2rem;">
+        <div class="card membership-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
                 <h3 style="margin: 0;">Estado de Membresía</h3>
                 <button class="btn btn-primary" onclick="openRenewModal()">+ Asignar Plan</button>
@@ -162,13 +166,11 @@
                     <ul class="access-list">
                         {% for log in access_logs %}
                         <li class="access-item">
-                            <div class="access-info">
-                                <div style="display: flex; align-items: center; justify-content: space-between;">
-                                    <strong style="font-size: 0.95rem;">{{ log.timestamp|date:"d/m/Y H:i:s" }}</strong>
-                                    {% if log.resultado %}<span class="badge badge-success" style="font-size: 0.75rem;">Concedido</span>{% else %}<span class="badge badge-danger" style="font-size: 0.75rem;">Denegado</span>{% endif %}
-                                </div>
-                                {% if log.motivo %}<span style="display: block; margin-top: 0.4rem; font-size: 0.85rem; color: var(--text-muted);">{{ log.motivo }}</span>{% endif %}
+                            <div class="access-row-top">
+                                <strong class="access-timestamp">{{ log.timestamp|date:"d/m/Y H:i:s" }}</strong>
+                                {% if log.resultado %}<span class="badge badge-success access-badge">Concedido</span>{% else %}<span class="badge badge-danger access-badge">Denegado</span>{% endif %}
                             </div>
+                            {% if log.motivo %}<span class="access-motivo">{{ log.motivo }}</span>{% endif %}
                         </li>
                         {% endfor %}
                     </ul>
@@ -214,16 +216,34 @@
             <form method="POST" action="{% url 'clients:edit_client' client.codigo_afiliado %}">
                 {% csrf_token %}
                 <div class="form-group">
-                    <label for="nombre">Nombre Completo</label>
-                    <input type="text" id="nombre" name="nombre" value="{{ client.nombre }}" required>
+                    <label for="edit_nombre">Nombre Completo</label>
+                    <input type="text" id="edit_nombre" name="nombre" value="{{ form_nombre }}" required>
                 </div>
                 <div class="form-group">
-                    <label for="cedula">Cédula o Pasaporte</label>
-                    <input type="text" id="cedula" name="cedula" value="{{ client.cedula }}" required>
+                    <label for="edit_cedula_numero">Cédula / RIF</label>
+                    <div class="cedula-input-group">
+                        <select id="edit_cedula_prefix" name="cedula_prefix" aria-label="Tipo de documento">
+                            <option value="V-" {% if form_cedula_prefix == 'V-' %}selected{% endif %}>V-</option>
+                            <option value="J-" {% if form_cedula_prefix == 'J-' %}selected{% endif %}>J-</option>
+                        </select>
+                        <input type="text" id="edit_cedula_numero" name="cedula_numero" required inputmode="numeric" placeholder="12345678" value="{{ form_cedula_numero }}">
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label for="telefono">Número de Teléfono</label>
-                    <input type="text" id="telefono" name="telefono" value="{{ client.telefono|default:'' }}">
+                    <label for="edit_telefono">Número de Teléfono</label>
+                    <input type="text" id="edit_telefono" name="telefono" value="{{ form_telefono }}">
+                </div>
+                <div class="form-group">
+                    <label for="edit_fecha_nacimiento">Fecha de Nacimiento (Opcional)</label>
+                    <input type="date" id="edit_fecha_nacimiento" name="fecha_nacimiento" value="{{ form_fecha_nacimiento }}">
+                </div>
+                <div class="form-group">
+                    <label for="edit_sexo">Sexo (Opcional)</label>
+                    <select id="edit_sexo" name="sexo">
+                        <option value="" {% if not form_sexo %}selected{% endif %}>Sin especificar</option>
+                        <option value="M" {% if form_sexo == 'M' %}selected{% endif %}>Masculino</option>
+                        <option value="F" {% if form_sexo == 'F' %}selected{% endif %}>Femenino</option>
+                    </select>
                 </div>
                 <div class="modal-actions" style="margin-top: 2rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
