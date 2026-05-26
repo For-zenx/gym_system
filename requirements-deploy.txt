@@ -1,0 +1,9 @@
+# Dependencias para instalacion en C:\PerfectLine (sin biometria).
+# setup_venv.bat instala dlib desde wheels\ y luego face_recognition por separado.
+Django==4.2.11
+python-escpos==3.0a9
+pyserial==3.5
+Pillow==10.2.0
+
+channels==4.0.0
+daphne==4.0.0

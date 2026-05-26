@@ -17,3 +17,8 @@ staticfiles/
 # OS
 .DS_Store
 Thumbs.db
+
+# Deploy (artefactos generados y wheels locales)
+deploy/dist/*
+!deploy/dist/.gitkeep
+deploy/wheels/*.whl

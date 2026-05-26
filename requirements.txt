@@ -10,8 +10,10 @@ channels==4.0.0
 daphne==4.0.0
 pytest-asyncio==0.23.6
 
-# NOTA: dlib se instala manualmente en producción (Windows 7) via .whl precompilado:
-#   pip install https://github.com/sachadee/Dlib/raw/main/dlib-19.24.1-cp38-cp38-win_amd64.whl
+# NOTA: dlib en produccion (Python 3.8) via .whl del paquete "dlib" (NO dlib_bin):
+#   https://github.com/z-mahmud22/Dlib_Windows_Python3.x/raw/main/dlib-19.22.99-cp38-cp38-win_amd64.whl
+#   https://github.com/sachadee/Dlib/raw/main/dlib-19.24.1-cp38-cp38-win_amd64.whl
+# Ver gym_system/deploy/wheels/README.txt y setup_venv.bat
 face_recognition==1.3.0
 numpy
 opencv-python-headless

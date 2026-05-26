@@ -1,5 +1,7 @@
 from django.db import models
 
+from .fields import SQLiteJSONField
+
 
 class Client(models.Model):
     SEXO_CHOICES = [
@@ -21,7 +23,7 @@ class Client(models.Model):
     foto_perfil_izq = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
     foto_perfil_der = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
 
-    face_id_embeddings = models.JSONField(blank=True, null=True)
+    face_id_embeddings = SQLiteJSONField(blank=True, null=True)
 
     class Meta:
         verbose_name = "Afiliado"
