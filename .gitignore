@@ -22,3 +22,4 @@ Thumbs.db
 deploy/dist/*
 !deploy/dist/.gitkeep
 deploy/wheels/*.whl
+deploy/tools/nssm.exe

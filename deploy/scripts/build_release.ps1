@@ -69,6 +69,24 @@ $ToolsDest = Join-Path $StageDir "tools"
 New-Item -ItemType Directory -Path $ToolsDest -Force | Out-Null
 Copy-Item -Path (Join-Path $DeployRoot "tools\*.bat") -Destination $ToolsDest -Force
 Copy-Item -Path (Join-Path $DeployRoot "tools\README.txt") -Destination $ToolsDest -Force
+Copy-Item -Path (Join-Path $DeployRoot "tools\NSSM_README.txt") -Destination $ToolsDest -Force -ErrorAction SilentlyContinue
+$DebugToolsSrc = Join-Path $DeployRoot "tools\debug"
+if (Test-Path $DebugToolsSrc) {
+    Copy-Item -Path $DebugToolsSrc -Destination $ToolsDest -Recurse -Force
+} else {
+    throw "Falta carpeta obligatoria: $DebugToolsSrc"
+}
+$NssmSrc = Join-Path $DeployRoot "tools\nssm.exe"
+if (Test-Path $NssmSrc) {
+    Copy-Item $NssmSrc -Destination $ToolsDest -Force
+    Write-Host "Incluido nssm.exe en tools/"
+} else {
+    Write-Host "AVISO: no hay deploy/tools/nssm.exe. Ejecuta deploy/scripts/download_nssm.ps1 antes del build."
+}
+
+$ManagerDest = Join-Path $StageDir "manager"
+New-Item -ItemType Directory -Path $ManagerDest -Force | Out-Null
+Copy-Item -Path (Join-Path $DeployRoot "manager\*") -Destination $ManagerDest -Recurse -Force
 
 $WheelsDest = Join-Path $StageDir "wheels"
 New-Item -ItemType Directory -Path $WheelsDest -Force | Out-Null
@@ -92,4 +110,4 @@ if (-not $NoZip) {
     Write-Host "  Zip:     $(Join-Path $DistDir "PerfectLine_$Version.zip")"
 }
 Write-Host ""
-Write-Host "Instalacion: extraer en C:\PerfectLine\ luego ejecutar tools\setup_venv.bat"
+Write-Host "Instalacion: extraer en C:\PerfectLine\ y ejecutar tools\instalar_o_reinstalar.bat"
