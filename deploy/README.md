@@ -7,7 +7,7 @@ Todo lo de empaquetado e instalación vive aquí, dentro del repo `gym_system`.
 ```text
 deploy/
 ├── scripts/          # build_release.ps1 (desarrollo)
-├── tools/            # scripts de runtime/servicio → van al zip como C:\PerfectLine\tools\
+├── tools/            # scripts de instalacion/diagnostico → van al zip como C:\PerfectLine\tools\
 ├── manager/          # PerfectLine Manager (.pyw + config)
 ├── wheels/           # copiar aquí dlib*.whl antes del build (opcional en git)
 ├── dist/             # salida generada (ignorado por git)
@@ -28,11 +28,12 @@ Salida: `deploy\dist\PerfectLine_<version>.zip` (incluye `app\`, `tools\`, `mana
 
 La carpeta `deploy\` **no** se copia al zip de producción (solo el código Django y las plantillas tools/wheels).
 
-## Servicio y Manager
+## Manager sin servicio Windows
 
-- Flujo normal en el gym: `setup_venv.bat` -> `instalar_servicio.bat` -> `manager\perfectline_manager.pyw`
-- NSSM ejecuta `tools\service_runner.py`, que corre `migrate --noinput` y luego Daphne.
-- `iniciar.bat` queda solo como diagnostico manual cuando hace falta ver la consola de Daphne.
+- Flujo normal en el gym: `tools\instalar_o_reinstalar.bat` -> `manager\perfectline_manager.pyw`
+- El instalador prepara el venv, carpetas `data/` y `logs/`, y ejecuta `migrate --noinput`.
+- El Manager inicia y detiene Daphne directamente como proceso propio. No se usa NSSM ni servicio Windows en el MVP TASK-034.
+- `tools\debug\liberar_puerto_8000.bat` queda solo para soporte si aparece un proceso huerfano.
 
 ## Documentación ampliada
 

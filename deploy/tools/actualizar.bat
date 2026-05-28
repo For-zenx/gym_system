@@ -6,7 +6,7 @@ set "APP=%ROOT%\app\gym_system"
 set "DATA=%ROOT%\data"
 set "DB=%DATA%\db.sqlite3"
 set "BACKUPS=%DATA%\backups"
-set "SERVICE=PerfectLineServer"
+set "PYTHON=%APP%\venv\Scripts\python.exe"
 
 if not exist "%DATA%" mkdir "%DATA%"
 if not exist "%BACKUPS%" mkdir "%BACKUPS%"
@@ -25,23 +25,27 @@ if exist "%DB%" (
 )
 
 echo.
-echo Paso manual: reemplaza ahora C:\PerfectLine\app\gym_system\ con la nueva version y vuelve aqui.
+echo Paso manual: cierra el Manager, reemplaza app\gym_system\ con la nueva version y vuelve aqui.
 pause
 
-sc query "%SERVICE%" >nul 2>&1
-if not errorlevel 1 (
-  sc stop "%SERVICE%" >nul 2>&1
-  timeout /t 3 >nul
+if not exist "%PYTHON%" (
+  echo Error: falta %PYTHON%
+  pause
+  exit /b 1
 )
 
-sc query "%SERVICE%" >nul 2>&1
-if not errorlevel 1 (
-  sc start "%SERVICE%" >nul 2>&1
-  echo Servicio iniciado. El runner ejecutara migrate automaticamente.
-) else (
-  echo Servicio no instalado. Instala con tools\instalar_o_reinstalar.bat
+echo Ejecutando migrate...
+cd /d "%APP%"
+set "DJANGO_SETTINGS_MODULE=config.settings_production"
+set "PERFECTLINE_ROOT=%ROOT%"
+"%PYTHON%" manage.py migrate --noinput
+if errorlevel 1 (
+  echo Error ejecutando migrate.
+  pause
+  exit /b 1
 )
 
 echo Actualizacion finalizada.
+echo Abre el Manager e inicia el servidor.
 pause
 endlocal
