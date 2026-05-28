@@ -8,7 +8,7 @@ Ejecucion en C:\PerfectLine:
   C:\PerfectLine\manager\perfectline_manager.pyw
 
 Funciones:
-  - Estado del servicio PerfectLineServer + puerto 8000
+  - Estado del servidor local + puerto 8000
   - Iniciar servidor
   - Detener servidor
   - Abrir sistema
@@ -25,6 +25,7 @@ Acceso directo sugerido (escritorio):
   Icono: opcional (custom)
 
 Nota:
-  - El Manager controla el servicio directamente sin abrir terminales.
+  - El Manager inicia y detiene Daphne como proceso propio.
+  - No se usa servicio Windows para el MVP TASK-034.
   - Instalacion inicial/reinstalacion: tools\instalar_o_reinstalar.bat (Administrador).
   - Scripts de diagnostico quedaron en tools\debug\.

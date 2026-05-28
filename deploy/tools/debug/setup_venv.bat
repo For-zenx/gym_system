@@ -143,7 +143,7 @@ if not exist "%ROOT%\logs" mkdir "%ROOT%\logs"
 
 echo.
 echo === Listo ===
-echo Siguiente: ejecutar tools\instalar_o_reinstalar.bat
+echo Siguiente: abrir manager\perfectline_manager.pyw
 goto :finish
 
 :print_error
