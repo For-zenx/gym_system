@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 set "EXITCODE=0"
 
-set "ROOT=%~dp0.."
+for %%I in ("%~dp0\..\..") do set "ROOT=%%~fI"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 set "APP=%ROOT%\app\gym_system"
 set "WHEELS=%ROOT%\wheels"
@@ -22,7 +22,6 @@ if not exist "%REQ%" (
     goto :finish
 )
 
-rem Preferir Python 3.8 (objetivo gym). Evita compilar dlib con 3.11.
 set "PY=py -3.8"
 %PY% -c "import sys" 2>nul
 if errorlevel 1 (
@@ -38,9 +37,19 @@ if errorlevel 1 (
 )
 
 if exist "%VENV%\Scripts\python.exe" (
-    echo El venv ya existe en %VENV%
-    echo Si fallo antes, borra la carpeta venv y vuelve a ejecutar este script.
-    goto :install_deps
+    echo El venv ya existe en:
+    echo   %VENV%
+    choice /C SN /N /M "Deseas borrar y recrear el venv? [S/N]: "
+    if errorlevel 2 (
+        echo Se reutilizara el venv existente.
+        goto :install_deps
+    )
+    echo Borrando venv actual...
+    rmdir /S /Q "%VENV%"
+    if exist "%VENV%" (
+        call :print_error "No se pudo borrar %VENV%. Cierra procesos usando ese venv e intenta de nuevo."
+        goto :finish
+    )
 )
 
 echo Creando venv en %VENV% ...
@@ -76,7 +85,6 @@ if errorlevel 1 (
     goto :finish
 )
 
-rem Solo dlib-*.whl (con guion), no dlib_bin*
 set "DLIB_WHL="
 for %%f in ("%WHEELS%\dlib-*.whl") do (
     echo %%~nxf | findstr /i /c:"!PYTAG!" >nul
@@ -103,9 +111,6 @@ if not defined DLIB_WHL (
     "%VENV%\Scripts\pip.exe" install --no-deps "!DLIB_URL_ALT!"
     if errorlevel 1 (
       call :print_error "No se pudo instalar dlib ni local ni por URL."
-      echo Copia manualmente a wheels\ un archivo como:
-      echo   dlib-19.22.99-cp38-cp38-win_amd64.whl
-      echo desde: https://github.com/z-mahmud22/Dlib_Windows_Python3.x
       goto :finish
     )
   )
@@ -115,7 +120,6 @@ echo Verificando que el paquete dlib importa...
 "%VENV%\Scripts\python.exe" -c "import dlib; print('dlib OK, version:', dlib.__version__)"
 if errorlevel 1 (
     call :print_error "Se instalo un wheel pero 'import dlib' falla."
-    echo Probable wheel incorrecto ^(ej. dlib_bin renombrado^). Borra venv y wheels\dlib*.whl incorrectos.
     goto :finish
 )
 
@@ -139,12 +143,7 @@ if not exist "%ROOT%\logs" mkdir "%ROOT%\logs"
 
 echo.
 echo === Listo ===
-echo Siguiente:
-echo   cd /d %APP%
-echo   set DJANGO_SETTINGS_MODULE=config.settings_production
-echo   set PERFECTLINE_ROOT=%ROOT%
-echo   venv\Scripts\python.exe manage.py migrate
-echo   %ROOT%\tools\iniciar.bat
+echo Siguiente: abrir manager\perfectline_manager.pyw
 goto :finish
 
 :print_error
