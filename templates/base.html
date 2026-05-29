@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}PerfectLine{% endblock %}</title>
+    <title>{% block title %}Perfect Line II{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/base.css' %}?v=2.1">
     {% block extra_css %}{% endblock %}
 </head>
@@ -16,7 +16,7 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <h2>Perfect<span>Line II</span></h2>
+                <h2>Perfect <span>Line II</span></h2>
             </div>
             <nav class="sidebar-nav">
                 <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Inicio</a>

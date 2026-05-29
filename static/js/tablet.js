@@ -1,4 +1,4 @@
-// tablet.js — Lógica de la interfaz de la tablet (Gym System - PerfectLine II)
+// tablet.js — Lógica de la interfaz de la tablet (Gym System - Perfect Line II)
 
 const WS_URL = window.TABLET_WS_URL; // Inyectado desde el template Django
 const RECONNECT_DELAY_MS = 3000;
