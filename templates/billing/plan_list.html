@@ -26,6 +26,7 @@
             <tr>
                 <th>ID</th>
                 <th>Nombre del Plan</th>
+                <th>Tipo</th>
                 <th>Duración</th>
                 <th>Horario Permitido</th>
                 <th>Precio (USD)</th>
@@ -37,7 +38,14 @@
             <tr>
                 <td style="color: var(--text-muted);">#{{ plan.id }}</td>
                 <td style="font-weight: 500;">{{ plan.nombre }}</td>
-                <td>{{ plan.dias_duracion }} días</td>
+                <td>
+                    {% if plan.is_fixed %}
+                    <span class="badge badge-success">Fijo</span>
+                    {% else %}
+                    <span class="badge badge-warning">Flexible</span>
+                    {% endif %}
+                </td>
+                <td>{% if plan.is_fixed %}Por corte{% else %}{{ plan.dias_duracion }} días{% endif %}</td>
                 <td>
                     {% if plan.hora_inicio and plan.hora_fin %}
                     <span class="badge badge-warning">{{ plan.hora_inicio|time:"g:i A" }} - {{ plan.hora_fin|time:"g:i A" }}</span>
@@ -59,7 +67,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                     No hay planes configurados.
                 </td>
             </tr>

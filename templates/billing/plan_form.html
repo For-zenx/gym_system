@@ -134,12 +134,24 @@
                 class="form-control" placeholder="Ej. Plan Mensual VIP">
         </div>
 
+        <div class="form-group">
+            <label for="id_billing_type">Tipo de Plan</label>
+            <select name="billing_type" id="id_billing_type" class="form-control" required>
+                {% for value, label in form.fields.billing_type.choices %}
+                <option value="{{ value }}" {% if form.billing_type.value|default:'FIXED' == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <p id="billing-type-hint" class="optional-section-desc" style="margin-top: 0.5rem; margin-bottom: 0;">
+                Renueva cada mes en la fecha de corte del afiliado.
+            </p>
+        </div>
+
         <div class="grid-2col">
-            <div class="form-group">
+            <div class="form-group" id="dias-duracion-group">
                 <label for="id_dias_duracion">Días de Duración</label>
                 <input type="number" name="dias_duracion" id="id_dias_duracion"
-                    value="{{ form.dias_duracion.value|default:'' }}" required min="1" class="form-control"
-                    placeholder="Ej. 30">
+                    value="{{ form.dias_duracion.value|default:'' }}" min="1" class="form-control"
+                    placeholder="Ej. 7">
             </div>
 
             <div class="form-group">
@@ -194,4 +206,30 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var typeSelect = document.getElementById('id_billing_type');
+    var diasGroup = document.getElementById('dias-duracion-group');
+    var diasInput = document.getElementById('id_dias_duracion');
+    var hint = document.getElementById('billing-type-hint');
+
+    function syncBillingTypeFields() {
+        var isFlexible = typeSelect.value === 'FLEXIBLE';
+        diasGroup.style.display = isFlexible ? '' : 'none';
+        diasInput.required = isFlexible;
+        if (!isFlexible) {
+            diasInput.value = '';
+        }
+        hint.textContent = isFlexible
+            ? 'Vence X días después del pago (pase de prueba, día, semana, etc.).'
+            : 'Renueva cada mes en la fecha de corte del afiliado.';
+    }
+
+    typeSelect.addEventListener('change', syncBillingTypeFields);
+    syncBillingTypeFields();
+})();
+</script>
 {% endblock %}

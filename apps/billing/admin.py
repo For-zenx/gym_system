@@ -3,7 +3,7 @@ from .models import Plan, Membership, Invoice, ExchangeRate
 
 @admin.register(Plan)
 class PlanAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'dias_duracion', 'precio_usd')
+    list_display = ('nombre', 'billing_type', 'dias_duracion', 'precio_usd')
 
 @admin.register(ExchangeRate)
 class ExchangeRateAdmin(admin.ModelAdmin):

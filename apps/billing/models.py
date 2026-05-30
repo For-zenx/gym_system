@@ -4,20 +4,77 @@ from datetime import timedelta
 from django.utils import timezone
 from apps.clients.models import Client
 
+
 class Plan(models.Model):
-    nombre = models.CharField("Nombre del Plan", max_length=50) 
-    dias_duracion = models.PositiveIntegerField("Días de Duración") 
-    precio_usd = models.DecimalField("Precio (USD)", max_digits=12, decimal_places=2) 
-    hora_inicio = models.TimeField("Hora de Inicio", null=True, blank=True, help_text="Dejar en blanco para acceso todo el día")
-    hora_fin = models.TimeField("Hora de Fin", null=True, blank=True, help_text="Dejar en blanco para acceso todo el día")
-    is_active = models.BooleanField("Activo", default=True, help_text="Si se desactiva, no podrá ser comprado pero mantendrá el historial")
+    class BillingType(models.TextChoices):
+        FIXED = 'FIXED', 'Fijo'
+        FLEXIBLE = 'FLEXIBLE', 'Flexible'
+
+    nombre = models.CharField("Nombre del Plan", max_length=50)
+    billing_type = models.CharField(
+        "Tipo de facturación",
+        max_length=10,
+        choices=BillingType.choices,
+        default=BillingType.FIXED,
+    )
+    dias_duracion = models.PositiveIntegerField(
+        "Días de Duración",
+        null=True,
+        blank=True,
+    )
+    precio_usd = models.DecimalField("Precio (USD)", max_digits=12, decimal_places=2)
+    hora_inicio = models.TimeField(
+        "Hora de Inicio",
+        null=True,
+        blank=True,
+        help_text="Dejar en blanco para acceso todo el día",
+    )
+    hora_fin = models.TimeField(
+        "Hora de Fin",
+        null=True,
+        blank=True,
+        help_text="Dejar en blanco para acceso todo el día",
+    )
+    is_active = models.BooleanField(
+        "Activo",
+        default=True,
+        help_text="Si se desactiva, no podrá ser comprado pero mantendrá el historial",
+    )
 
     class Meta:
         verbose_name = "Plan"
         verbose_name_plural = "Planes"
 
+    def clean(self):
+        if self.billing_type == self.BillingType.FLEXIBLE:
+            if not self.dias_duracion or self.dias_duracion < 1:
+                raise ValidationError(
+                    {"dias_duracion": "Los planes flexibles requieren al menos 1 día de duración."}
+                )
+        elif self.dias_duracion is not None and self.dias_duracion < 1:
+            raise ValidationError(
+                {"dias_duracion": "La duración en días debe ser mayor a 0 si se especifica."}
+            )
+
+    def save(self, *args, **kwargs):
+        if self.billing_type == self.BillingType.FIXED:
+            self.dias_duracion = None
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    @property
+    def is_fixed(self):
+        return self.billing_type == self.BillingType.FIXED
+
+    @property
+    def is_flexible(self):
+        return self.billing_type == self.BillingType.FLEXIBLE
+
     def __str__(self):
+        if self.is_fixed:
+            return f"{self.nombre} (Fijo) - ${self.precio_usd}"
         return f"{self.nombre} ({self.dias_duracion} días) - ${self.precio_usd}"
+
 
 class ExchangeRate(models.Model):
     tasa_ves = models.DecimalField("Tasa VES/$", max_digits=12, decimal_places=2)
@@ -35,24 +92,30 @@ class ExchangeRate(models.Model):
     def __str__(self):
         return f"{self.fecha}: {self.tasa_ves} VES/$"
 
+
 class Membership(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='memberships', verbose_name="Afiliado")
     plan = models.ForeignKey(Plan, on_delete=models.PROTECT, verbose_name="Plan")
     fecha_inicio = models.DateField("Fecha de Inicio", default=timezone.now)
-    fecha_fin = models.DateField("Fecha de Vencimiento", editable=False) 
+    fecha_fin = models.DateField("Fecha de Vencimiento", editable=False)
 
     class Meta:
         verbose_name = "Membresía"
         verbose_name_plural = "Membresías"
 
     def clean(self):
-        if self.fecha_inicio and self.fecha_fin and self.fecha_inicio >= self.fecha_fin:
-            raise ValidationError("La fecha de inicio debe ser anterior a la de vencimiento.")
+        if self.fecha_inicio and self.fecha_fin and self.fecha_inicio > self.fecha_fin:
+            raise ValidationError("La fecha de inicio debe ser anterior o igual a la de vencimiento.")
 
     def save(self, *args, **kwargs):
         if not self.fecha_fin:
-            self.fecha_fin = self.fecha_inicio + timedelta(days=self.plan.dias_duracion)
-        
+            if self.plan.is_flexible:
+                if not self.plan.dias_duracion:
+                    raise ValidationError("El plan flexible no tiene días de duración configurados.")
+                self.fecha_fin = self.fecha_inicio + timedelta(days=self.plan.dias_duracion)
+            else:
+                raise ValidationError("La membresía fija requiere fecha de vencimiento explícita.")
+
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -60,20 +123,21 @@ class Membership(models.Model):
     def es_valida(self):
         from datetime import date
         return self.fecha_inicio <= date.today() <= self.fecha_fin
-        
+
     def is_valid_now(self, current_time=None):
         if not current_time:
             current_time = timezone.localtime().time()
-        
+
         if not self.es_valida:
             return False
-            
+
         if self.plan.hora_inicio and self.plan.hora_fin:
             return self.plan.hora_inicio <= current_time <= self.plan.hora_fin
         return True
 
     def __str__(self):
         return f"Membresía de {self.client.nombre} - Vence: {self.fecha_fin}"
+
 
 class Invoice(models.Model):
     client = models.ForeignKey(

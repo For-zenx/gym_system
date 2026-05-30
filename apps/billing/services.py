@@ -1,9 +1,11 @@
-from decimal import Decimal
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import timedelta
-from .models import Membership, Invoice, ExchangeRate
+
+from .cycle import billing_period_start, subscription_period_bounds
+from .models import Membership, Invoice, ExchangeRate, Plan
+
 
 def register_membership_renewal(client, plan, nro_control=None, monto_ves=None):
     """
@@ -18,30 +20,60 @@ def register_membership_renewal(client, plan, nro_control=None, monto_ves=None):
 
     with transaction.atomic():
         hoy = timezone.localdate()
-        fecha_inicio_nueva = hoy
-        
-        latest_membership = client.memberships.order_by('-fecha_fin').first()
-        if latest_membership and latest_membership.fecha_fin >= hoy:
-            fecha_inicio_nueva = latest_membership.fecha_fin + timedelta(days=1)
-            
-        membership = Membership.objects.create(
-            client=client,
-            plan=plan,
-            fecha_inicio=fecha_inicio_nueva
-        )
+
+        if plan.is_fixed:
+            membership = _create_fixed_membership(client, plan, hoy)
+        else:
+            membership = _create_flexible_membership(client, plan, hoy)
 
         invoice = Invoice(
             client=client,
             membership=membership,
-            plan_snapshot=f"{plan.nombre} ({plan.dias_duracion} días)",
+            plan_snapshot=plan.nombre,
             monto_total=monto_ves,
             nro_control=nro_control or "PENDING",
         )
         invoice.set_client_snapshots(client)
         invoice.save()
-        
+
         if not nro_control:
             invoice.nro_control = f"F-{timezone.now().strftime('%Y%m%d')}-{invoice.pk:05d}"
             invoice.save(update_fields=['nro_control'])
 
         return membership, invoice
+
+
+def _create_flexible_membership(client, plan, hoy):
+    return Membership.objects.create(
+        client=client,
+        plan=plan,
+        fecha_inicio=hoy,
+    )
+
+
+def _create_fixed_membership(client, plan, hoy):
+    cut_day = client.fecha_corte_dia
+    if cut_day is None:
+        cut_day = hoy.day
+        client.fecha_corte_dia = cut_day
+        client.save(update_fields=['fecha_corte_dia'])
+
+    latest_fixed = (
+        client.memberships.filter(plan__billing_type=Plan.BillingType.FIXED)
+        .order_by('-fecha_fin')
+        .first()
+    )
+
+    if latest_fixed and latest_fixed.fecha_fin >= hoy:
+        period_start = latest_fixed.fecha_fin + timedelta(days=1)
+    else:
+        period_start = billing_period_start(cut_day, hoy)
+
+    fecha_inicio, fecha_fin = subscription_period_bounds(cut_day, period_start)
+
+    return Membership.objects.create(
+        client=client,
+        plan=plan,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+    )

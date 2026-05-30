@@ -70,9 +70,9 @@ class PlanListView(LoginRequiredMixin, ListView):
 class PlanCreateView(LoginRequiredMixin, CreateView):
     model = Plan
     template_name = 'billing/plan_form.html'
-    fields = ['nombre', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
+    fields = ['nombre', 'billing_type', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
     success_url = reverse_lazy('billing:plan_list')
-    
+
     def form_valid(self, form):
         messages.success(self.request, "Plan creado exitosamente.")
         return super().form_valid(form)
@@ -80,23 +80,29 @@ class PlanCreateView(LoginRequiredMixin, CreateView):
 class PlanUpdateView(LoginRequiredMixin, UpdateView):
     model = Plan
     template_name = 'billing/plan_form.html'
-    fields = ['nombre', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
+    fields = ['nombre', 'billing_type', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
     success_url = reverse_lazy('billing:plan_list')
 
     def form_valid(self, form):
         old_plan = self.get_object()
         old_plan.is_active = False
         old_plan.save()
-        
+
+        billing_type = form.cleaned_data['billing_type']
+        dias_duracion = form.cleaned_data.get('dias_duracion')
+        if billing_type == Plan.BillingType.FIXED:
+            dias_duracion = None
+
         Plan.objects.create(
             nombre=form.cleaned_data['nombre'],
-            dias_duracion=form.cleaned_data['dias_duracion'],
+            billing_type=billing_type,
+            dias_duracion=dias_duracion,
             precio_usd=form.cleaned_data['precio_usd'],
             hora_inicio=form.cleaned_data['hora_inicio'],
             hora_fin=form.cleaned_data['hora_fin'],
-            is_active=True
+            is_active=True,
         )
-        
+
         messages.success(self.request, "Plan actualizado exitosamente (Se conservó el historial de la versión anterior).")
         return redirect('billing:plan_list')
 

@@ -44,6 +44,9 @@
                 <div class="profile-meta-item"><dt>Teléfono</dt><dd>{{ client.telefono|default:"N/A" }}</dd></div>
                 <div class="profile-meta-item"><dt>Nacimiento</dt><dd>{% if client.fecha_nacimiento %}{{ client.fecha_nacimiento|date:"d/m/Y" }}{% else %}N/A{% endif %}</dd></div>
                 <div class="profile-meta-item"><dt>Sexo</dt><dd>{% if client.sexo %}{{ client.get_sexo_display }}{% else %}N/A{% endif %}</dd></div>
+                {% if client.fecha_corte_dia %}
+                <div class="profile-meta-item"><dt>Fecha de corte</dt><dd>Día {{ client.fecha_corte_dia }} de cada mes</dd></div>
+                {% endif %}
             </dl>
             <div class="profile-status-row">
                 {% if membership %}
@@ -54,6 +57,11 @@
                     {% endif %}
                 {% else %}
                 <span class="status-pill none">Sin Plan Asignado</span>
+                {% endif %}
+                {% if client.fixed_subscription_status == 'ACTIVE' %}
+                <span class="status-pill active">Suscripción Fija Activa</span>
+                {% elif client.fixed_subscription_status == 'SUSPENDED' %}
+                <span class="status-pill expired">Suscripción Fija Suspendida</span>
                 {% endif %}
             </div>
         </div>
@@ -74,6 +82,7 @@
                     <thead>
                         <tr>
                             <th>Plan</th>
+                            <th>Tipo</th>
                             <th>Horario</th>
                             <th>Vigencia</th>
                             <th>Estado</th>
@@ -84,6 +93,7 @@
                         {% for mem in active_memberships %}
                         <tr>
                             <td><strong style="color: var(--text-main);">{{ mem.plan.nombre }}</strong></td>
+                            <td>{% if mem.plan.is_fixed %}<span class="badge badge-success">Fijo</span>{% else %}<span class="badge badge-warning">Flexible</span>{% endif %}</td>
                             <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{ mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
                             <td>{{ mem.fecha_inicio|date:"d/m/Y" }} a {{ mem.fecha_fin|date:"d/m/Y" }}</td>
                             <td><span class="badge badge-success">Activo</span></td>
@@ -94,6 +104,7 @@
                         {% for mem in queued_memberships %}
                         <tr>
                             <td><strong style="color: var(--text-main);">{{ mem.plan.nombre }}</strong></td>
+                            <td>{% if mem.plan.is_fixed %}<span class="badge badge-success">Fijo</span>{% else %}<span class="badge badge-warning">Flexible</span>{% endif %}</td>
                             <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{ mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
                             <td>{{ mem.fecha_inicio|date:"d/m/Y" }} a {{ mem.fecha_fin|date:"d/m/Y" }}</td>
                             <td><span class="badge badge-warning">En Cola</span></td>
@@ -111,6 +122,7 @@
                         {% for mem in historical_memberships %}
                         <tr class="muted-plan">
                             <td>{{ mem.plan.nombre }}</td>
+                            <td>{% if mem.plan.is_fixed %}<span class="badge badge-success">Fijo</span>{% else %}<span class="badge badge-warning">Flexible</span>{% endif %}</td>
                             <td>{% if mem.plan.hora_inicio %}{{ mem.plan.hora_inicio|time:"g:i A" }} - {{ mem.plan.hora_fin|time:"g:i A" }}{% else %}Tiempo Completo{% endif %}</td>
                             <td>{{ mem.fecha_inicio|date:"d/m/Y" }} a {{ mem.fecha_fin|date:"d/m/Y" }}</td>
                             <td><span class="badge" style="background: var(--border-color); color: var(--text-muted);">Expirado</span></td>
