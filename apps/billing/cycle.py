@@ -45,3 +45,46 @@ def is_subscription_suspended(client, today=None):
         fecha_inicio__lte=today,
         fecha_fin__gte=today,
     ).exists()
+
+
+def _period_covered(period_start, period_end, memberships):
+    for membership in memberships:
+        if membership.fecha_inicio <= period_start and membership.fecha_fin >= period_end:
+            return True
+    return False
+
+
+def unpaid_fixed_periods(client, today=None):
+    if not client.fecha_corte_dia:
+        return []
+    if today is None:
+        today = date.today()
+
+    from apps.billing.models import Plan
+
+    cut_day = client.fecha_corte_dia
+    fixed_memberships = list(
+        client.memberships.filter(plan__billing_type=Plan.BillingType.FIXED).order_by("fecha_inicio")
+    )
+    if not fixed_memberships:
+        return []
+
+    unpaid = []
+    period_start = fixed_memberships[0].fecha_inicio
+
+    while period_start <= today:
+        period_end = subscription_period_bounds(cut_day, period_start)[1]
+        if not _period_covered(period_start, period_end, fixed_memberships):
+            unpaid.append((period_start, period_end))
+        period_start = period_end + timedelta(days=1)
+
+    return unpaid
+
+
+def days_since_last_unpaid_cut(client, today=None):
+    unpaid = unpaid_fixed_periods(client, today)
+    if not unpaid:
+        return None
+    if today is None:
+        today = date.today()
+    return (today - unpaid[0][0]).days

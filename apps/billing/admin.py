@@ -1,14 +1,43 @@
 from django.contrib import admin
-from .models import Plan, Membership, Invoice, ExchangeRate
+from .models import (
+    Plan,
+    Membership,
+    Invoice,
+    ExchangeRate,
+    BillingSettings,
+    ClientBillingEvent,
+)
+
 
 @admin.register(Plan)
 class PlanAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'billing_type', 'dias_duracion', 'precio_usd')
 
+
 @admin.register(ExchangeRate)
 class ExchangeRateAdmin(admin.ModelAdmin):
     list_display = ('fecha', 'tasa_ves')
     list_filter = ('fecha',)
+
+
+@admin.register(BillingSettings)
+class BillingSettingsAdmin(admin.ModelAdmin):
+    list_display = ('multa_monto_usd', 'updated_at')
+
+    def has_add_permission(self, request):
+        return not BillingSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ClientBillingEvent)
+class ClientBillingEventAdmin(admin.ModelAdmin):
+    list_display = ('client', 'event_type', 'created_at', 'created_by', 'motivo')
+    list_filter = ('event_type', 'created_at')
+    search_fields = ('client__nombre', 'client__cedula', 'client__codigo_afiliado', 'motivo')
+    readonly_fields = ('client', 'event_type', 'payload', 'motivo', 'created_by', 'created_at')
+
 
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
@@ -21,9 +50,19 @@ class MembershipAdmin(admin.ModelAdmin):
     es_valida_status.boolean = True
     es_valida_status.short_description = "Vigente"
 
+
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ('nro_control', 'receptor_nombre', 'client', 'plan_snapshot', 'monto_total', 'esta_impresa', 'fecha_emision')
+    list_display = (
+        'nro_control',
+        'receptor_nombre',
+        'client',
+        'plan_snapshot',
+        'multa_ves',
+        'monto_total',
+        'esta_impresa',
+        'fecha_emision',
+    )
     list_filter = ('esta_impresa', 'fecha_emision')
     search_fields = (
         'nro_control',

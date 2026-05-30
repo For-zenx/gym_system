@@ -1,8 +1,12 @@
+from decimal import Decimal
+
+from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
 from datetime import timedelta
 from django.utils import timezone
 from apps.clients.models import Client
+from apps.clients.fields import SQLiteJSONField
 
 
 class Plan(models.Model):
@@ -93,6 +97,72 @@ class ExchangeRate(models.Model):
         return f"{self.fecha}: {self.tasa_ves} VES/$"
 
 
+class BillingSettings(models.Model):
+    multa_monto_usd = models.DecimalField(
+        "Multa por morosidad (USD)",
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    updated_at = models.DateTimeField("Actualizado", auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración de facturación"
+        verbose_name_plural = "Configuración de facturación"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("No se puede eliminar la configuración global de facturación.")
+
+    @classmethod
+    def get_settings(cls):
+        obj, _ = cls.objects.get_or_create(
+            pk=1,
+            defaults={"multa_monto_usd": Decimal("0.00")},
+        )
+        return obj
+
+    def __str__(self):
+        return f"Multa sugerida: ${self.multa_monto_usd} USD"
+
+
+class ClientBillingEvent(models.Model):
+    class EventType(models.TextChoices):
+        CUT_DATE_CHANGED = "CUT_DATE_CHANGED", "Cambio de fecha de corte"
+        SUBSCRIPTION_REACTIVATED = "SUBSCRIPTION_REACTIVATED", "Reactivación de suscripción"
+        LATE_FEE_APPLIED = "LATE_FEE_APPLIED", "Multa aplicada"
+        LATE_FEE_WAIVED = "LATE_FEE_WAIVED", "Multa omitida"
+
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name="billing_events",
+        verbose_name="Afiliado",
+    )
+    event_type = models.CharField("Tipo", max_length=32, choices=EventType.choices)
+    payload = SQLiteJSONField("Datos", default=dict, blank=True)
+    motivo = models.TextField("Motivo", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Registrado por",
+    )
+    created_at = models.DateTimeField("Fecha", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Evento de facturación"
+        verbose_name_plural = "Eventos de facturación"
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.client.codigo_afiliado} — {self.get_event_type_display()}"
+
+
 class Membership(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='memberships', verbose_name="Afiliado")
     plan = models.ForeignKey(Plan, on_delete=models.PROTECT, verbose_name="Plan")
@@ -153,6 +223,18 @@ class Invoice(models.Model):
     client_cedula_snapshot = models.CharField("Cédula del Receptor", max_length=20, blank=True)
     client_codigo_snapshot = models.CharField("Cód. Afiliado (snapshot)", max_length=20, blank=True)
     plan_snapshot = models.CharField("Plan Comprado", max_length=100, blank=True)
+    multa_usd = models.DecimalField(
+        "Multa (USD)",
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    multa_ves = models.DecimalField(
+        "Multa (VES)",
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
     monto_total = models.DecimalField("Monto Total (VES)", max_digits=12, decimal_places=2)
     nro_control = models.CharField("Nro. Control Fiscal", max_length=50)
     fecha_emision = models.DateTimeField("Fecha de Emisión", auto_now_add=True)
