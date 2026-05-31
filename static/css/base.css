@@ -825,3 +825,23 @@ h1, h2, h3, h4, h5, h6 {
     border-color: var(--primary);
 }
 
+.modal-overlay .cedula-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+.modal-overlay .cedula-input-group select {
+    width: 3.75rem;
+    flex: 0 0 3.75rem;
+    min-width: 0;
+    padding-left: 0.65rem;
+    padding-right: 1.5rem;
+}
+
+.modal-overlay .cedula-input-group input {
+    width: auto;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
