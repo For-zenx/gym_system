@@ -77,6 +77,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'apps.billing.context_processors.exchange_rate_context',
+                'apps.users.context_processors.staff_permissions',
             ],
         },
     },
