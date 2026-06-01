@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Acceso denegado - Perfect Line II{% endblock %}
+{% block page_title %}Acceso denegado{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 36rem; margin: 2rem auto; padding: 2rem; text-align: center;">
+    <h2 style="margin-bottom: 1rem; color: var(--danger, #ef4444);">No tienes permiso</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        Tu cuenta no tiene autorización para esta acción o sección del sistema.
+        Si crees que es un error, contacta al administrador del gimnasio.
+    </p>
+    {% if 'dashboard.view' in user_permissions %}
+    <a href="{% url 'dashboard' %}" class="btn btn-primary">Volver al inicio</a>
+    {% elif 'clients.view_list' in user_permissions %}
+    <a href="{% url 'clients:client_list' %}" class="btn btn-primary">Ir a afiliados</a>
+    {% elif 'billing.view_invoices' in user_permissions %}
+    <a href="{% url 'billing:invoice_list' %}" class="btn btn-primary">Ir a facturas</a>
+    {% elif 'access.view_logs' in user_permissions %}
+    <a href="{% url 'access:access_log_list' %}" class="btn btn-primary">Ir a accesos</a>
+    {% else %}
+    <form action="{% url 'logout' %}" method="post" style="margin: 0;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary">Cerrar sesión</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

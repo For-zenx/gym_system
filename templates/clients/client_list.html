@@ -20,7 +20,9 @@
             {% if moroso_filter %}Morosos (activo){% else %}Ver morosos{% endif %}
         </a>
     </div>
+    {% if 'clients.enroll' in user_permissions %}
     <a href="{% url 'enrollment' %}" class="btn btn-primary">+ Nuevo Afiliado</a>
+    {% endif %}
 </div>
 
 <div class="table-container">

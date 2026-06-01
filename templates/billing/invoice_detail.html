@@ -32,6 +32,7 @@
             </button>
             {% else %}
             <span class="badge badge-success" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Por imprimir</span>
+            {% if 'billing.print_invoice' in user_permissions %}
             <form method="POST" action="{% url 'billing:print_invoice' invoice.id %}" style="margin: 0;">
                 {% csrf_token %}
                 {% if next_url %}
@@ -42,6 +43,7 @@
                     Imprimir Factura
                 </button>
             </form>
+            {% endif %}
             {% endif %}
         </div>
     </div>

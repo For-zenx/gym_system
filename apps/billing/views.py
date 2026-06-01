@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.views import View
-from django.contrib.auth.mixins import LoginRequiredMixin
+from apps.users.mixins import PermissionRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -77,7 +77,8 @@ def _get_safe_next_url(request, value):
     return ''
 
 
-class ExchangeRateUpdateView(LoginRequiredMixin, View):
+class ExchangeRateUpdateView(PermissionRequiredMixin, View):
+    required_permission = "settings.exchange_rate"
     def post(self, request):
         try:
             tasa_str = request.POST.get('tasa_ves')
@@ -98,7 +99,8 @@ class ExchangeRateUpdateView(LoginRequiredMixin, View):
         next_url = request.POST.get('next') or request.META.get('HTTP_REFERER', '/')
         return redirect(next_url)
 
-class RenewPlanView(LoginRequiredMixin, View):
+class RenewPlanView(PermissionRequiredMixin, View):
+    required_permission = "billing.charge"
     def post(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
         plan_id = request.POST.get('plan_id')
@@ -140,7 +142,8 @@ class RenewPlanView(LoginRequiredMixin, View):
         return redirect('clients:profile', codigo_afiliado=codigo_afiliado)
 
 
-class PaymentPeriodPreviewView(LoginRequiredMixin, View):
+class PaymentPeriodPreviewView(PermissionRequiredMixin, View):
+    required_permission = "billing.charge"
     def get(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
         plan_id = request.GET.get("plan_id")
@@ -169,7 +172,8 @@ class PaymentPeriodPreviewView(LoginRequiredMixin, View):
         )
 
 
-class PaymentSuccessView(LoginRequiredMixin, DetailView):
+class PaymentSuccessView(PermissionRequiredMixin, DetailView):
+    required_permission = "billing.charge"
     model = Invoice
     template_name = "billing/payment_success.html"
     context_object_name = "invoice"
@@ -198,7 +202,8 @@ class PaymentSuccessView(LoginRequiredMixin, DetailView):
         return context
 
 
-class ChangeCutDateView(LoginRequiredMixin, View):
+class ChangeCutDateView(PermissionRequiredMixin, View):
+    required_permission = "billing.change_cut_date"
     def post(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
 
@@ -214,7 +219,8 @@ class ChangeCutDateView(LoginRequiredMixin, View):
 
         return redirect("clients:profile", codigo_afiliado=codigo_afiliado)
 
-class PlanListView(LoginRequiredMixin, ListView):
+class PlanListView(PermissionRequiredMixin, ListView):
+    required_permission = "plans.view"
     model = Plan
     template_name = 'billing/plan_list.html'
     context_object_name = 'planes'
@@ -222,7 +228,8 @@ class PlanListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return Plan.objects.filter(is_active=True).order_by('-id')
 
-class PlanCreateView(LoginRequiredMixin, CreateView):
+class PlanCreateView(PermissionRequiredMixin, CreateView):
+    required_permission = "plans.create"
     model = Plan
     template_name = 'billing/plan_form.html'
     fields = ['nombre', 'billing_type', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
@@ -232,7 +239,8 @@ class PlanCreateView(LoginRequiredMixin, CreateView):
         messages.success(self.request, "Plan creado exitosamente.")
         return super().form_valid(form)
 
-class PlanUpdateView(LoginRequiredMixin, UpdateView):
+class PlanUpdateView(PermissionRequiredMixin, UpdateView):
+    required_permission = "plans.edit"
     model = Plan
     template_name = 'billing/plan_form.html'
     fields = ['nombre', 'billing_type', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
@@ -261,7 +269,8 @@ class PlanUpdateView(LoginRequiredMixin, UpdateView):
         messages.success(self.request, "Plan actualizado exitosamente (Se conservó el historial de la versión anterior).")
         return redirect('billing:plan_list')
 
-class PlanDeleteView(LoginRequiredMixin, View):
+class PlanDeleteView(PermissionRequiredMixin, View):
+    required_permission = "plans.delete"
     def post(self, request, pk):
         plan = get_object_or_404(Plan, pk=pk)
         plan.is_active = False
@@ -269,7 +278,8 @@ class PlanDeleteView(LoginRequiredMixin, View):
         messages.success(request, "Plan eliminado exitosamente.")
         return redirect('billing:plan_list')
 
-class MembershipDeleteView(LoginRequiredMixin, View):
+class MembershipDeleteView(PermissionRequiredMixin, View):
+    required_permission = "billing.delete_queued_membership"
     def post(self, request, pk):
         membership = get_object_or_404(Membership, pk=pk)
         client_code = membership.client.codigo_afiliado
@@ -284,7 +294,8 @@ class MembershipDeleteView(LoginRequiredMixin, View):
             
         return redirect('clients:profile', codigo_afiliado=client_code)
 
-class InvoiceListView(LoginRequiredMixin, ListView):
+class InvoiceListView(PermissionRequiredMixin, ListView):
+    required_permission = "billing.view_invoices"
     model = Invoice
     template_name = 'billing/invoice_list.html'
     context_object_name = 'invoices'
@@ -311,7 +322,8 @@ class InvoiceListView(LoginRequiredMixin, ListView):
         return context
 
 
-class InvoiceDetailView(LoginRequiredMixin, DetailView):
+class InvoiceDetailView(PermissionRequiredMixin, DetailView):
+    required_permission = "billing.view_invoice_detail"
     model = Invoice
     template_name = 'billing/invoice_detail.html'
     context_object_name = 'invoice'
@@ -325,7 +337,8 @@ class InvoiceDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
-class PrintInvoiceActionView(LoginRequiredMixin, View):
+class PrintInvoiceActionView(PermissionRequiredMixin, View):
+    required_permission = "billing.print_invoice"
     def post(self, request, pk):
         invoice = get_object_or_404(Invoice, pk=pk)
         detail_url = reverse('billing:invoice_detail', kwargs={'pk': pk})

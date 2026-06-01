@@ -16,6 +16,7 @@ from apps.billing.services import (
     parse_payment_cut_from_post,
 )
 from apps.billing.views import _charge_form_context
+from apps.users.decorators import permission_required
 from django.core.exceptions import ValidationError
 
 def get_next_codigo_afiliado():
@@ -33,11 +34,13 @@ def get_next_codigo_afiliado():
     return 'M-00001-00'
 
 @login_required
+@permission_required("dashboard.view")
 def dashboard(request):
     latest_logs = AccessLog.objects.select_related('client').order_by('-timestamp')[:4]
     return render(request, 'dashboard.html', {'logs': latest_logs})
 
 @login_required
+@permission_required("clients.enroll")
 def enrollment(request):
     if request.method == "POST":
         errors, cleaned = validate_client_data(
@@ -121,6 +124,7 @@ def enrollment(request):
     return render(request, 'enrollment.html', client_form_context())
 
 @login_required
+@permission_required("clients.enroll")
 def enrollment_billing(request, codigo_afiliado):
     client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
     

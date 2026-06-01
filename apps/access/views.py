@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import render
 from django.views.generic import ListView
-from django.contrib.auth.mixins import LoginRequiredMixin
+from apps.users.mixins import PermissionRequiredMixin
 
 from .models import AccessLog
 
@@ -27,7 +27,8 @@ def tablet_view(request):
     return render(request, "tablet.html", {"ws_url": ws_url})
 
 
-class AccessLogListView(LoginRequiredMixin, ListView):
+class AccessLogListView(PermissionRequiredMixin, ListView):
+    required_permission = "access.view_logs"
     model = AccessLog
     template_name = 'access/access_log_list.html'
     context_object_name = 'logs'

@@ -33,10 +33,12 @@
         <div class="profile-info-wrapper">
             <div class="profile-title-row">
                 <h1>{{ client.nombre }}</h1>
+                {% if 'clients.edit' in user_permissions %}
                 <button type="button" class="btn btn-secondary profile-edit-btn" onclick="openEditModal()">
                     <svg style="width:16px;height:16px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     Editar Datos
                 </button>
+                {% endif %}
             </div>
             <dl class="profile-meta-grid">
                 <div class="profile-meta-item"><dt>C.I.</dt><dd>{{ client.cedula }}</dd></div>
@@ -122,12 +124,16 @@
             {% endif %}
 
             <div class="profile-caja-actions">
+                {% if 'billing.charge' in user_permissions %}
                 {% if planes %}
                 <button type="button" class="btn btn-primary" onclick="openPaymentModal()">Registrar cobro</button>
                 {% else %}
                 <button type="button" class="btn btn-primary" disabled title="No hay planes disponibles para cobrar">Registrar cobro</button>
                 {% endif %}
+                {% endif %}
+                {% if 'billing.change_cut_date' in user_permissions %}
                 <button type="button" class="btn btn-link-muted" onclick="openCutDateModal()">Cambiar fecha de corte</button>
+                {% endif %}
             </div>
         </div>
 
@@ -135,7 +141,9 @@
             <div class="profile-tabs-nav" role="tablist">
                 <button type="button" class="profile-tab-btn is-active" data-tab="facturas" role="tab">Facturas</button>
                 <button type="button" class="profile-tab-btn" data-tab="accesos" role="tab">Accesos</button>
+                {% if 'billing.view_audit' in user_permissions %}
                 <button type="button" class="profile-tab-btn" data-tab="auditoria" role="tab">Auditoría</button>
+                {% endif %}
             </div>
 
             <div class="profile-tab-panel is-active" id="tab-facturas" role="tabpanel">
@@ -150,7 +158,9 @@
                         </div>
                         <div class="invoice-item-actions">
                             <span class="invoice-amount">Bs {{ invoice.monto_total }}</span>
+                            {% if 'billing.view_invoice_detail' in user_permissions %}
                             <a href="{% url 'billing:invoice_detail' invoice.id %}?next={{ request.path|urlencode }}" class="btn btn-primary-outline profile-tab-link">Ver ticket</a>
+                            {% endif %}
                         </div>
                     </li>
                     {% endfor %}
@@ -179,6 +189,7 @@
                 {% endif %}
             </div>
 
+            {% if 'billing.view_audit' in user_permissions %}
             <div class="profile-tab-panel" id="tab-auditoria" role="tabpanel">
                 {% if billing_events %}
                 <ul class="event-list">
@@ -193,9 +204,11 @@
                 <p class="profile-tab-empty">Sin movimientos de cuenta registrados.</p>
                 {% endif %}
             </div>
+            {% endif %}
         </div>
     </div>
 
+    {% if 'billing.charge' in user_permissions %}
     <div class="modal-overlay" id="paymentModal">
         <div class="modal-content modal-content-wide">
             <h2>Registrar cobro</h2>
@@ -216,7 +229,9 @@
             {% endif %}
         </div>
     </div>
+    {% endif %}
 
+    {% if 'billing.change_cut_date' in user_permissions %}
     <div class="modal-overlay" id="cutDateModal">
         <div class="modal-content">
             <h2>Cambiar fecha de corte</h2>
@@ -234,7 +249,9 @@
             </form>
         </div>
     </div>
+    {% endif %}
 
+    {% if 'clients.edit' in user_permissions %}
     <div class="modal-overlay" id="editModal">
         <div class="modal-content">
             <h2>Editar Datos Personales</h2>
@@ -277,23 +294,31 @@
             </form>
         </div>
     </div>
+    {% endif %}
 
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'js/cut_date_motivo.js' %}?v=1.0"></script>
+{% if 'billing.charge' in user_permissions %}
 <script src="{% static 'js/billing_payment.js' %}?v=1.4"></script>
+{% endif %}
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
     const tasaDia = parseFloat(tasaDiaStr);
     let billingPayment;
-    let cutDateMotivo = initCutDateMotivoFields({
+    let cutDateMotivo = null;
+
+    {% if 'billing.change_cut_date' in user_permissions %}
+    cutDateMotivo = initCutDateMotivoFields({
         presetId: 'cut_motivo_preset',
         customWrapId: 'cut_motivo_custom_wrap',
         customId: 'cut_motivo_custom',
     });
+    {% endif %}
 
+    {% if 'billing.charge' in user_permissions %}
     function openPaymentModal() {
         if (tasaDia <= 0 || isNaN(tasaDia)) {
             alert("Atención: No hay una tasa de cambio configurada en el sistema para el día de hoy.");
@@ -306,7 +331,9 @@
         document.getElementById('paymentModal').classList.remove('show');
         if (billingPayment) billingPayment.reset();
     }
+    {% endif %}
 
+    {% if 'billing.change_cut_date' in user_permissions %}
     function openCutDateModal() {
         document.getElementById('cutDateModal').classList.add('show');
     }
@@ -315,7 +342,9 @@
         document.getElementById('cutDateModal').classList.remove('show');
         if (cutDateMotivo) cutDateMotivo.reset();
     }
+    {% endif %}
 
+    {% if 'clients.edit' in user_permissions %}
     function openEditModal() {
         document.getElementById('editModal').classList.add('show');
     }
@@ -323,6 +352,7 @@
     function closeEditModal() {
         document.getElementById('editModal').classList.remove('show');
     }
+    {% endif %}
 
     document.querySelectorAll('.profile-tab-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -334,7 +364,7 @@
         });
     });
 
-    {% if planes %}
+    {% if 'billing.charge' in user_permissions and planes %}
     billingPayment = initBillingPayment({
         selectId: 'plan_id',
         confirmId: 'btnConfirm',

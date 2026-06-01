@@ -562,6 +562,26 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 1.1rem;
 }
 
+    .rate-widget-readonly {
+    cursor: default;
+}
+
+.rate-widget-readonly:hover {
+    background-color: rgba(16, 185, 129, 0.1);
+    transform: none;
+}
+
+.navbar-staff-label {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.navbar-staff-label strong {
+    color: var(--text-main);
+    font-weight: 600;
+}
+
 .rate-edit-btn {
     width: 16px;
     height: 16px;

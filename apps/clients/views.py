@@ -1,7 +1,6 @@
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import DetailView, ListView
 from django.views import View
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.db.models import Q
 from datetime import date
@@ -10,9 +9,11 @@ from .validation import validate_client_data, client_form_context, apply_client_
 from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
 from apps.billing.services import get_profile_subscription_summary
 from apps.billing.views import _charge_form_context
+from apps.users.mixins import PermissionRequiredMixin
 
 
-class ClientListView(LoginRequiredMixin, ListView):
+class ClientListView(PermissionRequiredMixin, ListView):
+    required_permission = "clients.view_list"
     model = Client
     template_name = 'clients/client_list.html'
     context_object_name = 'clients'
@@ -45,7 +46,8 @@ class ClientListView(LoginRequiredMixin, ListView):
         return context
 
 
-class ClientProfileView(LoginRequiredMixin, DetailView):
+class ClientProfileView(PermissionRequiredMixin, DetailView):
+    required_permission = "clients.view_profile"
     model = Client
     template_name = 'clients/client_profile.html'
     context_object_name = 'client'
@@ -67,7 +69,8 @@ class ClientProfileView(LoginRequiredMixin, DetailView):
         return context
 
 
-class EditClientView(LoginRequiredMixin, View):
+class EditClientView(PermissionRequiredMixin, View):
+    required_permission = "clients.edit"
     def post(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
 

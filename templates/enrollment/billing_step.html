@@ -29,10 +29,12 @@
             <div style="margin-bottom: 0.5rem; margin-top: 0.5rem;"><strong style="color: var(--text-muted);">Nacimiento:</strong> {% if client.fecha_nacimiento %}{{ client.fecha_nacimiento|date:"d/m/Y" }}{% else %}No especificado{% endif %}</div>
             <div><strong style="color: var(--text-muted);">Sexo:</strong> {% if client.sexo %}{{ client.get_sexo_display }}{% else %}No especificado{% endif %}</div>
         </div>
-        
+
+        {% if 'clients.edit' in user_permissions %}
         <button class="btn btn-secondary" style="width: 100%;" onclick="openEditModal()">
             Corregir Datos
         </button>
+        {% endif %}
     </div>
 
     <div class="wizard-card">
@@ -58,6 +60,7 @@
     </div>
 </div>
 
+{% if 'clients.edit' in user_permissions %}
 <div class="modal-overlay" id="editModal">
     <div class="modal-content">
         <h2>Corregir Datos Personales</h2>
@@ -107,10 +110,10 @@
         </form>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/cut_date_motivo.js' %}?v=1.0"></script>
 <script src="{% static 'js/billing_payment.js' %}?v=1.4"></script>
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
@@ -138,7 +141,9 @@
         usdPrefix: '',
     });
 
+    {% if 'clients.edit' in user_permissions %}
     function openEditModal() { document.getElementById('editModal').classList.add('show'); }
     function closeEditModal() { document.getElementById('editModal').classList.remove('show'); }
+    {% endif %}
 </script>
 {% endblock %}
