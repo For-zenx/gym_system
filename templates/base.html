@@ -35,6 +35,9 @@
                 {% if 'plans.view' in user_permissions %}
                 <a href="{% url 'billing:plan_list' %}" class="nav-item {% if 'planes' in request.path %}active{% endif %}">Conf. de planes</a>
                 {% endif %}
+                {% if 'users.view' in user_permissions or 'roles.manage' in user_permissions %}
+                <a href="{% url 'users:config_home' %}" class="nav-item nav-item-config {% if '/configuracion/' in request.path %}active{% endif %}">Configuración</a>
+                {% endif %}
             </nav>
             <div class="sidebar-footer">
                 <form action="{% url 'logout' %}" method="post" style="width: 100%; margin: 0;">

@@ -1,0 +1,56 @@
+{% extends "users/config_base.html" %}
+
+{% block title %}Plantillas - Configuración{% endblock %}
+{% block config_heading %}Plantillas de permisos{% endblock %}
+
+{% block config_content %}
+<div class="config-page-header">
+    <p class="config-muted" style="margin: 0;">Presets reutilizables. Editar una plantilla no cambia cuentas ya creadas.</p>
+    <a href="{% url 'users:role_create' %}" class="btn btn-primary">+ Nueva plantilla</a>
+</div>
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Permisos</th>
+                <th>Descripción</th>
+                <th style="text-align: right;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for role in roles %}
+            <tr>
+                <td style="font-weight: 500;">{{ role.name }}</td>
+                <td>
+                    {% if role.is_system %}
+                    <span class="badge badge-warning">Sistema</span>
+                    {% else %}
+                    <span class="badge badge-success">Personalizada</span>
+                    {% endif %}
+                </td>
+                <td>{{ role.permissions|length }}</td>
+                <td class="config-muted">{{ role.description|default:"—" }}</td>
+                <td style="text-align: right;">
+                    <div class="config-inline-actions" style="justify-content: flex-end;">
+                        <a href="{% url 'users:role_update' role.pk %}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Editar</a>
+                        {% if not role.is_system %}
+                        <form method="post" action="{% url 'users:role_delete' role.pk %}" style="margin: 0;" onsubmit="return confirm('¿Eliminar la plantilla «{{ role.name }}»? Las cuentas existentes conservan sus permisos.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Eliminar</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="config-muted" style="text-align: center; padding: 2rem;">No hay plantillas registradas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

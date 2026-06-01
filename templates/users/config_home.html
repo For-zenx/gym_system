@@ -1,0 +1,26 @@
+{% extends "users/config_base.html" %}
+
+{% block title %}Configuración - Perfect Line II{% endblock %}
+{% block config_heading %}Configuración del sistema{% endblock %}
+
+{% block config_content %}
+<p class="config-intro">
+    Administra cuentas del personal y plantillas de permisos. Esta sección es independiente del flujo diario de caja y afiliados.
+</p>
+
+<div class="config-card-grid">
+    {% if 'users.view' in user_permissions %}
+    <a href="{% url 'users:staff_user_list' %}" class="card config-hub-card">
+        <h3>Usuarios del sistema</h3>
+        <p>Crear cuentas de cajera u operadores, asignar permisos individuales y activar o desactivar acceso.</p>
+    </a>
+    {% endif %}
+
+    {% if 'roles.manage' in user_permissions %}
+    <a href="{% url 'users:role_list' %}" class="card config-hub-card">
+        <h3>Plantillas de permisos</h3>
+        <p>Definir presets reutilizables (por ejemplo Cajera) para cargar permisos al crear una cuenta.</p>
+    </a>
+    {% endif %}
+</div>
+{% endblock %}

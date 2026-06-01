@@ -621,6 +621,19 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--danger);
 }
 
+.nav-item-config {
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.nav-item-config.active,
+.nav-item-config:hover {
+    color: var(--text-main);
+}
+
 /* --- Invoice List Page --- */
 .invoice-page { max-width: 1200px; margin: 0 auto; }
 

@@ -1,0 +1,51 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Configuración - Perfect Line II{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=2.5">
+    <link rel="stylesheet" href="{% static 'css/config.css' %}?v=1.2">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="config-body">
+    <div class="config-shell">
+        <header class="config-topbar">
+            <div class="config-topbar-title">
+                <a href="{% url 'dashboard' %}" class="config-back-link">&larr; Volver al sistema operativo</a>
+                <h1>{% block config_heading %}Configuración{% endblock %}</h1>
+            </div>
+            <div class="config-topbar-actions">
+                {% if staff_display_name %}
+                <span class="config-muted">{{ staff_display_name }}</span>
+                {% endif %}
+                <form action="{% url 'logout' %}" method="post" style="margin: 0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary">Cerrar sesión</button>
+                </form>
+            </div>
+        </header>
+
+        <nav class="config-nav">
+            <a href="{% url 'users:config_home' %}" class="nav-item {% if request.resolver_match.url_name == 'config_home' %}active{% endif %}">Resumen</a>
+            {% if 'users.view' in user_permissions %}
+            <a href="{% url 'users:staff_user_list' %}" class="nav-item {% if request.resolver_match.url_name == 'staff_user_list' or request.resolver_match.url_name == 'staff_user_create' or request.resolver_match.url_name == 'staff_user_update' %}active{% endif %}">Usuarios</a>
+            {% endif %}
+            {% if 'roles.manage' in user_permissions %}
+            <a href="{% url 'users:role_list' %}" class="nav-item {% if request.resolver_match.url_name == 'role_list' or request.resolver_match.url_name == 'role_create' or request.resolver_match.url_name == 'role_update' %}active{% endif %}">Plantillas</a>
+            {% endif %}
+        </nav>
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'success' }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+
+        {% block config_content %}{% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,123 @@
+{% extends "users/config_base.html" %}
+
+{% block title %}{{ form_title }} - Configuración{% endblock %}
+{% block config_heading %}{{ form_title }}{% endblock %}
+
+{% block config_content %}
+<form method="post" class="card config-form-card">
+    {% csrf_token %}
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Datos de acceso</h3>
+            <p>Información básica para entrar al sistema y mostrar el usuario en pantalla.</p>
+        </div>
+        <div class="config-form-grid">
+            {% if not is_edit %}
+            <div class="config-form-group">
+                <label for="username">Nombre de usuario (login)</label>
+                <input type="text" id="username" name="username" value="{{ form_username|default:'' }}" required maxlength="150" autocomplete="off">
+            </div>
+            <div class="config-form-group">
+                <label for="display_name">Nombre visible</label>
+                <input type="text" id="display_name" name="display_name" value="{{ form_display_name|default:'' }}" required maxlength="150">
+            </div>
+            <div class="config-form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" required autocomplete="new-password">
+            </div>
+            <div class="config-form-group">
+                <label for="password_confirm">Confirmar contraseña</label>
+                <input type="password" id="password_confirm" name="password_confirm" required autocomplete="new-password">
+            </div>
+            {% else %}
+            <div class="config-form-group">
+                <label>Usuario (login)</label>
+                <input type="text" value="{{ staff_user.username }}" disabled>
+            </div>
+            <div class="config-form-group">
+                <label for="display_name">Nombre visible</label>
+                <input type="text" id="display_name" name="display_name" value="{{ form_display_name|default:'' }}" required maxlength="150">
+            </div>
+            <div class="config-form-group">
+                <label for="password">Nueva contraseña (opcional)</label>
+                <input type="password" id="password" name="password" autocomplete="new-password">
+            </div>
+            <div class="config-form-group">
+                <label for="password_confirm">Confirmar nueva contraseña</label>
+                <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password">
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Estado y plantilla</h3>
+            <p>Carga permisos desde una plantilla y ajusta manualmente lo que necesites.</p>
+        </div>
+        <label class="config-checkbox-row">
+            <input type="checkbox" name="is_active" {% if form_is_active %}checked{% elif not is_edit %}checked{% endif %}>
+            <span>Cuenta activa</span>
+        </label>
+        <div class="config-perm-toolbar">
+            <div class="config-form-group">
+                <label for="template_role">Plantilla de permisos</label>
+                <select id="template_role" name="template_role">
+                    <option value="">— Seleccionar plantilla —</option>
+                    {% for role in roles %}
+                    <option value="{{ role.pk }}" {% if selected_template_id == role.pk|stringformat:"s" %}selected{% endif %}>{{ role.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="button" id="btnApplyTemplate" class="btn btn-secondary">Marcar permisos de plantilla</button>
+        </div>
+        {% if is_edit %}
+        <label class="config-checkbox-row">
+            <input type="checkbox" name="reset_from_template" value="1">
+            <span>Al guardar, reemplazar permisos por los de la plantilla seleccionada</span>
+        </label>
+        {% else %}
+        <p class="config-muted" style="margin-bottom: 0;">Puedes cargar una plantilla como punto de partida y ajustar los permisos antes de crear la cuenta.</p>
+        {% endif %}
+    </div>
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Permisos de la cuenta</h3>
+            <p>Estos son los permisos efectivos que se usarán al iniciar sesión.</p>
+        </div>
+        <div class="config-perm-groups">
+            {% include "users/includes/permission_checkboxes.html" %}
+        </div>
+    </div>
+
+    <div class="config-form-actions">
+        <button type="submit" class="btn btn-primary">{% if is_edit %}Guardar cambios{% else %}Crear usuario{% endif %}</button>
+        <a href="{% url 'users:staff_user_list' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const rolePresets = {{ roles_presets_json|safe }};
+
+    function applyRolePreset() {
+        var select = document.getElementById('template_role');
+        if (!select || !select.value) return;
+        var perms = rolePresets[select.value] || [];
+        document.querySelectorAll('input[name="permissions"]').forEach(function (cb) {
+            cb.checked = perms.indexOf(cb.value) !== -1;
+        });
+    }
+
+    var applyBtn = document.getElementById('btnApplyTemplate');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            applyRolePreset();
+        });
+    }
+</script>
+{% endblock %}

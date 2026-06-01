@@ -198,3 +198,40 @@ def update_staff_user(
 
 def seed_administrator_permissions():
     return list(ADMINISTRATOR_PERMISSION_CODES)
+
+
+def create_staff_role(name, description, permissions):
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("El nombre de la plantilla es obligatorio.")
+    if StaffRole.objects.filter(name=name).exists():
+        raise ValidationError("Ya existe una plantilla con ese nombre.")
+    role = StaffRole(
+        name=name,
+        description=(description or "").strip(),
+        permissions=validate_permissions(permissions),
+    )
+    role.save()
+    return role
+
+
+def update_staff_role(role, *, name=None, description=None, permissions=None):
+    if name is not None:
+        name = name.strip()
+        if not name:
+            raise ValidationError("El nombre de la plantilla es obligatorio.")
+        if StaffRole.objects.filter(name=name).exclude(pk=role.pk).exists():
+            raise ValidationError("Ya existe otra plantilla con ese nombre.")
+        role.name = name
+    if description is not None:
+        role.description = description.strip()
+    if permissions is not None:
+        role.permissions = validate_permissions(permissions)
+    role.save()
+    return role
+
+
+def delete_staff_role(role):
+    if role.is_system:
+        raise ValidationError("No se puede eliminar una plantilla del sistema.")
+    role.delete()

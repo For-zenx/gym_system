@@ -1,0 +1,72 @@
+{% extends "users/config_base.html" %}
+
+{% block title %}Usuarios - Configuración{% endblock %}
+{% block config_heading %}Usuarios del sistema{% endblock %}
+
+{% block config_content %}
+<div class="config-page-header">
+    <p class="config-muted" style="margin: 0;">Cuentas operativas del gimnasio (sin incluir superusuarios técnicos).</p>
+    {% if 'users.create' in user_permissions %}
+    <a href="{% url 'users:staff_user_create' %}" class="btn btn-primary">+ Nuevo usuario</a>
+    {% endif %}
+</div>
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Usuario</th>
+                <th>Nombre visible</th>
+                <th>Plantilla origen</th>
+                <th>Permisos</th>
+                <th>Estado</th>
+                <th style="text-align: right;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in staff_users %}
+            <tr>
+                <td style="font-weight: 500;">{{ user.username }}</td>
+                <td>{% if user.staff_profile %}{{ user.staff_profile.display_name }}{% else %}—{% endif %}</td>
+                <td class="config-muted">
+                    {% if user.staff_profile and user.staff_profile.created_from_role %}
+                    {{ user.staff_profile.created_from_role.name }}
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td>{% if user.staff_profile %}{{ user.staff_profile.permissions|length }}{% else %}0{% endif %}</td>
+                <td>
+                    {% if user.is_active %}
+                    <span class="badge badge-success">Activo</span>
+                    {% else %}
+                    <span class="badge badge-danger">Inactivo</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: right;">
+                    {% if 'users.edit' in user_permissions %}
+                    <a href="{% url 'users:staff_user_update' user.pk %}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Editar</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="config-muted" style="text-align: center; padding: 2rem;">No hay usuarios operativos registrados.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if is_paginated %}
+<div style="display: flex; justify-content: center; align-items: center; gap: 0.5rem; margin-top: 1.5rem;">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary">Anterior</a>
+    {% endif %}
+    <span class="config-muted">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary">Siguiente</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

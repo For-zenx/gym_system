@@ -34,6 +34,7 @@ urlpatterns = [
     path('afiliados/', include('apps.clients.urls')),
     path('billing/', include('apps.billing.urls')),
     path('historial/', include('apps.access.urls')),
+    path('configuracion/', include('apps.users.urls')),
 ]
 
 if settings.DEBUG:

@@ -1,0 +1,48 @@
+{% extends "users/config_base.html" %}
+
+{% block title %}{{ form_title }} - Configuración{% endblock %}
+{% block config_heading %}{{ form_title }}{% endblock %}
+
+{% block config_content %}
+{% if role and role.is_system %}
+<div class="config-notice">
+    Plantilla del sistema: puedes ajustar permisos y descripción, pero no eliminarla.
+</div>
+{% endif %}
+
+<form method="post" class="card config-form-card">
+    {% csrf_token %}
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Datos de la plantilla</h3>
+            <p>Nombre y descripción visible para el administrador al crear cuentas.</p>
+        </div>
+        <div class="config-form-grid">
+            <div class="config-form-group">
+                <label for="name">Nombre de la plantilla</label>
+                <input type="text" id="name" name="name" value="{{ form_name|default:'' }}" required maxlength="100">
+            </div>
+            <div class="config-form-group">
+                <label for="description">Descripción (opcional)</label>
+                <textarea id="description" name="description">{{ form_description|default:'' }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Permisos incluidos</h3>
+            <p>Estos permisos se copian como punto de partida cuando creas o restableces una cuenta.</p>
+        </div>
+        <div class="config-perm-groups">
+            {% include "users/includes/permission_checkboxes.html" %}
+        </div>
+    </div>
+
+    <div class="config-form-actions">
+        <button type="submit" class="btn btn-primary">Guardar plantilla</button>
+        <a href="{% url 'users:role_list' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

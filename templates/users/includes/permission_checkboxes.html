@@ -1,0 +1,11 @@
+{% for group in permission_groups %}
+<fieldset class="config-perm-group">
+    <legend class="config-perm-group-title">{{ group.label }}</legend>
+    {% for perm in group.permissions %}
+    <label class="config-perm-option">
+        <input type="checkbox" name="permissions" value="{{ perm.code }}" {% if perm.checked %}checked{% endif %}>
+        <span>{{ perm.label }}</span>
+    </label>
+    {% endfor %}
+</fieldset>
+{% endfor %}

@@ -1,0 +1,281 @@
+/* Panel de configuración — mismo lenguaje visual que base.css */
+
+.config-body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+}
+
+.config-shell {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
+}
+
+.config-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.config-topbar-title h1 {
+    margin: 0.25rem 0 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.config-back-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.config-back-link:hover {
+    color: var(--text-main);
+}
+
+.config-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.config-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.config-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.config-hub-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    text-decoration: none;
+    color: inherit;
+}
+
+.config-hub-card:hover {
+    border-color: var(--primary);
+}
+
+.config-hub-card h3 {
+    margin: 0 0 0.5rem;
+}
+
+.config-hub-card p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    flex: 1;
+}
+
+.config-intro,
+.config-muted {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.config-intro {
+    margin: 0 0 1.5rem;
+    line-height: 1.6;
+}
+
+.config-page-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.config-form-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+.config-form-section {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.config-form-section:last-of-type {
+    border-bottom: none;
+}
+
+.config-form-section-header h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+}
+
+.config-form-section-header p {
+    margin: 0 0 1rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.config-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.config-form-group {
+    margin-bottom: 1.25rem;
+}
+
+.config-form-grid .config-form-group {
+    margin-bottom: 0;
+}
+
+.config-form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.config-form-group input[type="text"],
+.config-form-group input[type="password"],
+.config-form-group textarea,
+.config-form-group select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.875rem;
+}
+
+.config-form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.config-form-group input:focus,
+.config-form-group textarea:focus,
+.config-form-group select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.config-form-group input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.config-perm-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: end;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background-color: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+}
+
+.config-perm-toolbar .config-form-group {
+    margin-bottom: 0;
+    min-width: 220px;
+    flex: 1;
+}
+
+.config-perm-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.config-perm-group {
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background-color: var(--bg-main);
+}
+
+.config-perm-group-title {
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.75rem;
+    display: block;
+}
+
+.config-perm-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.config-perm-option input {
+    margin-top: 0.15rem;
+}
+
+.config-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.config-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.config-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    color: var(--text-main);
+    font-size: 0.875rem;
+}
+
+.config-notice {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    border-left: 4px solid #f59e0b;
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .config-card-grid,
+    .config-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .config-form-section,
+    .config-form-actions {
+        padding: 1rem;
+    }
+}
