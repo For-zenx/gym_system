@@ -154,7 +154,6 @@
                         <div class="invoice-info">
                             <strong>{{ invoice.nro_control }}</strong>
                             <span>{{ invoice.fecha_emision|date:"d/m/Y" }}</span>
-                            <span>{% if invoice.plan_snapshot %}{{ invoice.plan_snapshot }}{% else %}{{ invoice.membership.plan.nombre }}{% endif %}{% if invoice.multa_ves %} (+ multa){% endif %}</span>
                         </div>
                         <div class="invoice-item-actions">
                             <span class="invoice-amount">Bs {{ invoice.monto_total }}</span>

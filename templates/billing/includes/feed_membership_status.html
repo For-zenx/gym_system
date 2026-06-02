@@ -1,0 +1,16 @@
+<div class="feed-membership-block">
+    <p class="feed-membership-kicker">Membresía</p>
+    <ul class="feed-membership-lines">
+        {% for line in lines %}
+        <li class="feed-membership-line feed-membership-line--{{ line.status }}">
+            <span class="feed-membership-line-title">{{ line.title }}</span>
+            {% if line.primary %}
+            <span class="feed-membership-line-primary">{{ line.primary }}</span>
+            {% endif %}
+            {% if line.secondary %}
+            <span class="feed-membership-line-secondary">{{ line.secondary }}</span>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>

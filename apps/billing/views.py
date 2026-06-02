@@ -476,7 +476,11 @@ class InvoiceListView(PermissionRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = Invoice.objects.select_related('client', 'membership__plan').order_by('-fecha_emision', '-id')
+        queryset = (
+            Invoice.objects.select_related("client", "membership__plan")
+            .prefetch_related("lines")
+            .order_by("-fecha_emision", "-id")
+        )
         q = self.request.GET.get('q', '').strip()
         if q:
             queryset = queryset.filter(

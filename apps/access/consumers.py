@@ -94,9 +94,10 @@ class TabletConsumer(AsyncWebsocketConsumer):
 
         # Send live feed update to dashboard
         photo_url = client.foto_frente.url if client.foto_frente else ""
-        plan_name = mem_data["plan_name"] if mem_data else "Sin Plan"
-        plan_vencimiento = mem_data["fecha_fin"] if mem_data else "N/A"
-        
+        from apps.billing.services import get_membership_feed_lines
+
+        membership_lines = await database_sync_to_async(get_membership_feed_lines)(client)
+
         await self.channel_layer.group_send(
             DASHBOARD_GROUP,
             {
@@ -109,8 +110,7 @@ class TabletConsumer(AsyncWebsocketConsumer):
                 "photo_url": photo_url,
                 "granted": granted,
                 "detail": detail,
-                "plan_name": plan_name,
-                "plan_vencimiento": plan_vencimiento,
+                "membership_lines": membership_lines,
                 "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S')
             }
         )
@@ -249,8 +249,7 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             "photo_url": event.get("photo_url"),
             "granted": event.get("granted"),
             "detail": event.get("detail"),
-            "plan_name": event.get("plan_name"),
-            "plan_vencimiento": event.get("plan_vencimiento"),
+            "membership_lines": event.get("membership_lines", []),
             "timestamp": event.get("timestamp")
         }))
 

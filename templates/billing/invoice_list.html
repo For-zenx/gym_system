@@ -26,7 +26,7 @@
                     <th>Fecha</th>
                     <th>Nro. Control</th>
                     <th>Afiliado</th>
-                    <th>Plan</th>
+                    <th>Concepto</th>
                     <th style="text-align: right;">Monto (VES)</th>
                     <th>Estado</th>
                 </tr>
@@ -41,15 +41,7 @@
                         <br><span style="font-size: 0.8rem; color: var(--text-muted);">{{ invoice.receptor_codigo }}</span>
                         {% if not invoice.client %}<br><span class="membership-deleted" style="font-size: 0.75rem;">Histórico</span>{% endif %}
                     </td>
-                    <td>
-                        {% if invoice.plan_snapshot %}
-                            {{ invoice.plan_snapshot }}
-                        {% elif invoice.membership %}
-                            {{ invoice.membership.plan.nombre }}
-                        {% else %}
-                            <span class="membership-deleted">Plan eliminado</span>
-                        {% endif %}
-                    </td>
+                    <td style="font-size: 0.9rem; color: var(--text-muted);">{{ invoice.concept_display }}</td>
                     <td style="text-align: right; font-weight: 700; color: var(--success);">Bs {{ invoice.monto_total|floatformat:2 }}</td>
                     <td>
                         {% if invoice.esta_impresa %}

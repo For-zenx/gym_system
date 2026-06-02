@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static billing_extras %}
 
 {% block title %}Inicio - Perfect Line II{% endblock %}
 {% block page_title %}Inicio{% endblock %}
@@ -41,17 +41,8 @@
                         <span class="feed-data-label">Ingreso al Sistema</span>
                         <span class="feed-data-value">{{ log.client.fecha_ingreso|date:"d/m/Y" }}</span>
                     </div>
-                    <div class="feed-data-item" style="grid-column: 1 / -1; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.5rem;">
-                        <span class="feed-data-label">Estado de Membresía</span>
-                        <span class="feed-data-value">
-                            {% with mem=log.client.active_memberships.first %}
-                                {% if mem %}
-                                    {{ mem.plan.nombre }} (Vence: {{ mem.fecha_fin|date:"d/m/Y" }})
-                                {% else %}
-                                    Sin Plan Activo
-                                {% endif %}
-                            {% endwith %}
-                        </span>
+                    <div class="feed-data-item feed-data-item--membership">
+                        {% feed_membership_status log.client %}
                     </div>
                 </div>
             </a>
@@ -83,8 +74,36 @@
 
         const photoUrl = data.photo_url ? data.photo_url : '{% static "img/gym_bg.png" %}';
         
-        let planText = data.plan_name !== "Sin Plan" ? `${data.plan_name} (Vence: ${data.plan_vencimiento})` : 'Sin Plan Activo';
+        const membershipLines = data.membership_lines || [];
         const telText = data.telefono ? data.telefono : 'No registrado';
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderMembershipBlock(lines) {
+            if (!lines.length) {
+                lines = [{ status: 'empty', title: 'Sin plan activo', primary: null, secondary: null }];
+            }
+            const items = lines.map(function (line) {
+                let html = '<li class="feed-membership-line feed-membership-line--' + escapeHtml(line.status) + '">';
+                html += '<span class="feed-membership-line-title">' + escapeHtml(line.title) + '</span>';
+                if (line.primary) {
+                    html += '<span class="feed-membership-line-primary">' + escapeHtml(line.primary) + '</span>';
+                }
+                if (line.secondary) {
+                    html += '<span class="feed-membership-line-secondary">' + escapeHtml(line.secondary) + '</span>';
+                }
+                html += '</li>';
+                return html;
+            }).join('');
+            return '<div class="feed-membership-block">' +
+                '<p class="feed-membership-kicker">Membresía</p>' +
+                '<ul class="feed-membership-lines">' + items + '</ul></div>';
+        }
 
         card.innerHTML = `
             <div class="feed-header-xl">
@@ -116,9 +135,8 @@
                     <span class="feed-data-label">Ingreso al Sistema</span>
                     <span class="feed-data-value">${data.fecha_ingreso}</span>
                 </div>
-                <div class="feed-data-item" style="grid-column: 1 / -1; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.5rem;">
-                    <span class="feed-data-label">Estado de Membresía</span>
-                    <span class="feed-data-value">${planText}</span>
+                <div class="feed-data-item feed-data-item--membership">
+                    ${renderMembershipBlock(membershipLines)}
                 </div>
             </div>
         `;

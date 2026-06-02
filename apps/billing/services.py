@@ -281,6 +281,100 @@ def get_profile_subscription_summary(client):
     }
 
 
+def get_membership_feed_lines(client):
+    """Líneas estructuradas para el bloque de membresía en inicio (feed en vivo)."""
+    summary = get_profile_subscription_summary(client)
+    lines = []
+
+    fixed = summary.get("fixed_line") or {}
+    kind = fixed.get("kind")
+    if kind == "active":
+        secondary = None
+        prepaid = fixed.get("prepaid_count") or 0
+        if prepaid > 0:
+            mes_word = "mes" if prepaid == 1 else "meses"
+            pag_word = "pagado" if prepaid == 1 else "pagados"
+            secondary = "{} {} {} por adelantado".format(prepaid, mes_word, pag_word)
+        lines.append(
+            {
+                "status": "active",
+                "title": "Suscripción mensual",
+                "primary": "Al día hasta {}".format(fixed["covered_until_display"]),
+                "secondary": secondary,
+            }
+        )
+    elif kind == "suspended":
+        parts = ["Suspendida"]
+        unpaid = fixed.get("unpaid_count") or 0
+        if unpaid > 0:
+            period_word = "periodo" if unpaid == 1 else "periodos"
+            imp_word = "impago" if unpaid == 1 else "impagos"
+            parts.append("{} {} {}".format(unpaid, period_word, imp_word))
+        secondary = None
+        if fixed.get("last_paid_end_display"):
+            secondary = "Último periodo pagado hasta {}".format(
+                fixed["last_paid_end_display"]
+            )
+        lines.append(
+            {
+                "status": "suspended",
+                "title": "Suscripción mensual",
+                "primary": " · ".join(parts),
+                "secondary": secondary,
+            }
+        )
+    else:
+        lines.append(
+            {
+                "status": "none",
+                "title": "Suscripción mensual",
+                "primary": "Sin suscripción mensual",
+                "secondary": None,
+            }
+        )
+
+    flex = summary.get("flexible_line")
+    if flex:
+        lines.append(
+            {
+                "status": "flexible",
+                "title": "Pase flexible",
+                "primary": "{} hasta {}".format(
+                    flex["plan_name"],
+                    flex["until_display"],
+                ),
+                "secondary": None,
+            }
+        )
+
+    if not summary.get("has_access") and len(lines) == 1 and lines[0]["status"] == "none":
+        return [
+            {
+                "status": "empty",
+                "title": "Sin plan activo",
+                "primary": None,
+                "secondary": None,
+            }
+        ]
+
+    return lines
+
+
+def get_membership_status_display(client):
+    """Texto plano (respaldo); preferir get_membership_feed_lines + plantilla."""
+    parts = []
+    for line in get_membership_feed_lines(client):
+        if line["status"] == "empty":
+            return line["title"]
+        chunk = line["title"]
+        if line.get("primary"):
+            chunk += ": " + line["primary"]
+        if line.get("secondary"):
+            chunk += " (" + line["secondary"] + ")"
+        parts.append(chunk)
+    return " · ".join(parts) if parts else "Sin plan activo"
+
+
 def preview_membership_period(client, plan, cut_day_override=None):
     hoy = timezone.localdate()
     if plan.is_flexible:

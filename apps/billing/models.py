@@ -335,6 +335,37 @@ class Invoice(models.Model):
         return self.lines.exists()
 
     @property
+    def concept_display(self):
+        """Etiqueta para listados: plan, productos, combinado o —."""
+        plan_name = (self.plan_snapshot or "").strip()
+        if not plan_name and self.membership_id:
+            try:
+                plan_name = self.membership.plan.nombre
+            except Exception:
+                plan_name = ""
+
+        if self.has_detail_lines():
+            kinds = set(self.lines.values_list("line_kind", flat=True))
+            has_mem = InvoiceLine.LineKind.MEMBERSHIP in kinds
+            has_prod = InvoiceLine.LineKind.PRODUCT in kinds
+            if has_prod and not has_mem:
+                return "Productos y servicios"
+            if has_mem and has_prod:
+                return "{} + productos".format(plan_name) if plan_name else "Membresía + productos"
+            if has_mem:
+                return plan_name or "Membresía"
+            if has_prod:
+                return "Productos y servicios"
+
+        if plan_name:
+            return plan_name
+        if self.membership_id and not plan_name:
+            return "Membresía"
+        if not self.plan_snapshot and not self.membership_id:
+            return "Productos y servicios"
+        return "—"
+
+    @property
     def monto_cuota_ves(self):
         if self.has_detail_lines():
             from django.db.models import Sum
