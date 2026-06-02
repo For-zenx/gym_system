@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView, TemplateView
 
-from .forms_helpers import build_permission_groups, permissions_from_post
+from .forms_helpers import build_granted_permission_groups, build_permission_groups, permissions_from_post
 from .mixins import PermissionRequiredMixin
 from .models import StaffRole
 from .permissions import has_permission
@@ -17,6 +17,8 @@ from .services import (
     create_staff_role,
     create_staff_user,
     delete_staff_role,
+    get_or_create_staff_profile,
+    update_staff_profile_self,
     update_staff_role,
     update_staff_user,
 )
@@ -40,6 +42,53 @@ def _roles_presets_context():
     roles = StaffRole.objects.all().order_by("name")
     presets = {str(role.pk): role.permissions or [] for role in roles}
     return roles, presets
+
+
+class StaffProfileView(LoginRequiredMixin, View):
+    def get(self, request):
+        user = request.user
+        profile = getattr(user, "staff_profile", None)
+        if profile is None and not user.is_superuser:
+            profile = get_or_create_staff_profile(user)
+
+        can_edit = has_permission(user, "users.edit")
+        form_display_name = ""
+        if profile:
+            form_display_name = profile.display_name
+        elif user.is_superuser:
+            form_display_name = user.get_full_name() or user.username
+
+        return render(
+            request,
+            "users/staff_profile.html",
+            {
+                "staff_profile": profile,
+                "permission_groups": build_granted_permission_groups(user),
+                "can_edit_profile": can_edit and profile is not None,
+                "form_display_name": form_display_name,
+            },
+        )
+
+    def post(self, request):
+        if not has_permission(request.user, "users.edit"):
+            raise PermissionDenied("No tienes permiso para editar tu perfil.")
+
+        profile = getattr(request.user, "staff_profile", None)
+        if profile is None:
+            messages.error(request, "Tu cuenta no tiene perfil operativo.")
+            return redirect("staff_profile")
+
+        try:
+            update_staff_profile_self(
+                request.user,
+                display_name=request.POST.get("display_name"),
+            )
+            messages.success(request, "Perfil actualizado correctamente.")
+        except ValidationError as exc:
+            for msg in exc.messages:
+                messages.error(request, msg)
+
+        return redirect("staff_profile")
 
 
 class ConfigHomeView(AnyPermissionRequiredMixin, TemplateView):

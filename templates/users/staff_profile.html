@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Mi perfil - Perfect Line II{% endblock %}
+{% block page_title %}Mi perfil{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/config.css' %}?v=1.2">
+<style>
+.profile-page {
+    max-width: 800px;
+    width: 100%;
+    margin: 0 auto;
+}
+.profile-perm-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.profile-perm-list li {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.profile-perm-list li:last-child { border-bottom: none; }
+.profile-meta {
+    margin: 0 0 1rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'success' }}" style="margin-bottom: 1rem;">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+
+    {% if not staff_profile and user.is_superuser %}
+    <div class="card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+        <p class="profile-meta" style="margin: 0;">Cuenta de superusuario. No usa perfil operativo del gimnasio.</p>
+        <p style="margin: 0.75rem 0 0;"><strong>Usuario:</strong> {{ user.username }}</p>
+    </div>
+    <div class="card config-form-card">
+        <div class="config-form-section" style="border-bottom: none;">
+            <div class="config-form-section-header">
+                <h3>Permisos efectivos</h3>
+                <p>Acceso completo del superusuario.</p>
+            </div>
+            <div class="config-perm-groups">
+                {% include "users/includes/permission_list_readonly.html" %}
+            </div>
+        </div>
+    </div>
+    {% elif not staff_profile %}
+    <p class="config-muted">Tu cuenta no tiene perfil operativo asignado.</p>
+    {% else %}
+
+    {% if can_edit_profile %}
+    <form method="post" class="card config-form-card" style="margin-bottom: 1.5rem;">
+        {% csrf_token %}
+        <div class="config-form-section">
+            <div class="config-form-section-header">
+                <h3>Datos de la cuenta</h3>
+                <p>Puedes cambiar tu nombre visible. Los permisos se gestionan en Configuración de Sist.</p>
+            </div>
+            <div class="config-form-grid">
+                <div class="config-form-group">
+                    <label>Usuario (login)</label>
+                    <input type="text" value="{{ user.username }}" disabled>
+                </div>
+                <div class="config-form-group">
+                    <label for="display_name">Nombre visible</label>
+                    <input type="text" id="display_name" name="display_name" value="{{ form_display_name }}" required maxlength="150">
+                </div>
+            </div>
+        </div>
+        <div class="config-form-actions">
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+    </form>
+    {% else %}
+    <div class="card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+        <div class="config-form-grid">
+            <div>
+                <p class="profile-meta">Usuario (login)</p>
+                <p style="margin: 0; font-weight: 500;">{{ user.username }}</p>
+            </div>
+            <div>
+                <p class="profile-meta">Nombre visible</p>
+                <p style="margin: 0; font-weight: 500;">{{ staff_profile.display_name }}</p>
+            </div>
+        </div>
+        {% if staff_profile.created_from_role %}
+        <p class="profile-meta" style="margin-top: 1rem; margin-bottom: 0;">
+            Plantilla de origen: <strong>{{ staff_profile.created_from_role.name }}</strong>
+        </p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="card config-form-card">
+        <div class="config-form-section" style="border-bottom: none;">
+            <div class="config-form-section-header">
+                <h3>Permisos de la cuenta</h3>
+                <p>Solo lectura. Para modificarlos, un administrador debe usar Configuración de Sist.</p>
+            </div>
+            <div class="config-perm-groups">
+                {% include "users/includes/permission_list_readonly.html" %}
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

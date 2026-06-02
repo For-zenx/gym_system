@@ -1,0 +1,12 @@
+{% for group in permission_groups %}
+<fieldset class="config-perm-group">
+    <legend class="config-perm-group-title">{{ group.label }}</legend>
+    <ul class="profile-perm-list">
+        {% for perm in group.permissions %}
+        <li>{{ perm.label }}</li>
+        {% endfor %}
+    </ul>
+</fieldset>
+{% empty %}
+<p class="config-muted">No hay permisos asignados.</p>
+{% endfor %}

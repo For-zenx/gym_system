@@ -196,6 +196,17 @@ def update_staff_user(
     return user
 
 
+@transaction.atomic
+def update_staff_profile_self(user, *, display_name):
+    profile = get_or_create_staff_profile(user)
+    display_name = (display_name or "").strip()
+    if not display_name:
+        raise ValidationError("El nombre visible es obligatorio.")
+    profile.display_name = display_name
+    profile.save(update_fields=["display_name", "updated_at"])
+    return profile
+
+
 def seed_administrator_permissions():
     return list(ADMINISTRATOR_PERMISSION_CODES)
 

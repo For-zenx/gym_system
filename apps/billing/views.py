@@ -333,7 +333,6 @@ class InvoiceDetailView(PermissionRequiredMixin, DetailView):
         context['latest_rate'] = ExchangeRate.get_latest()
         context['next_url'] = _get_safe_next_url(self.request, self.request.GET.get('next', ''))
         context['ticket_lines'] = build_invoice_preview_lines(self.object)
-        context['monto_cuota_ves'] = self.object.monto_cuota_ves
         return context
 
 

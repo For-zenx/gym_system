@@ -48,12 +48,6 @@
         </div>
     </div>
 
-    <div class="invoice-breakdown">
-        <div><strong>Cuota</strong><br>Bs {{ monto_cuota_ves }}</div>
-        {% if invoice.multa_ves %}<div><strong>Multa</strong><br>Bs {{ invoice.multa_ves }}</div>{% endif %}
-        <div><strong>Total</strong><br>Bs {{ invoice.monto_total }}</div>
-    </div>
-
     <div class="ticket-container">
         <div class="ticket-paper">
             {% for line in ticket_lines %}<span class="ticket-line">{{ line }}</span>{% endfor %}

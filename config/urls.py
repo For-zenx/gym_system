@@ -22,6 +22,7 @@ from django.contrib.auth import views as auth_views
 from django.views.static import serve
 from apps.core import views as core_views
 from apps.access import views as access_views
+from apps.users.views import StaffProfileView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -35,6 +36,7 @@ urlpatterns = [
     path('billing/', include('apps.billing.urls')),
     path('historial/', include('apps.access.urls')),
     path('configuracion/', include('apps.users.urls')),
+    path('perfil/', StaffProfileView.as_view(), name='staff_profile'),
 ]
 
 if settings.DEBUG:

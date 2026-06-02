@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Perfect Line II{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=2.5">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=2.6">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -33,13 +33,14 @@
                 <a href="{% url 'enrollment' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment' %}active{% endif %}">Enrolamiento</a>
                 {% endif %}
                 {% if 'plans.view' in user_permissions %}
-                <a href="{% url 'billing:plan_list' %}" class="nav-item {% if 'planes' in request.path %}active{% endif %}">Conf. de planes</a>
-                {% endif %}
-                {% if 'users.view' in user_permissions or 'roles.manage' in user_permissions %}
-                <a href="{% url 'users:config_home' %}" class="nav-item nav-item-config {% if '/configuracion/' in request.path %}active{% endif %}">Configuración</a>
+                <a href="{% url 'billing:plan_list' %}" class="nav-item {% if 'planes' in request.path %}active{% endif %}">Planes</a>
                 {% endif %}
             </nav>
             <div class="sidebar-footer">
+                {% if 'users.view' in user_permissions or 'roles.manage' in user_permissions %}
+                <a href="{% url 'users:config_home' %}" class="nav-item nav-item-config {% if '/configuracion/' in request.path %}active{% endif %}">Configuración de Sist.</a>
+                {% endif %}
+                <a href="{% url 'staff_profile' %}" class="nav-item {% if request.resolver_match.url_name == 'staff_profile' %}active{% endif %}">Mi perfil</a>
                 <form action="{% url 'logout' %}" method="post" style="width: 100%; margin: 0;">
                     {% csrf_token %}
                     <button type="submit" class="nav-item nav-item-logout" style="width: 100%; border: none; text-align: left; cursor: pointer; font-size: 1rem; font-family: inherit;">
@@ -56,10 +57,6 @@
                     <h3>{% block page_title %}Dashboard{% endblock %}</h3>
                 </div>
                 <div class="navbar-user" style="display: flex; align-items: center; gap: 1.5rem;">
-                    {% if staff_display_name %}
-                    <span class="navbar-staff-label"><strong>{{ staff_display_name }}</strong></span>
-                    {% endif %}
-
                     {% if latest_rate %}
                     {% if 'settings.exchange_rate' in user_permissions %}
                     <div class="rate-widget" onclick="openRateModal()" title="Editar Tasa de Cambio">
