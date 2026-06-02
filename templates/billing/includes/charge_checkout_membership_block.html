@@ -1,0 +1,6 @@
+{% if planes %}
+<section class="checkout-section checkout-membership-block">
+    <h3 class="checkout-section-title">Membresía</h3>
+    {% include 'billing/includes/payment_fields.html' with hide_price_preview=True %}
+</section>
+{% endif %}

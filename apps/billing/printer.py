@@ -21,7 +21,6 @@ FISCAL_HEADER_LINES = [
     "CONTRIBUYENTE FORMAL",
 ]
 
-# Placeholders de solo previsualización: la Dascom imprime número, fecha y hora fiscales.
 PREVIEW_FISCAL_NUMBER = "00000000"
 PREVIEW_FISCAL_DATE = "xx-xx-xxxx"
 PREVIEW_FISCAL_TIME = "--:--"
@@ -32,7 +31,6 @@ def _truncate(text, max_width):
 
 
 def _right_align(label, value, width=MAX_LINE_WIDTH):
-    """Alinea el valor a la derecha de la línea: 'LABEL         VALUE'."""
     space = width - len(label) - len(value)
     if space < 1:
         space = 1
@@ -56,12 +54,9 @@ def _format_currency_ves(amount):
     return "Bs " + normalized.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def _build_ticket_lines(invoice):
-    nombre, cedula, codigo = invoice.get_receptor_for_ticket()
+def _legacy_ticket_amount_lines(invoice):
     cuota_ves = invoice.monto_cuota_ves
-    cuota_str = _format_currency_ves(cuota_ves)
-    total_str = _format_currency_ves(invoice.monto_total)
-
+    lines = []
     if invoice.membership:
         fecha_inicio = invoice.membership.fecha_inicio.strftime('%d/%m/%Y')
         fecha_fin = invoice.membership.fecha_fin.strftime('%d/%m/%Y')
@@ -70,42 +65,79 @@ def _build_ticket_lines(invoice):
         emision = invoice.fecha_emision.strftime('%d/%m/%Y')
         cuota_line = f"|CUOTA REF EMISION: {emision}|"
 
-    lines = [
-        ("text", f"RIF/C.I.: {cedula}"),
-        ("text", _truncate(f"RAZON SOCIAL: {nombre}", MAX_LINE_WIDTH)),
-        ("text", f"Cod. Afil.: {codigo}"),
-        ("separator", None),
-        ("text", cuota_line),
-        ("text", _right_align(_truncate(nombre, 28) + " (E)", cuota_str)),
-    ]
+    nombre, _, _ = invoice.get_receptor_for_ticket()
+    cuota_str = _format_currency_ves(cuota_ves)
+    lines.append(("text", cuota_line))
+    lines.append(("text", _right_align(_truncate(nombre, 28) + " (E)", cuota_str)))
 
     if invoice.multa_ves and invoice.multa_ves > 0:
         multa_str = _format_currency_ves(invoice.multa_ves)
         lines.append(("text", _right_align("MULTA POR MOROSIDAD", multa_str)))
 
-    lines.extend([
+    return lines
+
+
+def _detail_ticket_amount_lines(invoice, preview=False):
+    width = PREVIEW_LINE_WIDTH if preview else MAX_LINE_WIDTH
+    lines = []
+    nombre, _, _ = invoice.get_receptor_for_ticket()
+
+    for line in invoice.lines.all().order_by("id"):
+        label = _truncate(line.description, 28 if not preview else 20)
+        amount_str = _format_currency_ves(line.amount_ves)
+        text = _right_align(label, amount_str, width)
+        if preview:
+            lines.append(text)
+        else:
+            lines.append(("text", text))
+
+    return lines
+
+
+def _ticket_footer_lines(invoice, preview=False):
+    width = PREVIEW_LINE_WIDTH if preview else MAX_LINE_WIDTH
+    total_str = _format_currency_ves(invoice.monto_total)
+    exento_base = invoice.monto_cuota_ves
+    exento_str = _format_currency_ves(exento_base)
+
+    if preview:
+        return [
+            _preview_separator(width),
+            _right_align("EXENTO", exento_str, width),
+            _preview_separator(width),
+            _right_align("TOTAL", total_str, width),
+            _right_align("EFECTIVO 1", total_str, width),
+        ]
+
+    return [
         ("separator", None),
-        ("text", _right_align("EXENTO", cuota_str)),
+        ("text", _right_align("EXENTO", exento_str)),
         ("separator", None),
         ("text", _right_align("TOTAL", total_str)),
         ("text", _right_align("EFECTIVO 1", total_str)),
-    ])
+    ]
+
+
+def _build_ticket_lines(invoice):
+    nombre, cedula, codigo = invoice.get_receptor_for_ticket()
+    lines = [
+        ("text", f"RIF/C.I.: {cedula}"),
+        ("text", _truncate(f"RAZON SOCIAL: {nombre}", MAX_LINE_WIDTH)),
+        ("text", f"Cod. Afil.: {codigo}"),
+        ("separator", None),
+    ]
+
+    if invoice.has_detail_lines():
+        lines.extend(_detail_ticket_amount_lines(invoice, preview=False))
+    else:
+        lines.extend(_legacy_ticket_amount_lines(invoice))
+
+    lines.extend(_ticket_footer_lines(invoice, preview=False))
     return lines
 
 
 def build_invoice_preview_lines(invoice):
     issued_at = timezone.localtime(invoice.fecha_emision)
-    cuota_ves = invoice.monto_cuota_ves
-    cuota_str = _format_currency_ves(cuota_ves)
-    total_str = _format_currency_ves(invoice.monto_total)
-
-    if invoice.membership:
-        fecha_inicio = invoice.membership.fecha_inicio.strftime('%d/%m/%Y')
-        fecha_fin = invoice.membership.fecha_fin.strftime('%d/%m/%Y')
-        quota_line = f"|CUOTA {fecha_inicio} AL {fecha_fin}|"
-    else:
-        quota_line = f"|CUOTA REF EMISION: {issued_at.strftime('%d/%m/%Y')}|"
-
     client_name, client_id, client_code = invoice.get_receptor_for_ticket()
 
     lines = [_preview_blank()]
@@ -119,26 +151,29 @@ def build_invoice_preview_lines(invoice):
         _right_align("FACTURA:", PREVIEW_FISCAL_NUMBER, PREVIEW_LINE_WIDTH),
         _right_align(f"FECHA: {PREVIEW_FISCAL_DATE}", f"HORA: {PREVIEW_FISCAL_TIME}", PREVIEW_LINE_WIDTH),
         _preview_separator(),
-        _truncate(quota_line, PREVIEW_LINE_WIDTH),
-        _right_align(_truncate(client_name, 20) + " (E)", cuota_str, PREVIEW_LINE_WIDTH),
     ])
 
-    if invoice.multa_ves and invoice.multa_ves > 0:
-        multa_str = _format_currency_ves(invoice.multa_ves)
-        lines.append(_right_align("MULTA POR MOROSIDAD", multa_str, PREVIEW_LINE_WIDTH))
+    if invoice.has_detail_lines():
+        lines.extend(_detail_ticket_amount_lines(invoice, preview=True))
+    else:
+        cuota_str = _format_currency_ves(invoice.monto_cuota_ves)
+        if invoice.membership:
+            fecha_inicio = invoice.membership.fecha_inicio.strftime('%d/%m/%Y')
+            fecha_fin = invoice.membership.fecha_fin.strftime('%d/%m/%Y')
+            quota_line = f"|CUOTA {fecha_inicio} AL {fecha_fin}|"
+        else:
+            quota_line = f"|CUOTA REF EMISION: {issued_at.strftime('%d/%m/%Y')}|"
+        lines.append(_truncate(quota_line, PREVIEW_LINE_WIDTH))
+        lines.append(_right_align(_truncate(client_name, 20) + " (E)", cuota_str, PREVIEW_LINE_WIDTH))
+        if invoice.multa_ves and invoice.multa_ves > 0:
+            multa_str = _format_currency_ves(invoice.multa_ves)
+            lines.append(_right_align("MULTA POR MOROSIDAD", multa_str, PREVIEW_LINE_WIDTH))
 
-    lines.extend([
-        _preview_separator(),
-        _right_align("EXENTO", cuota_str, PREVIEW_LINE_WIDTH),
-        _preview_separator(),
-        _right_align("TOTAL", total_str, PREVIEW_LINE_WIDTH),
-        _right_align("EFECTIVO 1", total_str, PREVIEW_LINE_WIDTH),
-    ])
+    lines.extend(_ticket_footer_lines(invoice, preview=True))
     return lines
 
 
 def _render_lines(lines):
-    """Convierte las líneas del tique a texto plano legible."""
     output = []
     for kind, content in lines:
         if kind == "separator":
@@ -149,7 +184,6 @@ def _render_lines(lines):
 
 
 def _print_to_file(invoice, lines):
-    """Modo DEBUG: guarda el tique como archivo .txt en media/printer_debug/."""
     debug_dir = os.path.join(settings.MEDIA_ROOT, 'printer_debug')
     os.makedirs(debug_dir, exist_ok=True)
 

@@ -1,12 +1,20 @@
 from django.contrib import admin
 from .models import (
     Plan,
+    SaleItem,
     Membership,
     Invoice,
+    InvoiceLine,
     ExchangeRate,
     BillingSettings,
     ClientBillingEvent,
 )
+
+
+@admin.register(SaleItem)
+class SaleItemAdmin(admin.ModelAdmin):
+    list_display = ("name", "item_type", "price_usd", "is_active", "sort_order")
+    list_filter = ("item_type", "is_active")
 
 
 @admin.register(Plan)

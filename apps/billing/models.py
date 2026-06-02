@@ -135,6 +135,32 @@ class BillingSettings(models.Model):
         return f"Multa sugerida: ${self.multa_monto_usd} USD"
 
 
+class SaleItem(models.Model):
+    class ItemType(models.TextChoices):
+        SERVICE = "SERVICE", "Servicio"
+        PRODUCT = "PRODUCT", "Producto"
+
+    name = models.CharField("Nombre", max_length=100)
+    description = models.TextField("Descripción", blank=True)
+    item_type = models.CharField(
+        "Tipo",
+        max_length=10,
+        choices=ItemType.choices,
+        default=ItemType.SERVICE,
+    )
+    price_usd = models.DecimalField("Precio (USD)", max_digits=12, decimal_places=2)
+    is_active = models.BooleanField("Activo", default=True)
+    sort_order = models.PositiveIntegerField("Orden", default=0)
+
+    class Meta:
+        verbose_name = "Producto o servicio"
+        verbose_name_plural = "Productos y servicios"
+        ordering = ["sort_order", "name", "id"]
+
+    def __str__(self):
+        return f"{self.name} (${self.price_usd})"
+
+
 class ClientBillingEvent(models.Model):
     class EventType(models.TextChoices):
         CUT_DATE_CHANGED = "CUT_DATE_CHANGED", "Cambio de fecha de corte"
@@ -305,9 +331,68 @@ class Invoice(models.Model):
             if original.esta_impresa:
                 raise ValidationError("No se puede editar una factura que ya ha sido impresa.")
 
+    def has_detail_lines(self):
+        return self.lines.exists()
+
     @property
     def monto_cuota_ves(self):
+        if self.has_detail_lines():
+            from django.db.models import Sum
+
+            total = self.lines.filter(
+                line_kind=InvoiceLine.LineKind.MEMBERSHIP
+            ).aggregate(s=Sum("amount_ves"))["s"]
+            return total or Decimal("0.00")
         return self.monto_total - self.multa_ves
 
     def __str__(self):
         return f"Factura {self.nro_control} - {self.receptor_nombre}"
+
+
+class InvoiceLine(models.Model):
+    class LineKind(models.TextChoices):
+        MEMBERSHIP = "MEMBERSHIP", "Membresía"
+        PRODUCT = "PRODUCT", "Producto o servicio"
+        LATE_FEE = "LATE_FEE", "Multa"
+
+    invoice = models.ForeignKey(
+        Invoice,
+        on_delete=models.CASCADE,
+        related_name="lines",
+        verbose_name="Factura",
+    )
+    line_kind = models.CharField("Tipo de línea", max_length=16, choices=LineKind.choices)
+    description = models.CharField("Descripción", max_length=255)
+    quantity = models.PositiveIntegerField("Cantidad", default=1)
+    unit_price_usd = models.DecimalField(
+        "Precio unitario (USD)",
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    amount_ves = models.DecimalField("Monto (VES)", max_digits=12, decimal_places=2)
+    sale_item = models.ForeignKey(
+        SaleItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoice_lines",
+        verbose_name="Ítem de catálogo",
+    )
+    membership = models.ForeignKey(
+        Membership,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoice_lines",
+        verbose_name="Membresía",
+    )
+    metadata = SQLiteJSONField("Metadatos", default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Línea de factura"
+        verbose_name_plural = "Líneas de factura"
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.description} — Bs {self.amount_ves}"

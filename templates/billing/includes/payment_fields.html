@@ -1,9 +1,9 @@
 <div class="form-group">
     <label for="plan_id">Seleccione el Plan</label>
-    <select name="plan_id" id="plan_id" required>
-        <option value="" disabled selected>-- Seleccione un plan disponible --</option>
+    <select name="plan_id" id="plan_id">
+        <option value="" selected>— Sin membresía en este cobro —</option>
         {% for plan in planes %}
-        <option value="{{ plan.id }}" data-usd="{{ plan.precio_usd|stringformat:'f' }}" data-billing-type="{{ plan.billing_type }}">
+        <option value="{{ plan.id }}" data-usd="{{ plan.precio_usd|stringformat:'.2f' }}" data-billing-type="{{ plan.billing_type }}">
             {{ plan.nombre }} ({{ plan.duracion_display }})
         </option>
         {% endfor %}
@@ -19,14 +19,21 @@
     <input type="hidden" name="payment_cut_initial" id="payment_cut_initial" value="{{ payment_cut_day_default }}">
     <input type="hidden" name="payment_cut_editing" id="payment_cut_editing" value="0">
     <input type="number" id="payment_cut_day_display" min="1" max="31" value="{{ payment_cut_day_default }}" disabled class="billing-cut-day-input">
-    <p class="billing-field-hint" id="payment_cut_day_hint">Se aplicará al confirmar este cobro.</p>
+    <p class="billing-field-hint" id="payment_cut_day_hint">
+        Se aplicará al confirmar este cobro.
+        <span class="checkout-cut-day-ref" id="payment_cut_day_current_ref">
+            {% if client.fecha_corte_dia %}Corte actual del afiliado: día <strong>{{ client.fecha_corte_dia }}</strong>.{% else %}Sin corte asignado; el día indicado quedará como corte del afiliado.{% endif %}
+        </span>
+    </p>
     <div id="payment-cut-motivo-section" class="billing-cut-motivo-section" style="display: none;">
         {% include 'billing/includes/cut_date_motivo_fields.html' with field_prefix='payment_cut_' id_prefix='payment_cut_' label='Motivo del cambio de corte' %}
     </div>
 </div>
 
-<div id="payment-period-box" class="billing-info-box" style="display: none;">
-    <span id="payment-period-text"></span>
+<div id="payment-period-box" class="checkout-period-preview" style="display: none;" aria-live="polite">
+    <p class="checkout-period-preview-kicker">Vigencia de este cobro</p>
+    <p class="checkout-period-preview-dates" id="payment-period-text"></p>
+    <p class="checkout-period-preview-detail" id="payment-period-detail"></p>
 </div>
 <div id="payment-alert-suspended" class="billing-alert billing-alert-warning" style="display: none;"></div>
 <div id="payment-alert-flexible" class="billing-alert billing-alert-info" style="display: none;">
@@ -40,14 +47,18 @@
     </label>
     <div class="billing-late-fee-row">
         <label for="late_fee_usd">Monto (USD)</label>
-        <input type="number" name="late_fee_usd" id="late_fee_usd" step="0.01" min="0" class="form-control" style="max-width: 120px;">
+        <input type="number" name="late_fee_usd" id="late_fee_usd" step="0.01" min="0" class="form-control">
         <span id="payment-late-fee-ves" class="billing-muted"></span>
     </div>
 </div>
 
+{% if not hide_price_preview %}
 <div class="price-preview">
     <div class="usd" id="price_usd">Precio: $0.00</div>
     <div class="ves" id="price_ves">Bs 0.00</div>
     <div class="ves billing-total-line" id="price_total_ves">Total: Bs 0.00</div>
     <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem;">Tasa del día: {{ latest_rate.tasa_ves|default:"No Configurada" }} VES/$</div>
 </div>
+{% else %}
+<p class="checkout-tasa-hint">Tasa del día: <strong>{{ latest_rate.tasa_ves|default:"No configurada" }}</strong> VES/$. Los montos en bolívares aparecen en el resumen del cobro.</p>
+{% endif %}

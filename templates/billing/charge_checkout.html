@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.2">
-<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=1.2">
+<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=2.4">
 {% endblock %}
 
 {% block content %}
@@ -24,6 +24,7 @@
     {% endfor %}
     {% endif %}
 
+    {% if can_checkout %}
     <div class="charge-checkout-stack">
         <div class="charge-checkout-client-card">
             <p class="charge-checkout-client-label">Afiliado</p>
@@ -31,42 +32,99 @@
         </div>
 
         <div class="charge-checkout-charge-card">
-            <h3 class="charge-checkout-charge-title">Cobro de membresía</h3>
-
-            {% if planes %}
-            <form method="POST" action="{% url 'billing:charge_checkout' client.codigo_afiliado %}">
+            <form method="POST" action="{% url 'billing:charge_checkout' client.codigo_afiliado %}" id="checkoutForm" novalidate>
                 {% csrf_token %}
                 <input type="hidden" name="origin" value="{{ origin }}">
                 {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
 
-                {% include 'billing/includes/payment_fields.html' %}
+                <div class="checkout-middle">
+                    <p class="checkout-middle-intro">Abra cada bloque según lo que vaya a cobrar.</p>
 
-                <button type="submit" class="btn btn-primary charge-checkout-submit" id="btnConfirm" disabled>
-                    {{ submit_label }}
-                </button>
+                    {% if planes %}
+                    <details class="checkout-accordion" open>
+                        <summary class="checkout-accordion-summary">
+                            <span class="checkout-accordion-step">1</span>
+                            <span class="checkout-accordion-label">Membresía y opciones de plan</span>
+                        </summary>
+                        <div class="checkout-accordion-body">
+                            {% include 'billing/includes/charge_checkout_membership_block.html' %}
+                        </div>
+                    </details>
+                    {% endif %}
+
+                    {% if 'products.view' in user_permissions and sale_items %}
+                    <details class="checkout-accordion"{% if not planes %} open{% endif %}>
+                        <summary class="checkout-accordion-summary">
+                            <span class="checkout-accordion-step">{% if planes %}2{% else %}1{% endif %}</span>
+                            <span class="checkout-accordion-label">Productos y servicios <span class="checkout-accordion-optional">(opcional)</span></span>
+                        </summary>
+                        <div class="checkout-accordion-body">
+                            {% include 'billing/includes/charge_checkout_products_block.html' %}
+                        </div>
+                    </details>
+                    {% endif %}
+
+                    {% include 'billing/includes/charge_checkout_products_only_notice.html' %}
+                </div>
+
+                {% include 'billing/includes/charge_checkout_summary.html' %}
             </form>
-            {% else %}
-            <p class="charge-checkout-empty">No hay planes disponibles para este afiliado en este momento.</p>
-            {% endif %}
         </div>
     </div>
+    {% else %}
+    <p class="charge-checkout-empty">No hay planes ni productos disponibles para registrar un cobro a este afiliado.</p>
+    {% endif %}
 </div>
 
 {% include 'billing/includes/charge_checkout_edit_modal.html' %}
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/billing_numbers.js' %}?v=1.0"></script>
 <script src="{% static 'js/cut_date_motivo.js' %}?v=1.0"></script>
-<script src="{% static 'js/billing_payment.js' %}?v=1.5"></script>
+<script src="{% static 'js/checkout_products.js' %}?v=1.2"></script>
+<script src="{% static 'js/billing_payment.js' %}?v=1.8"></script>
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
-    const tasaDia = parseFloat(tasaDiaStr);
+    const tasaDia = parseUsdAmount(tasaDiaStr);
 
-    {% if planes %}
+    {% if can_checkout %}
     if (tasaDia <= 0 || isNaN(tasaDia)) {
         alert("Atención: No hay una tasa de cambio configurada en el sistema para el día de hoy.");
     }
 
+    {% if 'products.view' in user_permissions and sale_items %}
+    initCheckoutProducts({
+        tasaDia: tasaDia,
+        catalog: {{ sale_items_json|safe }},
+        confirmId: 'btnConfirm',
+        membershipSubtotalId: 'checkout-membership-subtotal',
+        membershipSubtotalUsdId: 'checkout-membership-subtotal-usd',
+        productsSubtotalId: 'checkout-products-subtotal',
+        productsSubtotalUsdId: 'checkout-products-subtotal-usd',
+        lateFeeSubtotalId: 'checkout-latefee-subtotal',
+        lateFeeSubtotalUsdId: 'checkout-latefee-subtotal-usd',
+        grandTotalId: 'checkout-grand-total',
+        grandTotalUsdId: 'checkout-grand-total-usd',
+        productsOnlyNoticeId: 'checkout-products-only-notice',
+        linesContainerId: 'checkout-product-lines',
+    });
+    {% else %}
+    (function () {
+        const btn = document.getElementById('btnConfirm');
+        function refresh() {
+            const plan = document.getElementById('plan_id');
+            const hasPlan = plan && plan.value;
+            if (btn) btn.disabled = !hasPlan || tasaDia <= 0;
+        }
+        window.checkoutRefreshSubmit = refresh;
+        const plan = document.getElementById('plan_id');
+        if (plan) plan.addEventListener('change', refresh);
+        refresh();
+    })();
+    {% endif %}
+
+    {% if planes %}
     initBillingPayment({
         selectId: 'plan_id',
         confirmId: 'btnConfirm',
@@ -85,9 +143,10 @@
         previewUrl: "{% url 'billing:payment_preview' client.codigo_afiliado %}",
         billingContext: {{ billing_context_json|safe }},
         planPreviews: {{ plan_previews_json|safe }},
-        emptyUsdLabel: '$0.00',
-        usdPrefix: '',
+        emptyUsdLabel: 'Membresía: $0.00',
+        usdPrefix: 'Membresía: ',
     });
+    {% endif %}
     {% endif %}
 
     {% if 'clients.edit' in user_permissions %}

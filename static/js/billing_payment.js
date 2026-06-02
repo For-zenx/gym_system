@@ -117,16 +117,35 @@
             updateCutMotivoVisibility();
         }
 
+        const periodDetail = document.getElementById('payment-period-detail');
+
         function applyPreviewData(preview, billingType) {
-            if (periodBox && periodText && preview.inicio && preview.fin) {
-                periodBox.style.display = 'block';
-                if (billingType === 'FIXED') {
-                    periodText.textContent = 'Periodo: ' + preview.inicio + ' al ' + preview.fin;
-                } else {
-                    periodText.textContent = 'Válido: ' + preview.inicio + ' al ' + preview.fin;
+            if (!periodBox || !periodText || !preview.inicio || !preview.fin) {
+                if (periodBox) periodBox.style.display = 'none';
+                return;
+            }
+            periodBox.style.display = 'block';
+            periodText.textContent = preview.inicio + '  →  ' + preview.fin;
+
+            if (!periodDetail) return;
+
+            if (billingType === 'FIXED') {
+                const cutDay = preview.cut_day != null ? preview.cut_day : getSelectedCutDay();
+                const storedCut = preview.stored_cut_day != null
+                    ? preview.stored_cut_day
+                    : (billingContext.fecha_corte_dia != null ? billingContext.fecha_corte_dia : null);
+                let detail = 'Membresía mensual con corte el día ' + cutDay + ' de cada mes.';
+                if (storedCut != null && storedCut !== cutDay) {
+                    detail += ' Al confirmar, el corte del afiliado cambiará del día ' + storedCut + ' al día ' + cutDay + '.';
+                } else if (storedCut == null) {
+                    detail += ' Al confirmar, ese día quedará como corte del afiliado.';
                 }
-            } else if (periodBox) {
-                periodBox.style.display = 'none';
+                periodDetail.textContent = detail;
+            } else {
+                const duracion = preview.duracion || (planPreviews[select.value] && planPreviews[select.value].duracion) || '';
+                periodDetail.textContent = duracion
+                    ? 'Pase flexible · ' + duracion
+                    : 'Pase flexible · vigencia según días del plan.';
             }
         }
 
@@ -147,7 +166,7 @@
 
             const requestId = ++previewRequestId;
             const url = previewUrl + '?plan_id=' + encodeURIComponent(planId) +
-                '&cut_day=' + encodeURIComponent(cutDay);
+                '&payment_cut_day=' + encodeURIComponent(cutDay);
 
             fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (response) { return response.json(); })
@@ -163,14 +182,23 @@
                 .catch(function () {});
         }
 
-        function recalcTotal(cuotaVes) {
+        function recalcTotal(cuotaVes, membershipUsd) {
             let multaVes = 0;
+            let multaUsd = 0;
             if (lateFeeSection && lateFeeSection.style.display !== 'none' && lateFeeCheck && lateFeeCheck.checked && lateFeeInput) {
-                const multaUsd = parseFloat(lateFeeInput.value.replace(',', '.')) || 0;
+                multaUsd = window.parseUsdAmount(lateFeeInput.value);
                 multaVes = multaUsd * tasaDia;
             }
             if (lateFeeVesEl) lateFeeVesEl.textContent = formatVes(multaVes);
             if (totalVesEl) totalVesEl.textContent = 'Total: ' + formatVes(cuotaVes + multaVes);
+            if (window.checkoutSetMembershipTotals) {
+                window.checkoutSetMembershipTotals(
+                    cuotaVes,
+                    multaVes,
+                    membershipUsd != null ? membershipUsd : 0,
+                    multaUsd
+                );
+            }
         }
 
         function updatePrice() {
@@ -179,13 +207,20 @@
             if (!select.value) {
                 if (priceUsdEl) priceUsdEl.textContent = config.emptyUsdLabel || 'Precio: $0.00';
                 if (priceVesEl) priceVesEl.textContent = 'Bs 0.00';
-                if (totalVesEl) totalVesEl.textContent = 'Total: Bs 0.00';
                 if (periodBox) periodBox.style.display = 'none';
                 if (alertSuspended) alertSuspended.style.display = 'none';
                 if (alertFlexible) alertFlexible.style.display = 'none';
                 if (lateFeeSection) lateFeeSection.style.display = 'none';
                 if (cutDaySection) cutDaySection.style.display = 'none';
-                btnConfirm.disabled = true;
+                if (window.checkoutSetMembershipTotals) {
+                    window.checkoutSetMembershipTotals(0, 0, 0, 0);
+                } else {
+                    if (totalVesEl) totalVesEl.textContent = 'Total: Bs 0.00';
+                    btnConfirm.disabled = true;
+                }
+                if (window.checkoutRefreshSubmit) {
+                    window.checkoutRefreshSubmit();
+                }
                 return;
             }
 
@@ -196,7 +231,7 @@
             }
 
             const option = select.options[select.selectedIndex];
-            const priceUsd = parseFloat(option.getAttribute('data-usd').replace(',', '.'));
+            const priceUsd = window.parseUsdAmount(option.getAttribute('data-usd'));
             const billingType = option.getAttribute('data-billing-type');
             const priceVes = priceUsd * tasaDia;
 
@@ -247,8 +282,12 @@
                 }
             }
 
-            recalcTotal(priceVes);
-            btnConfirm.disabled = false;
+            recalcTotal(priceVes, priceUsd);
+            if (!window.checkoutRefreshSubmit) {
+                btnConfirm.disabled = false;
+            } else {
+                window.checkoutRefreshSubmit();
+            }
         }
 
         if (select) {
@@ -261,26 +300,29 @@
             lateFeeCheck.addEventListener('change', function () {
                 const option = select.options[select.selectedIndex];
                 if (!option || !option.value) return;
-                const priceUsd = parseFloat(option.getAttribute('data-usd').replace(',', '.'));
-                recalcTotal(priceUsd * tasaDia);
+                const priceUsd = window.parseUsdAmount(option.getAttribute('data-usd'));
+                recalcTotal(priceUsd * tasaDia, priceUsd);
             });
         }
         if (lateFeeInput) {
             lateFeeInput.addEventListener('input', function () {
                 const option = select.options[select.selectedIndex];
                 if (!option || !option.value) return;
-                const priceUsd = parseFloat(option.getAttribute('data-usd').replace(',', '.'));
-                recalcTotal(priceUsd * tasaDia);
+                const priceUsd = window.parseUsdAmount(option.getAttribute('data-usd'));
+                recalcTotal(priceUsd * tasaDia, priceUsd);
             });
         }
+        function onCutDayFieldChange() {
+            syncCutDayHidden();
+            updateCutMotivoVisibility();
+            const option = select.options[select.selectedIndex];
+            if (!option || !option.value) return;
+            fetchPeriodPreview(option.value, option.getAttribute('data-billing-type'));
+        }
+
         if (cutDayDisplay) {
-            cutDayDisplay.addEventListener('input', function () {
-                syncCutDayHidden();
-                updateCutMotivoVisibility();
-                const option = select.options[select.selectedIndex];
-                if (!option || !option.value) return;
-                fetchPeriodPreview(option.value, option.getAttribute('data-billing-type'));
-            });
+            cutDayDisplay.addEventListener('input', onCutDayFieldChange);
+            cutDayDisplay.addEventListener('change', onCutDayFieldChange);
         }
         if (cutDayEditBtn) {
             cutDayEditBtn.addEventListener('click', enableCutDayEditor);

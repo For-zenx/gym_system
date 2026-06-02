@@ -48,6 +48,38 @@
         </div>
     </div>
 
+    {% if not uses_legacy_invoice and invoice_lines %}
+    <div class="card" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+        <h4 style="margin: 0 0 1rem; font-size: 1rem;">Desglose del cobro</h4>
+        <table class="data-table" style="margin: 0;">
+            <thead>
+                <tr>
+                    <th>Concepto</th>
+                    <th>Tipo</th>
+                    <th style="text-align: right;">Monto (VES)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in invoice_lines %}
+                <tr>
+                    <td>{{ line.description }}{% if line.quantity > 1 %} <span class="config-muted">(×{{ line.quantity }})</span>{% endif %}</td>
+                    <td>{{ line.get_line_kind_display }}</td>
+                    <td style="text-align: right; font-weight: 600;">Bs {{ line.amount_ves }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2" style="text-align: right; font-weight: 700;">Total</td>
+                    <td style="text-align: right; font-weight: 700; color: var(--success);">Bs {{ invoice.monto_total }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% elif uses_legacy_invoice %}
+    <p class="config-muted" style="margin: 0 0 1.25rem; font-size: 0.85rem;">Factura histórica sin líneas detalladas; el ticket usa el formato anterior.</p>
+    {% endif %}
+
     <div class="ticket-container">
         <div class="ticket-paper">
             {% for line in ticket_lines %}<span class="ticket-line">{{ line }}</span>{% endfor %}

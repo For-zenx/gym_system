@@ -1,0 +1,26 @@
+{% if 'products.view' in user_permissions and sale_items %}
+<div class="checkout-products-block">
+    <div class="checkout-product-stack">
+        <div class="checkout-product-add-row">
+            <div class="checkout-product-field checkout-product-field--item">
+                <label class="checkout-product-field-label" for="checkout-product-picker">Ítem</label>
+                <select class="checkout-product-field-input" id="checkout-product-picker">
+                    <option value="">— Seleccione un producto o servicio —</option>
+                    {% for item in sale_items %}
+                    <option value="{{ item.pk }}" data-price-usd="{{ item.price_usd|stringformat:'.2f' }}">
+                        {{ item.name }} — ${{ item.price_usd|stringformat:'.2f' }} ({% if item.item_type == 'SERVICE' %}Servicio{% else %}Producto{% endif %})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="checkout-product-field checkout-product-field--qty">
+                <label class="checkout-product-field-label" for="checkout-product-picker-qty">Cant.</label>
+                <input type="number" class="checkout-product-field-input" id="checkout-product-picker-qty" min="1" value="1">
+            </div>
+            <button type="button" class="btn btn-secondary checkout-product-add-btn" id="checkout-product-add-btn">Agregar</button>
+        </div>
+
+        <div id="checkout-product-lines" class="checkout-product-lines" aria-live="polite"></div>
+    </div>
+</div>
+{% endif %}

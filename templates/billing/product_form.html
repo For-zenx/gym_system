@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar ítem{% else %}Nuevo producto o servicio{% endif %} - Perfect Line II{% endblock %}
+{% block page_title %}{% if object %}Editar ítem del catálogo{% else %}Nuevo producto o servicio{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 1rem auto 3rem auto;
+        padding: 2.5rem;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        backdrop-filter: blur(12px);
+        box-shadow: var(--shadow-lg), 0 0 20px rgba(16, 185, 129, 0.03);
+        box-sizing: border-box;
+    }
+
+    .form-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: 1.75rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-main);
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        box-sizing: border-box;
+    }
+
+    .form-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        text-align: left;
+    }
+
+    .form-control {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 0.8rem 1rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+        background-color: var(--bg-main);
+        color: var(--text-main);
+        transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+        background-color: rgba(2, 6, 23, 0.8);
+    }
+
+    .grid-2col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 600px) {
+        .grid-2col {
+            grid-template-columns: 1fr;
+        }
+
+        .form-container {
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 640px; margin: 0 auto 1rem;">
+    <a href="{% url 'billing:product_list' %}" class="btn btn-secondary">&larr; Volver al catálogo</a>
+</div>
+
+<div class="form-container">
+    <h3 class="form-title">
+        {% if object %}Editar: {{ object.name }}{% else %}Nuevo producto o servicio{% endif %}
+    </h3>
+
+    <form method="post" style="display: flex; flex-direction: column;">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_name">Nombre</label>
+            <input type="text" name="name" id="id_name" value="{{ form.name.value|default:'' }}" required maxlength="100"
+                class="form-control" placeholder="Ej. Toallas, Locker mensual">
+        </div>
+
+        <div class="form-group">
+            <label for="id_description">Descripción (opcional)</label>
+            <textarea name="description" id="id_description" rows="3" class="form-control"
+                placeholder="Detalle breve para el personal de caja">{{ form.description.value|default:'' }}</textarea>
+        </div>
+
+        <div class="grid-2col">
+            <div class="form-group">
+                <label for="id_item_type">Tipo</label>
+                <select name="item_type" id="id_item_type" required class="form-control">
+                    <option value="SERVICE" {% if form.item_type.value == 'SERVICE' or not form.item_type.value %}selected{% endif %}>Servicio</option>
+                    <option value="PRODUCT" {% if form.item_type.value == 'PRODUCT' %}selected{% endif %}>Producto</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_sort_order">Orden en listas</label>
+                <input type="number" name="sort_order" id="id_sort_order" min="0"
+                    value="{{ form.sort_order.value|default:'0' }}" class="form-control" placeholder="0 = primero">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_price_usd">Precio (USD)</label>
+            <input type="number" name="price_usd" id="id_price_usd" step="0.01" min="0"
+                value="{{ form.price_usd.value|default:'' }}" required class="form-control" placeholder="Ej. 0.90">
+        </div>
+
+        <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 0.5rem;">
+            <a href="{% url 'billing:product_list' %}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar ítem</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

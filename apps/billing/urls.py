@@ -1,6 +1,10 @@
 from django.urls import path
 from .views import (
     ChargeCheckoutView,
+    SaleItemListView,
+    SaleItemCreateView,
+    SaleItemUpdateView,
+    SaleItemDeleteView,
     RenewPlanView,
     ChangeCutDateView,
     PaymentPeriodPreviewView,
@@ -24,6 +28,10 @@ urlpatterns = [
     path('preview-cobro/<str:codigo_afiliado>/', PaymentPeriodPreviewView.as_view(), name='payment_preview'),
     path('cobro-exito/<int:pk>/', PaymentSuccessView.as_view(), name='payment_success'),
     path('corte/<str:codigo_afiliado>/', ChangeCutDateView.as_view(), name='change_cut_date'),
+    path('productos/', SaleItemListView.as_view(), name='product_list'),
+    path('productos/nuevo/', SaleItemCreateView.as_view(), name='product_create'),
+    path('productos/<int:pk>/editar/', SaleItemUpdateView.as_view(), name='product_update'),
+    path('productos/<int:pk>/eliminar/', SaleItemDeleteView.as_view(), name='product_delete'),
     path('planes/', PlanListView.as_view(), name='plan_list'),
     path('planes/nuevo/', PlanCreateView.as_view(), name='plan_create'),
     path('planes/editar/<int:pk>/', PlanUpdateView.as_view(), name='plan_update'),

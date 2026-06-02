@@ -11,13 +11,14 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from apps.clients.models import Client
 from django.db.models import Q
-from .models import Plan, Membership, ExchangeRate, Invoice
+from .models import Plan, Membership, ExchangeRate, Invoice, SaleItem
 from .services import (
-    register_membership_renewal,
+    register_checkout,
     change_client_cut_date,
     parse_late_fee_from_post,
     parse_payment_cut_from_post,
     parse_payment_cut_day_from_post,
+    parse_product_lines_from_post,
     preview_membership_period,
     resolve_cut_date_motivo,
 )
@@ -110,20 +111,36 @@ def _checkout_back_context(client, origin, next_url=""):
     }
 
 
-def _process_membership_charge(request, client, origin):
-    plan_id = request.POST.get("plan_id")
-    if not plan_id:
-        messages.error(request, "Debe seleccionar un plan válido.")
+def _process_checkout_charge(request, client, origin):
+    plan_id = (request.POST.get("plan_id") or "").strip()
+    plan = None
+    if plan_id:
+        plan = get_object_or_404(Plan, id=plan_id, is_active=True)
+
+    product_lines = parse_product_lines_from_post(request.POST)
+    if product_lines:
+        from apps.users.permissions import has_permission
+
+        if not has_permission(request.user, "products.view"):
+            messages.error(request, "No tienes permiso para cobrar productos.")
+            return None
+
+    if not plan and not product_lines:
+        messages.error(request, "Seleccione un plan y/o al menos un producto para cobrar.")
         return None
 
-    plan = get_object_or_404(Plan, id=plan_id)
+    if origin == "enrollment" and not plan:
+        messages.error(request, "El enrolamiento requiere seleccionar un plan de membresía.")
+        return None
+
     apply_late_fee, late_fee_usd = parse_late_fee_from_post(request.POST)
     payment_cut_day, payment_cut_motivo = parse_payment_cut_from_post(request.POST)
 
     try:
-        result = register_membership_renewal(
+        result = register_checkout(
             client,
-            plan,
+            plan=plan,
+            product_lines=product_lines,
             apply_late_fee=apply_late_fee,
             late_fee_usd=late_fee_usd,
             acting_user=request.user,
@@ -194,6 +211,27 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
 
         context.update(client_form_context(client=client))
         context["subscription_summary"] = get_profile_subscription_summary(client)
+        from apps.users.permissions import has_permission
+
+        sale_items = SaleItem.objects.filter(is_active=True)
+        context["sale_items"] = sale_items
+        can_sell_products = has_permission(request.user, "products.view")
+        context["can_checkout"] = bool(context.get("planes")) or (
+            sale_items.exists() and can_sell_products
+        )
+        import json
+
+        context["sale_items_json"] = json.dumps(
+            [
+                {
+                    "id": item.pk,
+                    "name": item.name,
+                    "price_usd": str(item.price_usd),
+                    "item_type": item.item_type,
+                }
+                for item in sale_items
+            ]
+        )
         return render(request, "billing/charge_checkout.html", context)
 
     def post(self, request, codigo_afiliado):
@@ -203,7 +241,7 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
         )
         next_url = _get_safe_next_url(request, request.POST.get("next", ""))
 
-        response = _process_membership_charge(request, client, origin)
+        response = _process_checkout_charge(request, client, origin)
         if response is not None:
             return response
 
@@ -218,7 +256,7 @@ class RenewPlanView(PermissionRequiredMixin, View):
     def post(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
         origin = _normalize_checkout_origin(request.POST.get("origin", "profile"))
-        response = _process_membership_charge(request, client, origin)
+        response = _process_checkout_charge(request, client, origin)
         if response is not None:
             return response
         return redirect(
@@ -251,13 +289,15 @@ class PaymentPeriodPreviewView(PermissionRequiredMixin, View):
                 cut_day = client.fecha_corte_dia or timezone.localdate().day
             preview = preview_membership_period(client, plan, cut_day_override=cut_day)
 
-        return JsonResponse(
-            {
-                "inicio": preview["fecha_inicio"].strftime("%d/%m/%Y"),
-                "fin": preview["fecha_fin"].strftime("%d/%m/%Y"),
-                "billing_type": plan.billing_type,
-            }
-        )
+        payload = {
+            "inicio": preview["fecha_inicio"].strftime("%d/%m/%Y"),
+            "fin": preview["fecha_fin"].strftime("%d/%m/%Y"),
+            "billing_type": plan.billing_type,
+        }
+        if plan.is_fixed:
+            payload["cut_day"] = cut_day
+            payload["stored_cut_day"] = client.fecha_corte_dia
+        return JsonResponse(payload)
 
 
 class PaymentSuccessView(PermissionRequiredMixin, DetailView):
@@ -366,6 +406,52 @@ class PlanDeleteView(PermissionRequiredMixin, View):
         messages.success(request, "Plan eliminado exitosamente.")
         return redirect('billing:plan_list')
 
+
+class SaleItemListView(PermissionRequiredMixin, ListView):
+    required_permission = "products.view"
+    model = SaleItem
+    template_name = "billing/product_list.html"
+    context_object_name = "sale_items"
+
+    def get_queryset(self):
+        return SaleItem.objects.filter(is_active=True).order_by("sort_order", "name", "id")
+
+
+class SaleItemCreateView(PermissionRequiredMixin, CreateView):
+    required_permission = "products.manage"
+    model = SaleItem
+    template_name = "billing/product_form.html"
+    fields = ["name", "description", "item_type", "price_usd", "sort_order"]
+    success_url = reverse_lazy("billing:product_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Producto registrado correctamente.")
+        return super().form_valid(form)
+
+
+class SaleItemUpdateView(PermissionRequiredMixin, UpdateView):
+    required_permission = "products.manage"
+    model = SaleItem
+    template_name = "billing/product_form.html"
+    fields = ["name", "description", "item_type", "price_usd", "sort_order"]
+    success_url = reverse_lazy("billing:product_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Producto actualizado correctamente.")
+        return super().form_valid(form)
+
+
+class SaleItemDeleteView(PermissionRequiredMixin, View):
+    required_permission = "products.manage"
+
+    def post(self, request, pk):
+        item = get_object_or_404(SaleItem, pk=pk)
+        item.is_active = False
+        item.save(update_fields=["is_active"])
+        messages.success(request, "Producto desactivado correctamente.")
+        return redirect("billing:product_list")
+
+
 class MembershipDeleteView(PermissionRequiredMixin, View):
     required_permission = "billing.delete_queued_membership"
     def post(self, request, pk):
@@ -420,7 +506,9 @@ class InvoiceDetailView(PermissionRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context['latest_rate'] = ExchangeRate.get_latest()
         context['next_url'] = _get_safe_next_url(self.request, self.request.GET.get('next', ''))
-        context['ticket_lines'] = build_invoice_preview_lines(self.object)
+        context["ticket_lines"] = build_invoice_preview_lines(self.object)
+        context["invoice_lines"] = self.object.lines.select_related("sale_item").all()
+        context["uses_legacy_invoice"] = not self.object.has_detail_lines()
         return context
 
 

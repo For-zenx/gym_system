@@ -47,6 +47,13 @@ PERMISSION_GROUPS = {
             ("plans.delete", "Eliminar planes"),
         ],
     },
+    "products": {
+        "label": "Productos y servicios",
+        "permissions": [
+            ("products.view", "Ver catálogo y vender en caja"),
+            ("products.manage", "Gestionar catálogo de productos"),
+        ],
+    },
     "access": {
         "label": "Accesos",
         "permissions": [
@@ -90,6 +97,7 @@ CASHIER_PERMISSION_CODES = [
     "billing.view_invoice_detail",
     "billing.print_invoice",
     "plans.view",
+    "products.view",
     "access.view_logs",
 ]
 

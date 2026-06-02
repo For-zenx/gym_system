@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Productos y servicios - Perfect Line II{% endblock %}
+{% block page_title %}Catálogo de productos y servicios{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary">&larr; Volver</a>
+    {% if 'products.manage' in user_permissions %}
+    <a href="{% url 'billing:product_create' %}" class="btn btn-primary">+ Nuevo ítem</a>
+    {% endif %}
+</div>
+
+{% if messages %}
+{% for message in messages %}
+<div class="alert alert-{{ message.tags }}" style="margin-bottom: 1rem;">{{ message }}</div>
+{% endfor %}
+{% endif %}
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Precio (USD)</th>
+                <th>Orden</th>
+                {% if 'products.manage' in user_permissions %}
+                <th style="text-align: right;">Acciones</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in sale_items %}
+            <tr>
+                <td style="font-weight: 500;">{{ item.name }}</td>
+                <td>
+                    {% if item.item_type == 'SERVICE' %}
+                    <span class="badge badge-warning">Servicio</span>
+                    {% else %}
+                    <span class="badge badge-success">Producto</span>
+                    {% endif %}
+                </td>
+                <td style="font-weight: 600; color: var(--success);">${{ item.price_usd }}</td>
+                <td class="config-muted">{{ item.sort_order }}</td>
+                {% if 'products.manage' in user_permissions %}
+                <td style="text-align: right;">
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
+                        <a href="{% url 'billing:product_update' item.pk %}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Editar</a>
+                        <form method="post" action="{% url 'billing:product_delete' item.pk %}" style="margin: 0;" onsubmit="return confirm('¿Desactivar «{{ item.name }}» del catálogo?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Desactivar</button>
+                        </form>
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="{% if 'products.manage' in user_permissions %}5{% else %}4{% endif %}" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                    No hay productos ni servicios activos en el catálogo.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

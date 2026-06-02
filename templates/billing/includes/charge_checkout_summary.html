@@ -1,0 +1,35 @@
+<section class="checkout-summary">
+    <h3 class="checkout-section-title">Resumen del cobro</h3>
+    <div class="checkout-summary-row">
+        <span>Subtotal membresía</span>
+        <strong class="checkout-summary-amounts">
+            <span class="checkout-subtotal-usd" id="checkout-membership-subtotal-usd">$0.00</span>
+            <span id="checkout-membership-subtotal">Bs 0,00</span>
+        </strong>
+    </div>
+    <div class="checkout-summary-row">
+        <span>Subtotal productos</span>
+        <strong class="checkout-summary-amounts">
+            <span class="checkout-subtotal-usd" id="checkout-products-subtotal-usd">$0.00</span>
+            <span id="checkout-products-subtotal">Bs 0,00</span>
+        </strong>
+    </div>
+    <div class="checkout-summary-row">
+        <span>Multa</span>
+        <strong class="checkout-summary-amounts">
+            <span class="checkout-subtotal-usd" id="checkout-latefee-subtotal-usd">$0.00</span>
+            <span id="checkout-latefee-subtotal">Bs 0,00</span>
+        </strong>
+    </div>
+    <div class="checkout-summary-row checkout-summary-total">
+        <span>Total</span>
+        <strong class="checkout-summary-amounts">
+            <span class="checkout-subtotal-usd" id="checkout-grand-total-usd">$0.00</span>
+            <span id="checkout-grand-total">Bs 0,00</span>
+        </strong>
+    </div>
+</section>
+
+<button type="submit" class="btn btn-primary charge-checkout-submit" id="btnConfirm" disabled>
+    {{ submit_label }}
+</button>

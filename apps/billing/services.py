@@ -16,8 +16,10 @@ from .cycle import (
 from .models import (
     Membership,
     Invoice,
+    InvoiceLine,
     ExchangeRate,
     Plan,
+    SaleItem,
     BillingSettings,
     ClientBillingEvent,
 )
@@ -34,8 +36,8 @@ CUT_DATE_MOTIVO_OTHER = "__other__"
 
 @dataclass
 class RenewalResult:
-    membership: Membership
-    invoice: Invoice
+    membership: Membership = None
+    invoice: Invoice = None
     warnings: list = field(default_factory=list)
     was_reactivation: bool = False
     late_fee_applied: bool = False
@@ -303,7 +305,7 @@ def preview_membership_period(client, plan, cut_day_override=None):
 
 
 def parse_payment_cut_day_from_post(post):
-    raw = (post.get("payment_cut_day") or "").strip()
+    raw = (post.get("payment_cut_day") or post.get("cut_day") or "").strip()
     if not raw:
         return None
     try:
@@ -384,80 +386,164 @@ def parse_late_fee_from_post(post):
     return apply_late_fee, late_fee_usd
 
 
-def register_membership_renewal(
+def parse_product_lines_from_post(post):
+    lines = []
+    for raw_id in post.getlist("product_ids"):
+        try:
+            item_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        qty_raw = (post.get("product_qty_{}".format(item_id)) or "1").strip()
+        try:
+            qty = int(qty_raw)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty > 0:
+            lines.append((item_id, qty))
+    return lines
+
+
+def _membership_line_description(membership, plan):
+    if plan.is_fixed and membership.fecha_fin:
+        return "Cuota {} ({} al {})".format(
+            plan.nombre,
+            membership.fecha_inicio.strftime("%d/%m/%Y"),
+            membership.fecha_fin.strftime("%d/%m/%Y"),
+        )
+    return "Cuota {} (desde {})".format(
+        plan.nombre,
+        membership.fecha_inicio.strftime("%d/%m/%Y"),
+    )
+
+
+def register_checkout(
     client,
-    plan,
+    plan=None,
+    product_lines=None,
     nro_control=None,
-    monto_ves=None,
     apply_late_fee=False,
     late_fee_usd=None,
     acting_user=None,
     payment_cut_day=None,
     payment_cut_motivo="",
 ):
-    """
-    Registra administrativamente la renovación.
-    Si monto_ves es None, lo calcula usando la tasa más reciente.
-    Retorna RenewalResult (compatible con desempaquetado membership, invoice).
-    """
+    product_lines = product_lines or []
+    if not plan and not product_lines:
+        raise ValidationError("Debe incluir al menos una membresía o un producto en el cobro.")
+
     tasa = ExchangeRate.get_latest()
     if not tasa:
         raise ValidationError("No hay una tasa de cambio registrada en el sistema.")
 
-    if monto_ves is None:
-        monto_ves = plan.precio_usd * tasa.tasa_ves
-
     with transaction.atomic():
-        hoy = timezone.localdate()
-        validate_plan_purchase(client, plan, hoy)
-        was_suspended = is_subscription_suspended(client, hoy)
+        membership = None
         warnings = []
-
-        if plan.is_flexible and was_suspended:
-            warnings.append("flexible_on_suspended_subscription")
-
-        if plan.is_fixed:
-            if payment_cut_day is None:
-                raise ValidationError("Debe indicar el día de corte para el plan mensual.")
-            apply_cut_day_from_payment(
-                client, payment_cut_day, acting_user, motivo=payment_cut_motivo
-            )
-            membership = _create_fixed_membership(client, plan, hoy)
-        else:
-            membership = _create_flexible_membership(client, plan, hoy)
-
+        was_reactivation = False
+        late_fee_applied = False
         multa_usd = Decimal("0.00")
         multa_ves = Decimal("0.00")
-        late_fee_applied = False
-        was_reactivation = False
+        pending_lines = []
 
-        if plan.is_fixed and was_suspended:
-            was_reactivation = True
-            if apply_late_fee:
-                multa_usd = (
-                    Decimal(str(late_fee_usd))
-                    if late_fee_usd is not None
-                    else BillingSettings.get_settings().multa_monto_usd
+        if plan:
+            hoy = timezone.localdate()
+            validate_plan_purchase(client, plan, hoy)
+            was_suspended = is_subscription_suspended(client, hoy)
+
+            if plan.is_flexible and was_suspended:
+                warnings.append("flexible_on_suspended_subscription")
+
+            if plan.is_fixed:
+                if payment_cut_day is None:
+                    raise ValidationError("Debe indicar el día de corte para el plan mensual.")
+                apply_cut_day_from_payment(
+                    client, payment_cut_day, acting_user, motivo=payment_cut_motivo
                 )
-                if multa_usd > 0:
-                    multa_ves = multa_usd * tasa.tasa_ves
-                    late_fee_applied = True
+                membership = _create_fixed_membership(client, plan, hoy)
+            else:
+                membership = _create_flexible_membership(client, plan, hoy)
+
+            membership_ves = plan.precio_usd * tasa.tasa_ves
+            pending_lines.append(
+                {
+                    "line_kind": InvoiceLine.LineKind.MEMBERSHIP,
+                    "description": _membership_line_description(membership, plan),
+                    "quantity": 1,
+                    "unit_price_usd": plan.precio_usd,
+                    "amount_ves": membership_ves,
+                    "sale_item": None,
+                    "membership": membership,
+                    "metadata": {},
+                }
+            )
+
+            if plan.is_fixed and was_suspended:
+                was_reactivation = True
+                if apply_late_fee:
+                    multa_usd = (
+                        Decimal(str(late_fee_usd))
+                        if late_fee_usd is not None
+                        else BillingSettings.get_settings().multa_monto_usd
+                    )
+                    if multa_usd > 0:
+                        multa_ves = multa_usd * tasa.tasa_ves
+                        late_fee_applied = True
+                        pending_lines.append(
+                            {
+                                "line_kind": InvoiceLine.LineKind.LATE_FEE,
+                                "description": "Multa por morosidad",
+                                "quantity": 1,
+                                "unit_price_usd": multa_usd,
+                                "amount_ves": multa_ves,
+                                "sale_item": None,
+                                "membership": membership,
+                                "metadata": {},
+                            }
+                        )
+
+        for item_id, qty in product_lines:
+            sale_item = SaleItem.objects.filter(pk=item_id, is_active=True).first()
+            if not sale_item:
+                raise ValidationError("Uno de los productos seleccionados no está disponible.")
+            line_ves = sale_item.price_usd * tasa.tasa_ves * qty
+            desc = sale_item.name
+            if qty > 1:
+                desc = "{} x{}".format(sale_item.name, qty)
+            pending_lines.append(
+                {
+                    "line_kind": InvoiceLine.LineKind.PRODUCT,
+                    "description": desc,
+                    "quantity": qty,
+                    "unit_price_usd": sale_item.price_usd,
+                    "amount_ves": line_ves,
+                    "sale_item": sale_item,
+                    "membership": None,
+                    "metadata": {},
+                }
+            )
+
+        monto_total = sum(line["amount_ves"] for line in pending_lines)
 
         invoice = Invoice(
             client=client,
             membership=membership,
-            plan_snapshot=plan.nombre,
+            plan_snapshot=plan.nombre if plan else "",
             multa_usd=multa_usd,
             multa_ves=multa_ves,
-            monto_total=monto_ves + multa_ves,
+            monto_total=monto_total,
             nro_control=nro_control or "PENDING",
         )
         invoice.set_client_snapshots(client)
         invoice.save()
 
         if not nro_control:
-            invoice.nro_control = f"F-{timezone.now().strftime('%Y%m%d')}-{invoice.pk:05d}"
+            invoice.nro_control = "F-{}-{:05d}".format(
+                timezone.now().strftime("%Y%m%d"),
+                invoice.pk,
+            )
             invoice.save(update_fields=["nro_control"])
+
+        for line_data in pending_lines:
+            InvoiceLine.objects.create(invoice=invoice, **line_data)
 
         if was_reactivation:
             log_billing_event(
@@ -497,6 +583,31 @@ def register_membership_renewal(
             was_reactivation=was_reactivation,
             late_fee_applied=late_fee_applied,
         )
+
+
+def register_membership_renewal(
+    client,
+    plan,
+    nro_control=None,
+    monto_ves=None,
+    apply_late_fee=False,
+    late_fee_usd=None,
+    acting_user=None,
+    payment_cut_day=None,
+    payment_cut_motivo="",
+):
+    """DEPRECATED: usar register_checkout — conservado para llamadas legacy."""
+    return register_checkout(
+        client,
+        plan=plan,
+        product_lines=[],
+        nro_control=nro_control,
+        apply_late_fee=apply_late_fee,
+        late_fee_usd=late_fee_usd,
+        acting_user=acting_user,
+        payment_cut_day=payment_cut_day,
+        payment_cut_motivo=payment_cut_motivo,
+    )
 
 
 def _create_flexible_membership(client, plan, hoy):
