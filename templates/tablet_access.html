@@ -1,0 +1,38 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Perfect Line II — Acceso</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=1.6">
+</head>
+<body>
+
+    <video id="camera-feed" autoplay playsinline muted></video>
+    <canvas id="overlay-canvas"></canvas>
+
+    <div id="overlay-brand" class="overlay">
+        Perfect <span>Line II</span>
+    </div>
+
+    <div id="overlay-status" class="overlay">
+        <div id="status-dot"></div>
+        <span id="status-text">Conectando...</span>
+    </div>
+
+    <div id="access-flash" class="access-flash hidden">
+        <div id="access-icon" style="font-size: 6rem; margin-bottom: 1rem;">✅</div>
+        <h1 id="access-title">¡Bienvenido!</h1>
+        <p id="access-subtitle">Juan Pérez</p>
+    </div>
+
+    <script>
+        window.TABLET_WS_URL = "{{ ws_url }}";
+    </script>
+    <script src="{% static 'vendor/face-api.min.js' %}"></script>
+    <script src="{% static 'js/tablet_access.js' %}?v=1.0"></script>
+</body>
+</html>

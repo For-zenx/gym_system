@@ -53,8 +53,11 @@ def enrollment(request):
         cedula = cleaned['cedula']
         nombre = cleaned['nombre']
         foto_frente_b64 = request.POST.get("foto_frente_base64")
-        foto_perfil_izq_b64 = request.POST.get("foto_perfil_izq_base64")
-        foto_perfil_der_b64 = request.POST.get("foto_perfil_der_base64")
+
+        if not foto_frente_b64:
+            messages.error(request, "Debe capturar la foto del afiliado en la tablet de enrolamiento.")
+            context = client_form_context(post_data=request.POST)
+            return render(request, 'enrollment.html', context)
 
         try:
             client = Client.objects.filter(cedula=cedula).first()
@@ -90,14 +93,6 @@ def enrollment(request):
             frente_file = save_b64_image(foto_frente_b64, f"{codigo_final}_frente")
             if frente_file:
                 client.foto_frente = frente_file
-
-            perfil_izq_file = save_b64_image(foto_perfil_izq_b64, f"{codigo_final}_perfil_izq")
-            if perfil_izq_file:
-                client.foto_perfil_izq = perfil_izq_file
-
-            perfil_der_file = save_b64_image(foto_perfil_der_b64, f"{codigo_final}_perfil_der")
-            if perfil_der_file:
-                client.foto_perfil_der = perfil_der_file
 
             client.save()
 

@@ -1,10 +1,9 @@
 import logging
 
-from django.conf import settings
 from django.db.models import Q
-from django.http import HttpResponseForbidden
 from django.shortcuts import render
 from django.views.generic import ListView
+
 from apps.users.mixins import PermissionRequiredMixin
 
 from .models import AccessLog
@@ -12,19 +11,26 @@ from .models import AccessLog
 logger = logging.getLogger(__name__)
 
 
-def tablet_view(request):
-    """
-    Protegida por token de dispositivo — no requiere login de usuario.
-    """
-    token = request.GET.get("token", "")
-    if token != settings.TABLET_TOKEN:
-        logger.warning("Intento de acceso a /tablet/ con token inválido: '%s' desde %s", token, request.META.get("REMOTE_ADDR"))
-        return HttpResponseForbidden("Acceso denegado.")
-
+def _tablet_ws_url(request, path):
     ws_scheme = "wss" if request.is_secure() else "ws"
-    ws_url = f"{ws_scheme}://{request.get_host()}/ws/tablet/"
+    return f"{ws_scheme}://{request.get_host()}{path}"
 
-    return render(request, "tablet.html", {"ws_url": ws_url})
+
+def tablet_access_view(request):
+    return render(request, "tablet_access.html", {
+        "ws_url": _tablet_ws_url(request, "/ws/tablet/acceso/"),
+    })
+
+
+def tablet_enrollment_view(request):
+    return render(request, "tablet_enrollment.html", {
+        "ws_url": _tablet_ws_url(request, "/ws/tablet/enrolamiento/"),
+    })
+
+
+# DEPRECATED: TASK-045 — reemplazado por tablet_access_view (una sola tablet dual-mode).
+def tablet_view(request):
+    return tablet_access_view(request)
 
 
 class AccessLogListView(PermissionRequiredMixin, ListView):

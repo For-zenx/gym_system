@@ -1,3 +1,4 @@
+// DEPRECATED: TASK-045 — reemplazado por tablet_access.js y tablet_enrollment.js
 // tablet.js — Lógica de la interfaz de la tablet (Gym System - Perfect Line II)
 
 const WS_URL = window.TABLET_WS_URL; // Inyectado desde el template Django

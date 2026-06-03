@@ -283,7 +283,14 @@ h1, h2, h3, h4, h5, h6 {
     }
 }
 
-/* Indicador de estado de la Tablet en la Navbar */
+/* Indicador de estado de las tablets en la Navbar */
+.tablet-status-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
 .tablet-status-pill {
     display: flex;
     align-items: center;

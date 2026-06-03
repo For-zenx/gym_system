@@ -78,9 +78,15 @@
                     </div>
                     {% endif %}
 
-                    <div id="pc-tablet-status" class="tablet-status-pill">
-                        <div class="tablet-status-dot"></div>
-                        <span class="status-text">Tablet Offline</span>
+                    <div class="tablet-status-group">
+                        <div id="pc-tablet-access-status" class="tablet-status-pill" data-role="access">
+                            <div class="tablet-status-dot"></div>
+                            <span class="status-text">Acceso Offline</span>
+                        </div>
+                        <div id="pc-tablet-enrollment-status" class="tablet-status-pill" data-role="enrollment">
+                            <div class="tablet-status-dot"></div>
+                            <span class="status-text">Enrol. Offline</span>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -136,7 +142,7 @@
             if (modal) modal.classList.remove('show');
         }
     </script>
-    <script src="{% static 'js/dashboard_ws.js' %}?v=1.6"></script>
+    <script src="{% static 'js/dashboard_ws.js' %}?v=1.7"></script>
 
     {% block extra_js %}{% endblock %}
 

@@ -24,7 +24,7 @@ class Client(models.Model):
         help_text="Día del mes para renovación de plan fijo (1-31). Se asigna en el primer pago fijo.",
     )
 
-    # Las 3 fotos de enrolamiento son el insumo del ai_engine; foto_frente se usa también para display en UI.
+    # foto_frente alimenta el motor de reconocimiento y la UI; perfiles legacy sin uso activo.
     foto_frente = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
     foto_perfil_izq = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
     foto_perfil_der = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
@@ -40,7 +40,7 @@ class Client(models.Model):
 
     @property
     def is_enrolled(self):
-        return bool(self.foto_frente and self.foto_perfil_izq and self.foto_perfil_der and self.face_id_embeddings)
+        return bool(self.foto_frente and self.face_id_embeddings)
 
     @property
     def active_memberships(self):

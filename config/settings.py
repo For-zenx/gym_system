@@ -156,5 +156,5 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
-# Token de seguridad de dispositivo para la tablet del gimnasio.
+# DEPRECATED: TASK-045 — token único; tokens por rol se añadirán en tarea futura.
 TABLET_TOKEN = "gym-tablet-001"

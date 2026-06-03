@@ -1,12 +1,9 @@
-import base64
 import datetime
 import json
 import logging
-from pathlib import Path
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
-from django.conf import settings
 
 from apps.access import ai_engine
 from apps.access.services import check_access_integrity
@@ -14,48 +11,42 @@ from apps.access.services import check_access_integrity
 logger = logging.getLogger(__name__)
 
 DASHBOARD_GROUP = "dashboard"
+TABLET_ACCESS_GROUP = "tablet_access"
+TABLET_ENROLLMENT_GROUP = "tablet_enrollment"
+
+TABLET_ROLE_ACCESS = "access"
+TABLET_ROLE_ENROLLMENT = "enrollment"
 
 
-class TabletConsumer(AsyncWebsocketConsumer):
+class AccessTabletConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         await self.accept()
-        await self.channel_layer.group_add(DASHBOARD_GROUP, self.channel_name)
-        logger.info("Tablet conectada. Canal: %s", self.channel_name)
-        await self.channel_layer.group_send(DASHBOARD_GROUP, {"type": "tablet_status", "online": True})
+        await self.channel_layer.group_add(TABLET_ACCESS_GROUP, self.channel_name)
+        logger.info("Tablet de acceso conectada. Canal: %s", self.channel_name)
+        await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
 
     async def disconnect(self, code):
-        await self.channel_layer.group_discard(DASHBOARD_GROUP, self.channel_name)
-        logger.info("Tablet desconectada. Canal: %s — Código: %s", self.channel_name, code)
-        await self.channel_layer.group_send(DASHBOARD_GROUP, {"type": "tablet_status", "online": False})
+        await self.channel_layer.group_discard(TABLET_ACCESS_GROUP, self.channel_name)
+        logger.info("Tablet de acceso desconectada. Canal: %s — Código: %s", self.channel_name, code)
+        await self._notify_dashboard(TABLET_ROLE_ACCESS, False)
 
     async def receive(self, text_data=None, bytes_data=None):
         try:
             payload = json.loads(text_data)
         except (json.JSONDecodeError, TypeError):
-            logger.warning("Mensaje inválido recibido desde la tablet: %s", text_data)
+            logger.warning("Mensaje inválido recibido desde tablet de acceso: %s", text_data)
             await self.send(json.dumps({"status": "ERROR", "reason": "Formato de mensaje inválido. Se esperaba JSON."}))
             return
 
-        message_type = payload.get("type")
-
-        if message_type == "FRAME":
+        if payload.get("type") == "FRAME":
             await self._handle_frame(payload)
-        elif message_type == "ENROLLMENT_PHOTO":
-            # Reenviar al dashboard para previsualización
-            await self.channel_layer.group_send(
-                DASHBOARD_GROUP,
-                {
-                    "type": "enrollment_photo_forward",
-                    "photoType": payload.get("photoType"),
-                    "image": payload.get("image")
-                }
-            )
         else:
-            logger.warning("Tipo de mensaje desconocido recibido: %s", message_type)
+            message_type = payload.get("type")
+            logger.warning("Tipo de mensaje desconocido en tablet de acceso: %s", message_type)
             await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{message_type}'"}))
 
-    async def _handle_frame(self, payload: dict):
+    async def _handle_frame(self, payload):
         base64_image = payload.get("image", "")
         if not base64_image:
             await self.send(json.dumps({"status": "ERROR", "reason": "Campo 'image' vacío."}))
@@ -69,18 +60,19 @@ class TabletConsumer(AsyncWebsocketConsumer):
 
         def get_membership_data(client_obj):
             from django.utils import timezone
+
             active_mems = client_obj.active_memberships
             if not active_mems.exists():
                 return None
-                
+
             current_time = timezone.localtime().time()
             valid_now = [m for m in active_mems if m.is_valid_now(current_time)]
             mem = valid_now[0] if valid_now else active_mems.order_by('-fecha_fin').first()
-            
+
             return {
                 "plan_name": mem.plan.nombre,
                 "fecha_fin": mem.fecha_fin.strftime('%d/%m/%Y'),
-                "days_left": (mem.fecha_fin - datetime.date.today()).days
+                "days_left": (mem.fecha_fin - datetime.date.today()).days,
             }
 
         mem_data = await database_sync_to_async(get_membership_data)(client)
@@ -92,7 +84,6 @@ class TabletConsumer(AsyncWebsocketConsumer):
         else:
             await self.send(json.dumps({"status": "DENIED", "name": client.nombre, "reason": detail}))
 
-        # Send live feed update to dashboard
         photo_url = client.foto_frente.url if client.foto_frente else ""
         from apps.billing.services import get_membership_feed_lines
 
@@ -111,97 +102,77 @@ class TabletConsumer(AsyncWebsocketConsumer):
                 "granted": granted,
                 "detail": detail,
                 "membership_lines": membership_lines,
-                "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S')
-            }
+                "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S'),
+            },
         )
 
-    async def _handle_enrollment_photo(self, payload: dict):
-        client_id = payload.get("client_id")
-        step = payload.get("step")
-        base64_image = payload.get("image", "")
+    async def tablet_status_request(self, event):
+        await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
 
-        if not all([client_id, step, base64_image]):
-            await self.send(json.dumps({"status": "ERROR", "reason": "Faltan campos requeridos: client_id, step, image."}))
-            return
+    async def _notify_dashboard(self, role, online):
+        await self.channel_layer.group_send(
+            DASHBOARD_GROUP,
+            {"type": "tablet_status", "role": role, "online": online},
+        )
 
-        step_to_field = {1: "foto_frente", 2: "foto_perfil_izq", 3: "foto_perfil_der"}
-        field_name = step_to_field.get(step)
-        if not field_name:
-            await self.send(json.dumps({"status": "ERROR", "reason": f"Step inválido: {step}. Debe ser 1, 2 o 3."}))
-            return
 
+class EnrollmentTabletConsumer(AsyncWebsocketConsumer):
+
+    async def connect(self):
+        await self.accept()
+        await self.channel_layer.group_add(TABLET_ENROLLMENT_GROUP, self.channel_name)
+        logger.info("Tablet de enrolamiento conectada. Canal: %s", self.channel_name)
+        await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, True)
+
+    async def disconnect(self, code):
+        await self.channel_layer.group_discard(TABLET_ENROLLMENT_GROUP, self.channel_name)
+        logger.info("Tablet de enrolamiento desconectada. Canal: %s — Código: %s", self.channel_name, code)
+        await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, False)
+
+    async def receive(self, text_data=None, bytes_data=None):
         try:
-            img_data = base64_image.split(",", 1)[-1] if "," in base64_image else base64_image
-            image_bytes = base64.b64decode(img_data)
-        except Exception as exc:
-            logger.error("Error al decodificar foto de enrolamiento paso %s: %s", step, exc)
-            await self.send(json.dumps({"status": "ERROR", "reason": "Imagen Base64 inválida."}))
+            payload = json.loads(text_data)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("Mensaje inválido recibido desde tablet de enrolamiento: %s", text_data)
+            await self.send(json.dumps({"status": "ERROR", "reason": "Formato de mensaje inválido. Se esperaba JSON."}))
             return
 
-        enrollment_dir = Path(settings.MEDIA_ROOT) / "clients" / "enrollment"
-        enrollment_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"client_{client_id}_step_{step}.jpg"
-        (enrollment_dir / filename).write_bytes(image_bytes)
-
-        relative_path = Path("clients") / "enrollment" / filename
-
-        def save_photo_field():
-            from apps.clients.models import Client
-            client = Client.objects.get(pk=client_id)
-            setattr(client, field_name, str(relative_path))
-            client.save(update_fields=[field_name])
-            return client
-
-        try:
-            client = await database_sync_to_async(save_photo_field)()
-        except Exception as exc:
-            logger.error("Error al guardar campo %s para cliente %s: %s", field_name, client_id, exc)
-            await self.send(json.dumps({"status": "ERROR", "reason": "Error al guardar la foto en la base de datos."}))
-            return
-
-        logger.info("Foto de enrolamiento guardada: cliente=%s, paso=%s", client_id, step)
-
-        if step == 3:
-            try:
-                await database_sync_to_async(ai_engine.update_client_embeddings)(client)
-                await self.send(json.dumps({"status": "ENROLLMENT_COMPLETE", "client_id": client_id, "name": client.nombre}))
-            except (ValueError, FileNotFoundError) as exc:
-                logger.error("Error al generar embedding para cliente %s: %s", client_id, exc)
-                await self.send(json.dumps({"status": "ERROR", "reason": f"Error al procesar el enrolamiento: {exc}"}))
+        if payload.get("type") == "ENROLLMENT_PHOTO":
+            await self.channel_layer.group_send(
+                DASHBOARD_GROUP,
+                {
+                    "type": "enrollment_photo_forward",
+                    "photoType": payload.get("photoType"),
+                    "image": payload.get("image"),
+                },
+            )
         else:
-            await self.send(json.dumps({"status": "PHOTO_RECEIVED", "step": step, "next_step": step + 1}))
+            message_type = payload.get("type")
+            logger.warning("Tipo de mensaje desconocido en tablet de enrolamiento: %s", message_type)
+            await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{message_type}'"}))
 
-    async def tablet_status(self, event):
-        # Consumido por el dashboard via group_send; la tablet no necesita respuesta.
-        pass
+    async def enrollment_command(self, event):
+        await self.send(json.dumps(event.get("data", {})))
 
-    async def dashboard_message(self, event):
-        data = event.get("data", {})
-        if data.get("type") == "TABLET_STATUS_REQUEST":
-            await self.channel_layer.group_send(DASHBOARD_GROUP, {"type": "tablet_status", "online": True})
-        else:
-            await self.send(json.dumps(data))
+    async def tablet_status_request(self, event):
+        await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, True)
 
-    async def enrollment_photo_forward(self, event):
-        pass
+    async def _notify_dashboard(self, role, online):
+        await self.channel_layer.group_send(
+            DASHBOARD_GROUP,
+            {"type": "tablet_status", "role": role, "online": online},
+        )
 
-    async def new_access_log(self, event):
-        pass
 
 class DashboardConsumer(AsyncWebsocketConsumer):
-    """
-    WebSocket pasivo para la interfaz administrativa (PC).
-    """
+    """WebSocket pasivo para la interfaz administrativa (PC)."""
+
     async def connect(self):
         await self.accept()
         await self.channel_layer.group_add(DASHBOARD_GROUP, self.channel_name)
         logger.info("Dashboard (PC) conectado. Canal: %s", self.channel_name)
-        
-        # Al conectarse, preguntamos al grupo si hay alguna tablet conectada
-        await self.channel_layer.group_send(
-            DASHBOARD_GROUP, 
-            {"type": "dashboard_message", "data": {"type": "TABLET_STATUS_REQUEST"}}
-        )
+        await self.channel_layer.group_send(TABLET_ACCESS_GROUP, {"type": "tablet_status_request"})
+        await self.channel_layer.group_send(TABLET_ENROLLMENT_GROUP, {"type": "tablet_status_request"})
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard(DASHBOARD_GROUP, self.channel_name)
@@ -210,32 +181,29 @@ class DashboardConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data=None, bytes_data=None):
         try:
             payload = json.loads(text_data)
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.error("Error procesando mensaje desde Dashboard: %s", exc)
+            return
+
+        msg_type = payload.get("type")
+        if msg_type in ("ENROLLMENT_START", "ENROLLMENT_END"):
             await self.channel_layer.group_send(
-                DASHBOARD_GROUP,
-                {"type": "dashboard_message", "data": payload}
+                TABLET_ENROLLMENT_GROUP,
+                {"type": "enrollment_command", "data": payload},
             )
-        except Exception as e:
-            logger.error("Error procesando mensaje desde Dashboard: %s", e)
 
     async def tablet_status(self, event):
-        # Cuando la tablet cambia de estado, notificamos a la PC
         await self.send(json.dumps({
             "type": "tablet_status",
-            "online": event.get("online", False)
+            "role": event.get("role"),
+            "online": event.get("online", False),
         }))
 
-    async def dashboard_message(self, event):
-        # Este consumidor también está en el grupo 'dashboard', por lo que recibe los
-        # comandos (ej. ENROLLMENT_START). Como estos comandos son para la tablet,
-        # simplemente los ignoramos en la PC para evitar el error "No handler".
-        pass
-
     async def enrollment_photo_forward(self, event):
-        # Enviar la foto recibida desde la tablet al frontend de la PC
         await self.send(json.dumps({
             "type": "ENROLLMENT_PHOTO",
             "photoType": event.get("photoType"),
-            "image": event.get("image")
+            "image": event.get("image"),
         }))
 
     async def new_access_log(self, event):
@@ -250,6 +218,5 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             "granted": event.get("granted"),
             "detail": event.get("detail"),
             "membership_lines": event.get("membership_lines", []),
-            "timestamp": event.get("timestamp")
+            "timestamp": event.get("timestamp"),
         }))
-

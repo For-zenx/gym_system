@@ -50,41 +50,17 @@ def generate_embedding(image_path: Path) -> list:
 
 
 def update_client_embeddings(client) -> None:
-    """
-    Procesa las 3 fotos de enrolamiento y guarda el embedding promedio en
-    client.face_id_embeddings. El promedio de 3 ángulos produce un vector
-    más robusto ante variaciones de luz.
-    """
+    """Genera el embedding facial desde la foto frontal del afiliado."""
     from django.conf import settings
 
-    photos = {
-        "foto_frente": client.foto_frente,
-        "foto_perfil_izq": client.foto_perfil_izq,
-        "foto_perfil_der": client.foto_perfil_der,
-    }
+    if not client.foto_frente:
+        raise FileNotFoundError(f"El afiliado {client.nombre} no tiene foto frontal de enrolamiento.")
 
-    missing = [name for name, field in photos.items() if not field]
-    if missing:
-        raise FileNotFoundError(f"El afiliado {client.nombre} no tiene las fotos: {', '.join(missing)}")
-
-    embeddings = []
-    for field_name, photo_field in photos.items():
-        image_path = Path(settings.MEDIA_ROOT) / photo_field.name
-        try:
-            embeddings.append(generate_embedding(image_path))
-            logger.info("Embedding generado para %s - %s", client.nombre, field_name)
-        except ValueError as exc:
-            logger.warning("IA ignoró %s para %s (Rostro no detectable): %s", field_name, client.nombre, exc)
-        except FileNotFoundError as exc:
-            logger.error("Archivo físico no encontrado para %s de %s: %s", field_name, client.nombre, exc)
-            raise
-
-    if not embeddings:
-        raise ValueError(f"No se pudo detectar un rostro en NINGUNA de las 3 fotos del afiliado {client.nombre}.")
-
-    client.face_id_embeddings = np.mean(np.array(embeddings), axis=0).tolist()
+    image_path = Path(settings.MEDIA_ROOT) / client.foto_frente.name
+    embedding = generate_embedding(image_path)
+    client.face_id_embeddings = embedding
     client.save(update_fields=["face_id_embeddings"])
-    logger.info("Embedding promedio actualizado para afiliado: %s", client.nombre)
+    logger.info("Embedding actualizado para afiliado: %s", client.nombre)
 
 def recognize_face(base64_image: str):
     """

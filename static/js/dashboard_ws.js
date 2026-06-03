@@ -3,39 +3,62 @@ const WS_URL = window.DASHBOARD_WS_URL;
 let dashboardSocket = null;
 let reconnectTimer = null;
 
-const statusPill = document.getElementById('pc-tablet-status');
-const statusText = statusPill.querySelector('.status-text');
+const TABLET_STATUS = {
+    access: false,
+    enrollment: false,
+};
+
+function getStatusPill(role) {
+    return document.getElementById('pc-tablet-' + role + '-status');
+}
+
+function updateStatusPill(role, online) {
+    const pill = getStatusPill(role);
+    if (!pill) {
+        return;
+    }
+    const statusText = pill.querySelector('.status-text');
+    TABLET_STATUS[role] = online;
+    if (online) {
+        pill.classList.add('online');
+        statusText.textContent = role === 'access' ? 'Acceso Online' : 'Enrol. Online';
+    } else {
+        pill.classList.remove('online');
+        statusText.textContent = role === 'access' ? 'Acceso Offline' : 'Enrol. Offline';
+    }
+    window.dispatchEvent(new CustomEvent('tabletStatusChanged', {
+        detail: { online: online, role: role },
+    }));
+}
 
 function connectDashboardWebSocket() {
     clearTimeout(reconnectTimer);
     dashboardSocket = new WebSocket(WS_URL);
 
-    dashboardSocket.onopen = () => {
+    dashboardSocket.onopen = function () {
         console.log('[Dashboard] WebSocket conectado al servidor.');
     };
 
-    dashboardSocket.onclose = (event) => {
+    dashboardSocket.onclose = function () {
         console.warn('[Dashboard] WebSocket cerrado. Reintentando en 3s...');
-        setTabletOffline();
+        updateStatusPill('access', false);
+        updateStatusPill('enrollment', false);
         reconnectTimer = setTimeout(connectDashboardWebSocket, 3000);
     };
 
-    dashboardSocket.onerror = (error) => {
+    dashboardSocket.onerror = function (error) {
         console.error('[Dashboard] Error en WebSocket:', error);
     };
 
-    dashboardSocket.onmessage = (event) => {
+    dashboardSocket.onmessage = function (event) {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'tablet_status') {
-                if (data.online) {
-                    setTabletOnline();
-                } else {
-                    setTabletOffline();
-                }
-                window.dispatchEvent(new CustomEvent('tabletStatusChanged', { detail: { online: data.online } }));
+            if (data.type === 'tablet_status' && data.role) {
+                updateStatusPill(data.role, !!data.online);
             } else if (data.type === 'ENROLLMENT_PHOTO') {
-                window.dispatchEvent(new CustomEvent('enrollmentPhotoReceived', { detail: { photoType: data.photoType, image: data.image } }));
+                window.dispatchEvent(new CustomEvent('enrollmentPhotoReceived', {
+                    detail: { photoType: data.photoType, image: data.image },
+                }));
             } else if (data.type === 'NEW_ACCESS_LOG') {
                 window.dispatchEvent(new CustomEvent('newAccessLog', { detail: data }));
             }
@@ -45,31 +68,16 @@ function connectDashboardWebSocket() {
     };
 }
 
-function setTabletOnline() {
-    if (statusPill) {
-        statusPill.classList.add('online');
-        statusText.textContent = 'Tablet Online';
-    }
-}
-
-function setTabletOffline() {
-    if (statusPill) {
-        statusPill.classList.remove('online');
-        statusText.textContent = 'Tablet Offline';
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function () {
     if (WS_URL) {
         connectDashboardWebSocket();
     }
 });
 
-// Exponer función global para enviar comandos (usada por la página de enrolamiento)
-window.sendDashboardCommand = function(commandData) {
+window.sendDashboardCommand = function (commandData) {
     if (dashboardSocket && dashboardSocket.readyState === WebSocket.OPEN) {
         dashboardSocket.send(JSON.stringify(commandData));
     } else {
-        console.warn("[Dashboard] Imposible enviar comando. WebSocket no está abierto.");
+        console.warn('[Dashboard] Imposible enviar comando. WebSocket no está abierto.');
     }
 };

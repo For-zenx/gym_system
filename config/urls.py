@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include, re_path
+from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
@@ -31,7 +32,9 @@ urlpatterns = [
     path('', core_views.dashboard, name='dashboard'),
     path('enrolamiento/', core_views.enrollment, name='enrollment'),
     path('enrolamiento/facturacion/<str:codigo_afiliado>/', core_views.enrollment_billing, name='enrollment_billing'),
-    path('tablet/', access_views.tablet_view, name='tablet'),
+    path('tablet/acceso/', access_views.tablet_access_view, name='tablet_access'),
+    path('tablet/enrolamiento/', access_views.tablet_enrollment_view, name='tablet_enrollment'),
+    path('tablet/', RedirectView.as_view(url='/tablet/acceso/', permanent=True), name='tablet'),
     path('afiliados/', include('apps.clients.urls')),
     path('billing/', include('apps.billing.urls')),
     path('historial/', include('apps.access.urls')),

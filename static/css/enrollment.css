@@ -2,8 +2,7 @@
     display: flex;
     flex-direction: column;
     gap: 2rem;
-    max-width: 1200px;
-    width: 100%;
+    max-width: 800px;
     margin: 0 auto;
 }
 
@@ -26,14 +25,18 @@
     display: flex;
     gap: 1rem;
     width: 100%;
-    max-width: 450px; /* Contiene el ancho para que el aspect-ratio no lo haga gigante */
+    max-width: 450px;
     margin-top: 1.5rem;
+}
+
+.photo-slots-single {
+    max-width: 220px;
 }
 
 .photo-slot {
     flex: 1;
     aspect-ratio: 3/4;
-    background-color: #1e293b; /* slate-800 */
+    background-color: #1e293b;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     display: flex;
@@ -65,7 +68,7 @@
 
 .form-group input {
     width: 100%;
-    box-sizing: border-box; /* Evita que el padding sume al ancho total del 100% */
+    box-sizing: border-box;
     padding: 0.75rem 1rem;
     background-color: #0f172a;
     border: 1px solid var(--border-color);
@@ -98,21 +101,16 @@
 .cedula-input-group {
     display: flex;
     gap: 0.5rem;
-    align-items: stretch;
 }
 
 .cedula-input-group select {
-    width: 3.75rem;
-    flex: 0 0 3.75rem;
-    min-width: 0;
-    padding-left: 0.65rem;
-    padding-right: 1.5rem;
+    width: auto;
+    min-width: 4.5rem;
+    flex-shrink: 0;
 }
 
 .cedula-input-group input {
-    flex: 1 1 0;
-    min-width: 0;
-    width: auto;
+    flex: 1;
 }
 
 .form-row-split {
@@ -190,7 +188,7 @@
     z-index: 10;
     text-align: center;
     padding: 2rem;
-    opacity: 1; /* Oculto por defecto usando JS, aquí inicia visible hasta que enganche */
+    opacity: 1;
     transition: opacity 0.3s;
 }
 
@@ -199,43 +197,7 @@
     pointer-events: none;
 }
 
-/* Wizard Facturación */
-.wizard-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    max-width: 1000px;
-    margin: 0 auto;
-}
-
-.wizard-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 2.5rem;
-    box-shadow: var(--shadow-sm);
-}
-
-.wizard-step-title {
-    color: var(--primary);
-    font-size: 0.9rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 0.5rem;
-}
-
-.summary-avatar {
-    width: 150px;
-    height: 150px;
-    border-radius: 12px;
-    object-fit: cover;
-    margin: 0 auto 1.5rem auto;
-    display: block;
-    border: 2px solid var(--border-color);
-}
-
-/* Pantalla de Éxito */
+/* Pantalla de cobro / inscripción exitosa (payment_success.html) */
 .success-container {
     max-width: 600px;
     margin: 2rem auto;
@@ -243,7 +205,7 @@
     background: var(--bg-surface);
     border: 1px solid var(--primary);
     border-radius: 12px;
-    padding: 2.5rem 1.5rem;
+    padding: 3rem 2rem;
     box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.2);
 }
 
@@ -256,7 +218,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 1.5rem auto;
+    margin: 0 auto 2rem auto;
 }
 
 .success-icon svg {
