@@ -5,7 +5,7 @@
 {% block page_title %}Enrolamiento de Nuevo Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=1.4">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=1.8">
 {% endblock %}
 
 {% block content %}
@@ -37,6 +37,9 @@
                 <img id="img-frente" src="" alt="Foto del afiliado" style="display: none; width: 100%; height: 100%; object-fit: cover;">
             </div>
         </div>
+        <button type="button" class="btn btn-secondary enrollment-retake-btn" onclick="retakeEnrollmentPhoto()">
+            Tomar otra foto
+        </button>
     </div>
 
     <div class="form-section">
@@ -50,7 +53,7 @@
             {% endfor %}
         {% endif %}
 
-        <form method="POST" action="{% url 'enrollment' %}">
+        <form method="POST" action="{% url 'enrollment' %}" id="enrollment-form">
             {% csrf_token %}
             <input type="hidden" name="foto_frente_base64" id="input-foto-frente">
 
@@ -95,6 +98,29 @@
                 <button type="submit" class="btn btn-primary btn-enrollment-save">Guardar Afiliado</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="enrollment-process-modal" class="modal-overlay enrollment-process-modal" aria-hidden="true">
+    <div class="modal-content modal-content-narrow enrollment-process-card">
+        <div id="enrollment-process-loading" class="enrollment-process-state">
+            <div class="enrollment-spinner" aria-hidden="true"></div>
+            <h2 class="enrollment-process-title">Procesando enrolamiento</h2>
+            <p class="enrollment-process-text">Guardando datos y analizando la foto facial...</p>
+        </div>
+        <div id="enrollment-process-success" class="enrollment-process-state hidden">
+            <div class="enrollment-success-icon" aria-hidden="true">✓</div>
+            <h2 class="enrollment-process-title">Afiliado registrado</h2>
+            <p class="enrollment-process-text">Redirigiendo al cobro...</p>
+        </div>
+        <div id="enrollment-process-error" class="enrollment-process-state hidden">
+            <div class="enrollment-error-icon" aria-hidden="true">✕</div>
+            <h2 class="enrollment-process-title">No se pudo completar</h2>
+            <p id="enrollment-process-error-message" class="enrollment-process-text"></p>
+            <button type="button" class="btn btn-primary enrollment-process-close-btn" id="enrollment-process-close-btn">
+                Volver al formulario
+            </button>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -151,6 +177,10 @@
         window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
     }
 
+    function retakeEnrollmentPhoto() {
+        reconnectTablet();
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         setTimeout(function () {
             window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
@@ -175,5 +205,75 @@
     window.addEventListener('beforeunload', function () {
         window.sendDashboardCommand({ type: 'ENROLLMENT_END' });
     });
+
+    const enrollmentForm = document.getElementById('enrollment-form');
+    const processModal = document.getElementById('enrollment-process-modal');
+    const processLoading = document.getElementById('enrollment-process-loading');
+    const processSuccess = document.getElementById('enrollment-process-success');
+    const processError = document.getElementById('enrollment-process-error');
+    const processErrorMessage = document.getElementById('enrollment-process-error-message');
+    const processCloseBtn = document.getElementById('enrollment-process-close-btn');
+    const saveButton = enrollmentForm ? enrollmentForm.querySelector('.btn-enrollment-save') : null;
+
+    function showProcessState(state) {
+        processLoading.classList.toggle('hidden', state !== 'loading');
+        processSuccess.classList.toggle('hidden', state !== 'success');
+        processError.classList.toggle('hidden', state !== 'error');
+    }
+
+    function openProcessModal(state) {
+        showProcessState(state);
+        processModal.classList.add('show');
+        processModal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeProcessModal() {
+        processModal.classList.remove('show');
+        processModal.setAttribute('aria-hidden', 'true');
+        if (saveButton) {
+            saveButton.disabled = false;
+        }
+    }
+
+    if (processCloseBtn) {
+        processCloseBtn.addEventListener('click', closeProcessModal);
+    }
+
+    if (enrollmentForm) {
+        enrollmentForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            if (saveButton) {
+                saveButton.disabled = true;
+            }
+            openProcessModal('loading');
+
+            fetch(enrollmentForm.action, {
+                method: 'POST',
+                body: new FormData(enrollmentForm),
+                headers: { 'X-Enrollment-Submit': '1' },
+                credentials: 'same-origin',
+            })
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (result.ok && result.data.status === 'success') {
+                        openProcessModal('success');
+                        window.setTimeout(function () {
+                            window.location.href = result.data.redirect_url;
+                        }, 900);
+                        return;
+                    }
+                    processErrorMessage.textContent = result.data.message || 'Ocurrió un error al guardar el afiliado.';
+                    openProcessModal('error');
+                })
+                .catch(function () {
+                    processErrorMessage.textContent = 'Error de conexión con el servidor. Intente nuevamente.';
+                    openProcessModal('error');
+                });
+        });
+    }
 </script>
 {% endblock %}

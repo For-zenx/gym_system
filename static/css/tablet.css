@@ -90,26 +90,42 @@ html, body {
     background-color: #ef4444; /* Rojo: desconectado */
 }
 
-/* --- UI Enrolamiento: Foco --- */
-.focus-frame {
+/* --- UI Enrolamiento: guía ovalada --- */
+.face-guide {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    border-left: 20vw solid rgba(0, 0, 0, 0.75);
-    border-right: 20vw solid rgba(0, 0, 0, 0.75);
+    inset: 0;
     z-index: 3;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.6s ease, border-width 0.4s ease;
+    transition: opacity 0.5s ease;
 }
 
-.focus-frame.active {
+.face-guide.active {
     opacity: 1;
 }
 
+.face-guide-oval {
+    position: absolute;
+    top: 42%;
+    left: 50%;
+    width: min(70vw, 480px);
+    height: min(92vw, 640px);
+    transform: translate(-50%, -50%);
+    border: 3px solid rgba(255, 255, 255, 0.92);
+    border-radius: 50%;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.72);
+}
+
+/* DEPRECATED: TASK-047 — reemplazado por .face-guide (óvalo facial). */
+.focus-frame {
+    display: none;
+}
+
 @media (max-width: 768px) {
-    .focus-frame {
-        border-left-width: 5vw;
-        border-right-width: 5vw;
+    .face-guide-oval {
+        width: min(82vw, 440px);
+        height: min(108vw, 580px);
+        top: 40%;
     }
 }
 

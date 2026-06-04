@@ -7,7 +7,7 @@
     <title>Perfect Line II — Enrolamiento</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=1.6">
+    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=1.8">
 </head>
 <body>
 
@@ -29,7 +29,9 @@
         <span id="status-text">Conectando...</span>
     </div>
 
-    <div id="focus-frame" class="focus-frame"></div>
+    <div id="face-guide" class="face-guide">
+        <div class="face-guide-oval"></div>
+    </div>
 
     <div id="hud-instruction" class="hud-bubble hidden">
         <span id="hud-text">Cargando...</span>
@@ -39,6 +41,6 @@
         window.TABLET_WS_URL = "{{ ws_url }}";
     </script>
     <script src="{% static 'vendor/face-api.min.js' %}"></script>
-    <script src="{% static 'js/tablet_enrollment.js' %}?v=1.1"></script>
+    <script src="{% static 'js/tablet_enrollment.js' %}?v=1.5"></script>
 </body>
 </html>

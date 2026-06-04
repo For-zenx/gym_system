@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.urls import reverse
+from django.http import JsonResponse
 import base64
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -25,6 +26,15 @@ def get_next_codigo_afiliado():
             pass
     return 'M-00001-00'
 
+def _enrollment_wants_json(request):
+    return request.headers.get('X-Enrollment-Submit') == '1'
+
+def _enrollment_error_response(request, message, post_data=None, status=400):
+    if _enrollment_wants_json(request):
+        return JsonResponse({'status': 'error', 'message': message}, status=status)
+    messages.error(request, message)
+    return render(request, 'enrollment.html', client_form_context(post_data=post_data or request.POST))
+
 @login_required
 @permission_required("dashboard.view")
 def dashboard(request):
@@ -45,6 +55,9 @@ def enrollment(request):
         )
 
         if errors:
+            first_error = next(iter(errors.values()))
+            if _enrollment_wants_json(request):
+                return JsonResponse({'status': 'error', 'message': first_error}, status=400)
             for message in errors.values():
                 messages.error(request, message)
             context = client_form_context(post_data=request.POST)
@@ -55,9 +68,11 @@ def enrollment(request):
         foto_frente_b64 = request.POST.get("foto_frente_base64")
 
         if not foto_frente_b64:
-            messages.error(request, "Debe capturar la foto del afiliado en la tablet de enrolamiento.")
-            context = client_form_context(post_data=request.POST)
-            return render(request, 'enrollment.html', context)
+            return _enrollment_error_response(
+                request,
+                "Debe capturar la foto del afiliado en la tablet de enrolamiento.",
+                post_data=request.POST,
+            )
 
         try:
             client = Client.objects.filter(cedula=cedula).first()
@@ -98,19 +113,24 @@ def enrollment(request):
 
             try:
                 ai_engine.update_client_embeddings(client)
-                messages.success(request, f"Afiliado {nombre} {msg_action} exitosamente y procesado por IA.")
             except Exception as e:
-                messages.warning(request, f"Afiliado {nombre} {msg_action}, pero falló el procesamiento de IA: {str(e)}")
+                return _enrollment_error_response(
+                    request,
+                    f"No se pudo procesar la foto facial: {str(e)}",
+                    post_data=request.POST,
+                )
 
             checkout_url = reverse(
                 'billing:charge_checkout',
                 kwargs={'codigo_afiliado': client.codigo_afiliado},
             )
-            return redirect('{}?origin=enrollment'.format(checkout_url))
+            redirect_target = '{}?origin=enrollment'.format(checkout_url)
+            if _enrollment_wants_json(request):
+                return JsonResponse({'status': 'success', 'redirect_url': redirect_target})
+            messages.success(request, f"Afiliado {nombre} {msg_action} exitosamente y procesado por IA.")
+            return redirect(redirect_target)
         except Exception as e:
-            messages.error(request, f"Error al guardar: {str(e)}")
-            context = client_form_context(post_data=request.POST)
-            return render(request, 'enrollment.html', context)
+            return _enrollment_error_response(request, f"Error al guardar: {str(e)}", post_data=request.POST)
 
     return render(request, 'enrollment.html', client_form_context())
 

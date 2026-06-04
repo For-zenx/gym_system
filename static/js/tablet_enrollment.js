@@ -3,13 +3,19 @@
 const WS_URL = window.TABLET_WS_URL;
 const RECONNECT_DELAY_MS = 3000;
 const CAPTURE_COOLDOWN_MS = 2500;
+const MIN_DETECTION_SCORE = 0.75;
+const STABILITY_MS = 350;
+const JPEG_QUALITY = 0.9;
+const OVAL_MIN_FACE_WIDTH_RATIO = 0.32;
+const OVAL_MAX_FACE_WIDTH_RATIO = 0.98;
 
 const cameraFeed = document.getElementById('camera-feed');
 const overlayCanvas = document.getElementById('overlay-canvas');
 const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const idleOverlay = document.getElementById('idle-overlay');
-const focusFrame = document.getElementById('focus-frame');
+const faceGuide = document.getElementById('face-guide');
+const faceGuideOval = document.querySelector('.face-guide-oval');
 const hudInstruction = document.getElementById('hud-instruction');
 const hudText = document.getElementById('hud-text');
 
@@ -22,6 +28,7 @@ let isCaptureActive = false;
 let captureCompleted = false;
 let lastCaptureTime = 0;
 let detectionLoopRunning = false;
+let stableSince = null;
 
 async function loadModels() {
     hudText.textContent = 'Cargando motor de IA...';
@@ -31,6 +38,125 @@ async function loadModels() {
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
     ]);
     isModelsLoaded = true;
+}
+
+function getFaceDetection(faceResult) {
+    if (!faceResult) {
+        return null;
+    }
+    return faceResult.detection || faceResult;
+}
+
+function isFrontalPose(ratio) {
+    return ratio > 0.65 && ratio < 1.45;
+}
+
+function mapFaceBoxToDisplay(box, videoEl) {
+    const videoWidth = videoEl.videoWidth;
+    const videoHeight = videoEl.videoHeight;
+    if (!videoWidth || !videoHeight || !box) {
+        return null;
+    }
+
+    const elementWidth = videoEl.clientWidth;
+    const elementHeight = videoEl.clientHeight;
+    const videoAspect = videoWidth / videoHeight;
+    const elementAspect = elementWidth / elementHeight;
+
+    let renderedWidth;
+    let renderedHeight;
+    let offsetX;
+    let offsetY;
+
+    if (videoAspect > elementAspect) {
+        renderedHeight = elementHeight;
+        renderedWidth = videoWidth * (elementHeight / videoHeight);
+        offsetX = (renderedWidth - elementWidth) / 2;
+        offsetY = 0;
+    } else {
+        renderedWidth = elementWidth;
+        renderedHeight = videoHeight * (elementWidth / videoWidth);
+        offsetX = 0;
+        offsetY = (renderedHeight - elementHeight) / 2;
+    }
+
+    const scaleX = renderedWidth / videoWidth;
+    const scaleY = renderedHeight / videoHeight;
+    let x = (box.x * scaleX) - offsetX;
+    let y = (box.y * scaleY) - offsetY;
+    let width = box.width * scaleX;
+    let height = box.height * scaleY;
+
+    // El video se muestra en espejo (scaleX(-1)).
+    x = elementWidth - x - width;
+
+    return { x, y, width, height };
+}
+
+function faceFitsInOval(box, videoEl, ovalEl) {
+    if (!ovalEl) {
+        return true;
+    }
+
+    const mapped = mapFaceBoxToDisplay(box, videoEl);
+    if (!mapped) {
+        return false;
+    }
+
+    const videoRect = videoEl.getBoundingClientRect();
+    const ovalRect = ovalEl.getBoundingClientRect();
+
+    const faceCenterX = videoRect.left + mapped.x + (mapped.width / 2);
+    const faceCenterY = videoRect.top + mapped.y + (mapped.height / 2);
+    const ovalCenterX = ovalRect.left + (ovalRect.width / 2);
+    const ovalCenterY = ovalRect.top + (ovalRect.height / 2);
+    const radiusX = ovalRect.width / 2;
+    const radiusY = ovalRect.height / 2;
+
+    const dx = (faceCenterX - ovalCenterX) / radiusX;
+    const dy = (faceCenterY - ovalCenterY) / radiusY;
+    if ((dx * dx) + (dy * dy) > 1) {
+        return false;
+    }
+    if (mapped.width < ovalRect.width * OVAL_MIN_FACE_WIDTH_RATIO) {
+        return false;
+    }
+    if (mapped.width > ovalRect.width * OVAL_MAX_FACE_WIDTH_RATIO) {
+        return false;
+    }
+    return true;
+}
+
+function meetsCaptureCriteria(faceResult, resizedResult) {
+    const detection = getFaceDetection(faceResult);
+    const resizedDetection = getFaceDetection(resizedResult);
+
+    if (!detection || !resizedDetection || !resizedDetection.box) {
+        return false;
+    }
+    if (detection.score < MIN_DETECTION_SCORE) {
+        return false;
+    }
+    if (!faceFitsInOval(resizedDetection.box, cameraFeed, faceGuideOval)) {
+        return false;
+    }
+
+    const landmarks = faceResult.landmarks;
+    if (!landmarks) {
+        return false;
+    }
+
+    const nose = landmarks.getNose()[3];
+    const jawOutline = landmarks.getJawOutline();
+    const distLeft = Math.abs(nose.x - jawOutline[0].x);
+    const distRight = Math.abs(jawOutline[16].x - nose.x);
+    const ratio = distLeft / distRight;
+
+    return isFrontalPose(ratio);
+}
+
+function resetStability() {
+    stableSince = null;
 }
 
 async function detectFaceLoop() {
@@ -55,40 +181,45 @@ async function detectFaceLoop() {
     try {
         const detection = await faceapi.detectSingleFace(
             cameraFeed,
-            new faceapi.TinyFaceDetectorOptions()
+            new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })
         ).withFaceLandmarks();
         canvasCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
         if (detection && canCapture) {
             const resizedDetection = faceapi.resizeResults(detection, displaySize);
-            faceapi.draw.drawFaceLandmarks(overlayCanvas, resizedDetection);
 
-            const landmarks = detection.landmarks;
-            const nose = landmarks.getNose()[3];
-            const jawOutline = landmarks.getJawOutline();
-            const distLeft = Math.abs(nose.x - jawOutline[0].x);
-            const distRight = Math.abs(jawOutline[16].x - nose.x);
-            const ratio = distLeft / distRight;
+            if (meetsCaptureCriteria(detection, resizedDetection)) {
+                if (stableSince === null) {
+                    stableSince = now;
+                }
 
-            if (ratio > 0.75 && ratio < 1.35) {
-                hudText.textContent = '¡Perfecto! Capturando...';
-                sendEnrollmentPhoto();
-                lastCaptureTime = now;
-                captureCompleted = true;
-                setTimeout(function () {
-                    stopCamera();
-                    focusFrame.classList.remove('active');
-                    hudInstruction.classList.add('hidden');
-                    idleOverlay.classList.remove('hidden');
-                    idleOverlay.querySelector('.idle-subtitle').textContent = 'Foto capturada — complete los datos en la PC';
-                    setStatus('connected', 'Foto lista');
-                }, 1200);
+                if (now - stableSince >= STABILITY_MS) {
+                    hudText.textContent = 'Capturando...';
+                    sendEnrollmentPhoto();
+                    lastCaptureTime = now;
+                    captureCompleted = true;
+                    resetStability();
+                    setTimeout(function () {
+                        stopCamera();
+                        faceGuide.classList.remove('active');
+                        hudInstruction.classList.add('hidden');
+                        idleOverlay.classList.remove('hidden');
+                        idleOverlay.querySelector('.idle-subtitle').textContent = 'Foto capturada';
+                        setStatus('connected', 'Foto lista');
+                    }, 1200);
+                } else {
+                    hudText.textContent = 'Coloque su rostro en el óvalo';
+                }
             } else {
-                hudText.textContent = 'Mire al centro del cuadro';
+                resetStability();
+                hudText.textContent = 'Coloque su rostro en el óvalo';
             }
+        } else if (!detection) {
+            resetStability();
         }
     } catch (e) {
         console.error('Error en bucle de enrolamiento:', e);
+        resetStability();
     }
 
     requestAnimationFrame(detectFaceLoop);
@@ -109,7 +240,7 @@ function sendEnrollmentPhoto() {
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
-    const dataURL = canvas.toDataURL('image/jpeg', 0.85);
+    const dataURL = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
 
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
@@ -152,11 +283,12 @@ function showIdleScreen() {
     if (idleSubtitle) {
         idleSubtitle.textContent = 'Conectada — en espera de la cajera';
     }
-    focusFrame.classList.remove('active');
+    faceGuide.classList.remove('active');
     hudInstruction.classList.add('hidden');
     isCaptureActive = false;
     captureCompleted = false;
     detectionLoopRunning = false;
+    resetStability();
 }
 
 function connectWebSocket() {
@@ -187,11 +319,12 @@ async function startEnrollmentSession() {
         stopCamera();
     }
     idleOverlay.classList.add('hidden');
-    focusFrame.classList.add('active');
+    faceGuide.classList.add('active');
     hudInstruction.classList.remove('hidden');
-    hudText.textContent = 'Mire al centro del cuadro';
+    hudText.textContent = 'Coloque su rostro en el óvalo';
     captureCompleted = false;
     isCaptureActive = true;
+    resetStability();
     setStatus('connected', 'Capturando');
 
     try {
