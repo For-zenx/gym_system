@@ -23,7 +23,18 @@ from .services import (
     preview_membership_period,
     resolve_cut_date_motivo,
 )
-from .printer import build_invoice_preview_lines, print_invoice
+from .printer import (
+    build_invoice_preview_lines,
+    compute_invoice_total,
+    print_invoice,
+    _format_currency_ves,
+)
+from .services import (
+    apply_invoice_amount_edits,
+    build_amount_overrides_from_post,
+    post_amount_edits_differ_from_stored,
+)
+from apps.users.permissions import has_permission
 
 
 def _charge_form_context(client, planes):
@@ -302,34 +313,20 @@ class PaymentPeriodPreviewView(PermissionRequiredMixin, View):
         return JsonResponse(payload)
 
 
-class PaymentSuccessView(PermissionRequiredMixin, DetailView):
+class PaymentSuccessView(PermissionRequiredMixin, View):
     required_permission = "billing.charge"
-    model = Invoice
-    template_name = "billing/payment_success.html"
-    context_object_name = "invoice"
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["client"] = self.object.client
-        origin = self.request.GET.get("origin", "profile")
-        context["origin"] = origin
-        if origin == "enrollment":
-            context["back_url"] = reverse(
-                "clients:profile",
-                kwargs={"codigo_afiliado": self.object.client.codigo_afiliado},
-            )
-            context["back_label"] = "Ver perfil del afiliado"
-        else:
-            context["back_url"] = reverse(
-                "clients:profile",
-                kwargs={"codigo_afiliado": self.object.client.codigo_afiliado},
-            )
-            context["back_label"] = "Volver al perfil"
-        context["ticket_url"] = reverse(
-            "billing:invoice_detail",
-            kwargs={"pk": self.object.pk},
+    def get(self, request, pk):
+        invoice = get_object_or_404(Invoice, pk=pk)
+        messages.success(
+            request,
+            "Cobro registrado. Revise la factura y ajústela si es necesario antes de imprimir.",
         )
-        return context
+        detail_url = reverse("billing:invoice_detail", kwargs={"pk": invoice.pk})
+        origin = request.GET.get("origin", "")
+        if origin:
+            detail_url = "{}?{}".format(detail_url, urlencode({"origin": origin}))
+        return redirect(detail_url)
 
 
 class ChangeCutDateView(PermissionRequiredMixin, View):
@@ -510,32 +507,97 @@ class InvoiceDetailView(PermissionRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['latest_rate'] = ExchangeRate.get_latest()
-        context['next_url'] = _get_safe_next_url(self.request, self.request.GET.get('next', ''))
-        context["ticket_lines"] = build_invoice_preview_lines(self.object)
-        context["invoice_lines"] = self.object.lines.select_related("sale_item").all()
-        context["uses_legacy_invoice"] = not self.object.has_detail_lines()
+        invoice = self.object
+        context["latest_rate"] = ExchangeRate.get_latest()
+        context["next_url"] = _get_safe_next_url(self.request, self.request.GET.get("next", ""))
+        context["ticket_lines"] = build_invoice_preview_lines(invoice)
+        context["invoice_lines"] = invoice.lines.select_related("sale_item", "membership").all()
+        context["uses_legacy_invoice"] = not invoice.has_detail_lines()
+        has_edit_perm = has_permission(self.request.user, "billing.edit_invoice")
+        context["has_edit_invoice_permission"] = has_edit_perm
+        context["can_edit_invoice"] = not invoice.esta_impresa and has_edit_perm
+        context["preview_ticket_url"] = reverse(
+            "billing:invoice_ticket_preview",
+            kwargs={"pk": invoice.pk},
+        )
         return context
+
+
+class InvoiceTicketPreviewView(PermissionRequiredMixin, View):
+    required_permission = "billing.view_invoice_detail"
+
+    def post(self, request, pk):
+        invoice = get_object_or_404(Invoice, pk=pk)
+        overrides = {}
+        has_edit_perm = has_permission(request.user, "billing.edit_invoice")
+        if (
+            not invoice.esta_impresa
+            and has_edit_perm
+        ):
+            overrides = build_amount_overrides_from_post(request.POST, invoice)
+        elif (
+            not invoice.esta_impresa
+            and post_amount_edits_differ_from_stored(request.POST, invoice)
+        ):
+            return JsonResponse(
+                {"error": "No tiene permiso para editar los montos de la factura."},
+                status=403,
+            )
+
+        ticket_lines = build_invoice_preview_lines(invoice, amount_overrides=overrides)
+        total = compute_invoice_total(invoice, overrides)
+        return JsonResponse(
+            {
+                "ticket_lines": ticket_lines,
+                "monto_total": str(total),
+                "monto_total_fmt": _format_currency_ves(total),
+            }
+        )
 
 
 class PrintInvoiceActionView(PermissionRequiredMixin, View):
     required_permission = "billing.print_invoice"
+
     def post(self, request, pk):
         invoice = get_object_or_404(Invoice, pk=pk)
-        detail_url = reverse('billing:invoice_detail', kwargs={'pk': pk})
-        next_url = _get_safe_next_url(request, request.POST.get('next', ''))
+        detail_url = reverse("billing:invoice_detail", kwargs={"pk": pk})
+        next_url = _get_safe_next_url(request, request.POST.get("next", ""))
         if next_url:
-            detail_url = f"{detail_url}?{urlencode({'next': next_url})}"
-        
+            detail_url = "{}?{}".format(detail_url, urlencode({"next": next_url}))
+
         if invoice.esta_impresa:
             messages.error(request, "Esta factura ya ha sido impresa y no se puede volver a imprimir.")
             return redirect(detail_url)
 
         try:
+            has_edit_perm = has_permission(request.user, "billing.edit_invoice")
+            if not invoice.esta_impresa and post_amount_edits_differ_from_stored(
+                request.POST, invoice
+            ):
+                if not has_edit_perm:
+                    messages.error(
+                        request,
+                        "No tiene permiso para editar los montos de la factura.",
+                    )
+                    return redirect(detail_url)
+
+            if not invoice.esta_impresa and has_edit_perm:
+                edits = build_amount_overrides_from_post(request.POST, invoice)
+                if invoice.has_detail_lines():
+                    line_edits = {int(k): v for k, v in edits.items()}
+                else:
+                    line_edits = edits
+                if line_edits:
+                    apply_invoice_amount_edits(invoice, line_edits)
+                    invoice.refresh_from_db()
+
             print_invoice(invoice)
-            messages.success(request, f"Factura {invoice.nro_control} enviada a la impresora con éxito.")
+            messages.success(request, "Factura {} enviada a la impresora con éxito.".format(invoice.nro_control))
+        except ValidationError as exc:
+            for msg in exc.messages:
+                messages.error(request, msg)
         except Exception as e:
-            messages.error(request, f"Error al imprimir la factura: {str(e)}")
+            messages.error(request, "Error al imprimir la factura: {}".format(str(e)))
 
         return redirect(detail_url)
 

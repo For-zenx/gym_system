@@ -780,3 +780,118 @@ def delete_invoice(invoice):
     nro_control = invoice.nro_control
     invoice.delete()
     return nro_control
+
+
+def _parse_ves_amount(amount_raw):
+    amount_str = (amount_raw or "").strip()
+    if not amount_str:
+        raise ValidationError("El monto no puede estar vacío.")
+    normalized = amount_str.replace("Bs", "").strip()
+    if "," in normalized and "." in normalized:
+        normalized = normalized.replace(".", "").replace(",", ".")
+    else:
+        normalized = normalized.replace(",", ".")
+    try:
+        amount = Decimal(normalized)
+    except Exception as exc:
+        raise ValidationError("El monto no es un número válido.") from exc
+    if amount < 0:
+        raise ValidationError("El monto no puede ser negativo.")
+    return amount.quantize(Decimal("0.01"))
+
+
+def parse_invoice_amount_edits_from_post(post_data, invoice):
+    from .models import InvoiceLine
+
+    edits = {}
+    if invoice.has_detail_lines():
+        for line in invoice.lines.all():
+            key = "line_amount_{}".format(line.pk)
+            if key not in post_data:
+                continue
+            edits[line.pk] = _parse_ves_amount(post_data.get(key))
+        return edits
+
+    if "legacy_monto_total" in post_data:
+        edits["legacy_total"] = _parse_ves_amount(post_data.get("legacy_monto_total"))
+    return edits
+
+
+def build_amount_overrides_from_post(post_data, invoice):
+    edits = parse_invoice_amount_edits_from_post(post_data, invoice)
+    if invoice.has_detail_lines():
+        return edits
+    if "legacy_total" in edits:
+        return {"legacy_total": edits["legacy_total"]}
+    return {}
+
+
+def invoice_amount_edits_differ_from_stored(invoice, edits):
+    if not edits:
+        return False
+
+    if invoice.has_detail_lines():
+        stored = {line.pk: line.amount_ves for line in invoice.lines.all()}
+        for line_id, amount in edits.items():
+            stored_amount = stored.get(int(line_id))
+            if stored_amount is None:
+                continue
+            if amount != stored_amount:
+                return True
+        return False
+
+    if "legacy_total" in edits:
+        return edits["legacy_total"] != invoice.monto_total
+    return False
+
+
+def post_amount_edits_differ_from_stored(post_data, invoice):
+    try:
+        edits = parse_invoice_amount_edits_from_post(post_data, invoice)
+    except ValidationError:
+        return True
+    return invoice_amount_edits_differ_from_stored(invoice, edits)
+
+
+@transaction.atomic
+def apply_invoice_amount_edits(invoice, edits):
+    from .models import InvoiceLine
+
+    if invoice.esta_impresa:
+        raise ValidationError("No se puede editar una factura que ya ha sido impresa.")
+
+    if not edits:
+        return invoice
+
+    if invoice.has_detail_lines():
+        line_map = {line.pk: line for line in invoice.lines.select_for_update()}
+        total = Decimal("0.00")
+        multa_ves = Decimal("0.00")
+
+        for line_id, amount in edits.items():
+            line = line_map.get(int(line_id))
+            if line is None:
+                continue
+            line.amount_ves = amount
+            line.save(update_fields=["amount_ves"])
+
+        for line in invoice.lines.all():
+            total += line.amount_ves
+            if line.line_kind == InvoiceLine.LineKind.LATE_FEE:
+                multa_ves += line.amount_ves
+
+        invoice.monto_total = total
+        invoice.multa_ves = multa_ves
+        if multa_ves > 0:
+            tasa = ExchangeRate.get_latest()
+            if tasa and tasa.tasa_ves:
+                invoice.multa_usd = (multa_ves / tasa.tasa_ves).quantize(Decimal("0.01"))
+        else:
+            invoice.multa_usd = Decimal("0.00")
+        invoice.save(update_fields=["monto_total", "multa_ves", "multa_usd"])
+        return invoice
+
+    if "legacy_total" in edits:
+        invoice.monto_total = edits["legacy_total"]
+        invoice.save(update_fields=["monto_total"])
+    return invoice

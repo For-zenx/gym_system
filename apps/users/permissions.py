@@ -36,6 +36,7 @@ PERMISSION_GROUPS = {
             ("billing.view_invoices", "Ver historial de facturas"),
             ("billing.view_invoice_detail", "Ver detalle / ticket"),
             ("billing.print_invoice", "Imprimir factura"),
+            ("billing.edit_invoice", "Editar montos de factura antes de imprimir"),
             ("billing.delete_invoice", "Eliminar facturas"),
         ],
     },
