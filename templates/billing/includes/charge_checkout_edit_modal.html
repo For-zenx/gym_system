@@ -22,10 +22,7 @@
                 </div>
             </div>
 
-            <div class="form-group">
-                <label for="edit_telefono">Número de teléfono</label>
-                <input type="text" id="edit_telefono" name="telefono" value="{{ form_telefono }}">
-            </div>
+            {% include "clients/includes/phone_edit_field.html" with field_id="edit_telefono" %}
 
             <div class="form-group">
                 <label for="edit_fecha_nacimiento">Fecha de nacimiento (opcional)</label>

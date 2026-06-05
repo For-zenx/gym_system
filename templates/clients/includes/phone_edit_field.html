@@ -1,0 +1,9 @@
+<div class="form-group">
+    <label for="{{ field_id }}">Número de Teléfono</label>
+    {% if 'clients.view_phone' in user_permissions %}
+    <input type="text" id="{{ field_id }}" name="telefono" value="{{ form_telefono }}">
+    {% else %}
+    <input type="text" id="{{ field_id }}" name="telefono" value="" placeholder="Dejar vacío para no cambiar" autocomplete="off">
+    <p class="config-muted" style="font-size: 0.85rem; margin: 0.35rem 0 0;">Puede actualizar el teléfono sin ver el número registrado.</p>
+    {% endif %}
+</div>

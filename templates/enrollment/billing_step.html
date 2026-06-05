@@ -1,6 +1,6 @@
 {# DEPRECATED: reemplazado por billing/charge_checkout.html — enrollment_billing redirige a billing:charge_checkout #}
 {% extends 'base.html' %}
-{% load static %}
+{% load static perm_tags %}
 
 {% block title %}Facturación - Perfect Line II{% endblock %}
 {% block page_title %}Facturación Inicial{% endblock %}
@@ -26,7 +26,7 @@
         <div style="text-align: left; background: var(--bg-main); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
             <div style="margin-bottom: 0.5rem;"><strong style="color: var(--text-muted);">Cédula:</strong> {{ client.cedula }}</div>
             <div style="margin-bottom: 0.5rem;"><strong style="color: var(--text-muted);">Código:</strong> {{ client.codigo_afiliado }}</div>
-            <div><strong style="color: var(--text-muted);">Teléfono:</strong> {{ client.telefono|default:"No especificado" }}</div>
+            <div><strong style="color: var(--text-muted);">Teléfono:</strong> {% client_phone_display client.telefono %}</div>
             <div style="margin-bottom: 0.5rem; margin-top: 0.5rem;"><strong style="color: var(--text-muted);">Nacimiento:</strong> {% if client.fecha_nacimiento %}{{ client.fecha_nacimiento|date:"d/m/Y" }}{% else %}No especificado{% endif %}</div>
             <div><strong style="color: var(--text-muted);">Sexo:</strong> {% if client.sexo %}{{ client.get_sexo_display }}{% else %}No especificado{% endif %}</div>
         </div>
@@ -85,10 +85,7 @@
                 </div>
             </div>
 
-            <div class="form-group">
-                <label for="edit_telefono">Número de Teléfono</label>
-                <input type="text" id="edit_telefono" name="telefono" value="{{ form_telefono }}">
-            </div>
+            {% include "clients/includes/phone_edit_field.html" with field_id="edit_telefono" %}
 
             <div class="form-group">
                 <label for="edit_fecha_nacimiento">Fecha de Nacimiento (Opcional)</label>

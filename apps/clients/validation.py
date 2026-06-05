@@ -6,6 +6,24 @@ CEDULA_PATTERN = re.compile(r'^[VJ]-\d{6,10}$')
 NAME_PATTERN = re.compile(r"^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s'\-]+$")
 PHONE_DIGITS_PATTERN = re.compile(r'^[\d\s+\-]+$')
 VALID_SEX_VALUES = ('', 'M', 'F')
+PHONE_MASKED_DISPLAY = "**********"
+PHONE_UNAUTHORIZED_DISPLAY = "No autorizado"
+
+
+def display_client_phone(telefono, can_view_phone):
+    if can_view_phone:
+        return telefono or "N/A"
+    if telefono:
+        return PHONE_MASKED_DISPLAY
+    return PHONE_UNAUTHORIZED_DISPLAY
+
+
+def display_client_phone_feed(telefono, can_view_phone):
+    if can_view_phone:
+        return telefono or "No registrado"
+    if telefono:
+        return PHONE_MASKED_DISPLAY
+    return "No registrado"
 
 
 def split_cedula(stored):
@@ -94,7 +112,7 @@ def validate_client_data(nombre, cedula_prefix, cedula_numero, telefono, fecha_n
     return errors, cleaned
 
 
-def client_form_context(client=None, post_data=None):
+def client_form_context(client=None, post_data=None, can_view_phone=True):
     if post_data is not None:
         prefix = post_data.get('cedula_prefix', 'V-')
         numero = post_data.get('cedula_numero', '')
@@ -105,6 +123,7 @@ def client_form_context(client=None, post_data=None):
             'form_telefono': post_data.get('telefono', ''),
             'form_fecha_nacimiento': post_data.get('fecha_nacimiento', ''),
             'form_sexo': post_data.get('sexo', ''),
+            'can_view_client_phone': can_view_phone,
         }
     if client:
         prefix, numero = split_cedula(client.cedula)
@@ -112,9 +131,10 @@ def client_form_context(client=None, post_data=None):
             'form_nombre': client.nombre,
             'form_cedula_prefix': prefix,
             'form_cedula_numero': numero,
-            'form_telefono': client.telefono or '',
+            'form_telefono': (client.telefono or '') if can_view_phone else '',
             'form_fecha_nacimiento': client.fecha_nacimiento.isoformat() if client.fecha_nacimiento else '',
             'form_sexo': client.sexo or '',
+            'can_view_client_phone': can_view_phone,
         }
     return {
         'form_nombre': '',
@@ -123,12 +143,16 @@ def client_form_context(client=None, post_data=None):
         'form_telefono': '',
         'form_fecha_nacimiento': '',
         'form_sexo': '',
+        'can_view_client_phone': can_view_phone,
     }
 
 
-def apply_client_fields(client, cleaned):
+def apply_client_fields(client, cleaned, preserve_phone_if_blank=False):
     client.nombre = cleaned['nombre']
     client.cedula = cleaned['cedula']
-    client.telefono = cleaned['telefono'] or None
+    if preserve_phone_if_blank and not cleaned['telefono']:
+        pass
+    else:
+        client.telefono = cleaned['telefono'] or None
     client.fecha_nacimiento = cleaned['fecha_nacimiento']
     client.sexo = cleaned['sexo']

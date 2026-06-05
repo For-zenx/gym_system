@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static billing_extras %}
+{% load static billing_extras perm_tags %}
 
 {% block title %}Inicio - Perfect Line II{% endblock %}
 {% block page_title %}Inicio{% endblock %}
@@ -35,7 +35,7 @@
                     </div>
                     <div class="feed-data-item">
                         <span class="feed-data-label">Teléfono</span>
-                        <span class="feed-data-value">{{ log.client.telefono|default:"No registrado" }}</span>
+                        <span class="feed-data-value">{% client_phone_display_feed log.client.telefono %}</span>
                     </div>
                     <div class="feed-data-item">
                         <span class="feed-data-label">Ingreso al Sistema</span>
@@ -56,6 +56,18 @@
 
 {% block extra_js %}
 <script>
+    window.USER_CAN_VIEW_PHONE = {% if 'clients.view_phone' in user_permissions %}true{% else %}false{% endif %};
+
+    function formatFeedPhoneDisplay(telefono) {
+        if (window.USER_CAN_VIEW_PHONE) {
+            return telefono ? telefono : 'No registrado';
+        }
+        if (telefono) {
+            return '**********';
+        }
+        return 'No registrado';
+    }
+
     window.addEventListener('newAccessLog', function(e) {
         const data = e.detail;
         const grid = document.getElementById('live-feed-grid');
@@ -75,7 +87,7 @@
         const photoUrl = data.photo_url ? data.photo_url : '{% static "img/gym_bg.png" %}';
         
         const membershipLines = data.membership_lines || [];
-        const telText = data.telefono ? data.telefono : 'No registrado';
+        const telText = formatFeedPhoneDisplay(data.telefono);
 
         function escapeHtml(text) {
             if (!text) return '';

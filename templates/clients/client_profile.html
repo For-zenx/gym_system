@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static perm_tags %}
 
 {% block title %}Perfil: {{ client.nombre }} - Perfect Line II{% endblock %}
 {% block page_title %}Perfil del Afiliado{% endblock %}
@@ -42,7 +42,7 @@
             <dl class="profile-meta-grid">
                 <div class="profile-meta-item"><dt>C.I.</dt><dd>{{ client.cedula }}</dd></div>
                 <div class="profile-meta-item"><dt>Código</dt><dd>{{ client.codigo_afiliado }}</dd></div>
-                <div class="profile-meta-item"><dt>Teléfono</dt><dd>{{ client.telefono|default:"N/A" }}</dd></div>
+                <div class="profile-meta-item"><dt>Teléfono</dt><dd>{% client_phone_display client.telefono %}</dd></div>
                 <div class="profile-meta-item"><dt>Nacimiento</dt><dd>{% if client.fecha_nacimiento %}{{ client.fecha_nacimiento|date:"d/m/Y" }}{% else %}N/A{% endif %}</dd></div>
                 <div class="profile-meta-item"><dt>Sexo</dt><dd>{% if client.sexo %}{{ client.get_sexo_display }}{% else %}N/A{% endif %}</dd></div>
                 <div class="profile-meta-item">
@@ -285,10 +285,7 @@
                         <input type="text" id="edit_cedula_numero" name="cedula_numero" required inputmode="numeric" placeholder="12345678" value="{{ form_cedula_numero }}">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="edit_telefono">Número de Teléfono</label>
-                    <input type="text" id="edit_telefono" name="telefono" value="{{ form_telefono }}">
-                </div>
+                {% include "clients/includes/phone_edit_field.html" with field_id="edit_telefono" %}
                 <div class="form-group">
                     <label for="edit_fecha_nacimiento">Fecha de Nacimiento (Opcional)</label>
                     <input type="date" id="edit_fecha_nacimiento" name="fecha_nacimiento" value="{{ form_fecha_nacimiento }}">

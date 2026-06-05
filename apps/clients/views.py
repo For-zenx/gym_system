@@ -10,6 +10,7 @@ from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
 from apps.billing.services import get_profile_subscription_summary
 from apps.billing.services import get_chargeable_plans
 from apps.users.mixins import PermissionRequiredMixin
+from apps.users.permissions import has_permission
 
 
 class ClientListView(PermissionRequiredMixin, ListView):
@@ -58,7 +59,10 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
         context['has_chargeable_plans'] = bool(
             get_chargeable_plans(self.object, active_plans)
         )
-        context.update(client_form_context(client=self.object))
+        can_view_phone = has_permission(self.request.user, "clients.view_phone")
+        context.update(
+            client_form_context(client=self.object, can_view_phone=can_view_phone)
+        )
         return context
 
 
@@ -82,7 +86,11 @@ class EditClientView(PermissionRequiredMixin, View):
         elif Client.objects.filter(cedula=cleaned['cedula']).exclude(pk=client.pk).exists():
             messages.error(request, 'Ya existe otro afiliado con esa cédula/RIF.')
         else:
-            apply_client_fields(client, cleaned)
+            preserve_phone = (
+                not has_permission(request.user, "clients.view_phone")
+                and not cleaned["telefono"]
+            )
+            apply_client_fields(client, cleaned, preserve_phone_if_blank=preserve_phone)
             client.save()
             messages.success(request, 'Datos actualizados correctamente.')
 

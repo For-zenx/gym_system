@@ -16,6 +16,7 @@ PERMISSION_GROUPS = {
             ("clients.view_list", "Ver lista de afiliados"),
             ("clients.view_profile", "Ver perfil del afiliado"),
             ("clients.edit", "Editar datos personales"),
+            ("clients.view_phone", "Ver teléfono del afiliado"),
             ("clients.enroll", "Enrolar nuevos afiliados"),
             ("clients.delete", "Eliminar afiliados"),
         ],

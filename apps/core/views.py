@@ -11,6 +11,7 @@ from apps.clients.validation import validate_client_data, client_form_context, a
 from apps.access.models import AccessLog
 from apps.access import ai_engine
 from apps.users.decorators import permission_required
+from apps.users.permissions import has_permission
 
 def get_next_codigo_afiliado():
     last_client = Client.objects.order_by('id').last()
@@ -78,7 +79,11 @@ def enrollment(request):
             client = Client.objects.filter(cedula=cedula).first()
 
             if client:
-                apply_client_fields(client, cleaned)
+                preserve_phone = (
+                    not has_permission(request.user, "clients.view_phone")
+                    and not cleaned["telefono"]
+                )
+                apply_client_fields(client, cleaned, preserve_phone_if_blank=preserve_phone)
                 msg_action = "actualizado"
             else:
                 codigo = get_next_codigo_afiliado()

@@ -209,10 +209,11 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
 
         from apps.clients.validation import client_form_context
         from apps.billing.services import get_profile_subscription_summary
-
-        context.update(client_form_context(client=client))
-        context["subscription_summary"] = get_profile_subscription_summary(client)
         from apps.users.permissions import has_permission
+
+        can_view_phone = has_permission(request.user, "clients.view_phone")
+        context.update(client_form_context(client=client, can_view_phone=can_view_phone))
+        context["subscription_summary"] = get_profile_subscription_summary(client)
 
         sale_items = SaleItem.objects.filter(is_active=True)
         context["sale_items"] = sale_items
