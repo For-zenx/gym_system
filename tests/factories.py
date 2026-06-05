@@ -1,7 +1,9 @@
 import itertools
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 
+from apps.billing.models import Plan
 from apps.clients.models import Client
 from apps.users.models import StaffProfile
 from apps.users.permissions import validate_permissions
@@ -10,6 +12,7 @@ User = get_user_model()
 
 _user_counter = itertools.count(1)
 _client_counter = itertools.count(1)
+_plan_counter = itertools.count(1)
 
 
 def create_staff_user(permissions=None, username=None, password="testpass123", is_superuser=False):
@@ -45,4 +48,15 @@ def create_client(cedula=None, nombre=None, codigo_afiliado=None, telefono=None)
         nombre=nombre or "Afiliado Test {}".format(seq),
         codigo_afiliado=codigo_afiliado or "M-{:05d}-00".format(seq),
         telefono=telefono,
+    )
+
+
+def create_plan(nombre=None, billing_type=Plan.BillingType.FLEXIBLE, dias_duracion=30, precio_usd=None):
+    seq = next(_plan_counter)
+    return Plan.objects.create(
+        nombre=nombre or "Plan Test {}".format(seq),
+        billing_type=billing_type,
+        dias_duracion=dias_duracion if billing_type == Plan.BillingType.FLEXIBLE else None,
+        precio_usd=precio_usd or Decimal("10.00"),
+        is_active=True,
     )

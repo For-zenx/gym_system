@@ -22,3 +22,8 @@ def create_staff_user(db):
 @pytest.fixture
 def create_client(db):
     return factories.create_client
+
+
+@pytest.fixture
+def create_plan(db):
+    return factories.create_plan
