@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 
-from apps.billing.models import Plan
+from apps.billing.models import Plan, SaleItem
 from apps.clients.models import Client
 from apps.users.models import StaffProfile
 from apps.users.permissions import validate_permissions
@@ -13,6 +13,7 @@ User = get_user_model()
 _user_counter = itertools.count(1)
 _client_counter = itertools.count(1)
 _plan_counter = itertools.count(1)
+_sale_item_counter = itertools.count(1)
 
 
 def create_staff_user(permissions=None, username=None, password="testpass123", is_superuser=False):
@@ -58,5 +59,15 @@ def create_plan(nombre=None, billing_type=Plan.BillingType.FLEXIBLE, dias_duraci
         billing_type=billing_type,
         dias_duracion=dias_duracion if billing_type == Plan.BillingType.FLEXIBLE else None,
         precio_usd=precio_usd or Decimal("10.00"),
+        is_active=True,
+    )
+
+
+def create_sale_item(name=None, item_type=SaleItem.ItemType.PRODUCT, price_usd=None):
+    seq = next(_sale_item_counter)
+    return SaleItem.objects.create(
+        name=name or "Producto Test {}".format(seq),
+        item_type=item_type,
+        price_usd=price_usd or Decimal("5.00"),
         is_active=True,
     )

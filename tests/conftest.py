@@ -27,3 +27,8 @@ def create_client(db):
 @pytest.fixture
 def create_plan(db):
     return factories.create_plan
+
+
+@pytest.fixture
+def create_sale_item(db):
+    return factories.create_sale_item
