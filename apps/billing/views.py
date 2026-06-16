@@ -59,6 +59,8 @@ def _charge_form_context(client, planes):
         plan_previews[str(plan.id)] = {
             "inicio": preview["fecha_inicio"].strftime("%d/%m/%Y"),
             "fin": preview["fecha_fin"].strftime("%d/%m/%Y"),
+            "fecha_inicio_iso": preview["fecha_inicio"].isoformat(),
+            "fecha_fin_iso": preview["fecha_fin"].isoformat(),
             "billing_type": plan.billing_type,
             "assigns_cut_date": preview.get("assigns_cut_date", False),
             "duracion": plan.duracion_display,
@@ -241,8 +243,20 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
                     "name": item.name,
                     "price_usd": str(item.price_usd),
                     "item_type": item.item_type,
+                    "requires_locker_assignment": item.requires_locker_assignment,
                 }
                 for item in sale_items
+            ]
+        )
+        from apps.lockers.services import get_available_lockers
+
+        context["available_lockers_json"] = json.dumps(
+            [
+                {
+                    "id": locker.pk,
+                    "number": locker.number,
+                }
+                for locker in get_available_lockers()
             ]
         )
         return render(request, "billing/charge_checkout.html", context)
@@ -423,7 +437,14 @@ class SaleItemCreateView(PermissionRequiredMixin, CreateView):
     fields = ["name", "description", "item_type", "price_usd"]
     success_url = reverse_lazy("billing:product_list")
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["is_system_locker_item"] = False
+        return context
+
     def form_valid(self, form):
+        form.instance.requires_locker_assignment = False
+        form.instance.default_rental_days = 30
         messages.success(self.request, "Producto registrado correctamente.")
         return super().form_valid(form)
 
@@ -435,7 +456,37 @@ class SaleItemUpdateView(PermissionRequiredMixin, UpdateView):
     fields = ["name", "description", "item_type", "price_usd"]
     success_url = reverse_lazy("billing:product_list")
 
+    def _apply_form_fields(self):
+        if self.object.is_system_managed:
+            self.fields = ["name", "description", "price_usd", "default_rental_days"]
+        else:
+            self.fields = ["name", "description", "item_type", "price_usd"]
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self._apply_form_fields()
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self._apply_form_fields()
+        return super().post(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["is_system_locker_item"] = bool(
+            self.object and self.object.is_system_managed
+        )
+        return context
+
     def form_valid(self, form):
+        if self.object.is_system_managed:
+            form.instance.requires_locker_assignment = True
+            form.instance.item_type = SaleItem.ItemType.SERVICE
+            form.instance.system_code = self.object.system_code
+        else:
+            form.instance.requires_locker_assignment = False
+            form.instance.default_rental_days = 30
         messages.success(self.request, "Producto actualizado correctamente.")
         return super().form_valid(form)
 
@@ -445,6 +496,9 @@ class SaleItemDeleteView(PermissionRequiredMixin, View):
 
     def post(self, request, pk):
         item = get_object_or_404(SaleItem, pk=pk)
+        if item.is_system_managed:
+            messages.error(request, "El servicio de casillero del sistema no se puede desactivar.")
+            return redirect("billing:product_list")
         item.is_active = False
         item.save(update_fields=["is_active"])
         messages.success(request, "Producto desactivado correctamente.")

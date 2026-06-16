@@ -8,6 +8,7 @@ from .models import (
     ExchangeRate,
     BillingSettings,
     ClientBillingEvent,
+    ClientServicePeriod,
 )
 
 
@@ -15,6 +16,13 @@ from .models import (
 class SaleItemAdmin(admin.ModelAdmin):
     list_display = ("name", "item_type", "price_usd", "is_active")
     list_filter = ("item_type", "is_active")
+
+
+@admin.register(ClientServicePeriod)
+class ClientServicePeriodAdmin(admin.ModelAdmin):
+    list_display = ("client", "sale_item", "start_date", "end_date", "status")
+    list_filter = ("status",)
+    raw_id_fields = ("client", "sale_item", "membership", "invoice_line")
 
 
 @admin.register(Plan)

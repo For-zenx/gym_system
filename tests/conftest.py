@@ -42,3 +42,8 @@ def create_staff_role(db):
 @pytest.fixture
 def create_invoice(db):
     return factories.create_invoice
+
+
+@pytest.fixture
+def exchange_rate(db):
+    return factories.create_exchange_rate()

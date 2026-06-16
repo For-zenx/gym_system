@@ -37,6 +37,7 @@ urlpatterns = [
     path('tablet/', RedirectView.as_view(url='/tablet/acceso/', permanent=True), name='tablet'),
     path('afiliados/', include('apps.clients.urls')),
     path('billing/', include('apps.billing.urls')),
+    path('casilleros/', include('apps.lockers.urls')),
     path('historial/', include('apps.access.urls')),
     path('configuracion/', include('apps.users.urls')),
     path('perfil/', StaffProfileView.as_view(), name='staff_profile'),

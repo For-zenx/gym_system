@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.core.exceptions import ValidationError
 from datetime import timedelta
 from django.utils import timezone
@@ -199,6 +200,9 @@ class SaleItem(models.Model):
         SERVICE = "SERVICE", "Servicio"
         PRODUCT = "PRODUCT", "Producto"
 
+    class SystemCode(models.TextChoices):
+        LOCKER_RENTAL = "LOCKER_RENTAL", "Alquiler de casillero"
+
     name = models.CharField("Nombre", max_length=100)
     description = models.TextField("Descripción", blank=True)
     item_type = models.CharField(
@@ -208,6 +212,16 @@ class SaleItem(models.Model):
         default=ItemType.SERVICE,
     )
     price_usd = models.DecimalField("Precio (USD)", max_digits=12, decimal_places=2)
+    requires_locker_assignment = models.BooleanField("Requiere asignación de casillero", default=False)
+    default_rental_days = models.PositiveSmallIntegerField("Días de alquiler por defecto", default=30)
+    system_code = models.CharField(
+        "Código de sistema",
+        max_length=32,
+        choices=SystemCode.choices,
+        null=True,
+        blank=True,
+        unique=True,
+    )
     is_active = models.BooleanField("Activo", default=True)
     sort_order = models.PositiveIntegerField("Orden", default=0)
 
@@ -215,6 +229,21 @@ class SaleItem(models.Model):
         verbose_name = "Producto o servicio"
         verbose_name_plural = "Productos y servicios"
         ordering = ["name", "id"]
+
+    @property
+    def is_system_managed(self):
+        return bool(self.system_code)
+
+    @property
+    def is_plan_linked_service(self):
+        return self.item_type == self.ItemType.SERVICE
+
+    @classmethod
+    def get_locker_rental_item(cls):
+        return cls.objects.filter(
+            system_code=cls.SystemCode.LOCKER_RENTAL,
+            is_active=True,
+        ).first()
 
     def __str__(self):
         return f"{self.name} (${self.price_usd})"
@@ -298,6 +327,82 @@ class Membership(models.Model):
 
     def __str__(self):
         return f"Membresía de {self.client.nombre} - Vence: {self.fecha_fin}"
+
+
+class ClientServicePeriod(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Activo"
+        EXPIRED = "EXPIRED", "Vencido"
+        CANCELLED = "CANCELLED", "Cancelado"
+
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name="service_periods",
+        verbose_name="Afiliado",
+    )
+    sale_item = models.ForeignKey(
+        SaleItem,
+        on_delete=models.PROTECT,
+        related_name="service_periods",
+        verbose_name="Servicio",
+    )
+    membership = models.ForeignKey(
+        Membership,
+        on_delete=models.PROTECT,
+        related_name="service_periods",
+        verbose_name="Membresía",
+    )
+    invoice_line = models.ForeignKey(
+        "InvoiceLine",
+        on_delete=models.SET_NULL,
+        related_name="service_periods",
+        verbose_name="Línea de factura",
+        null=True,
+        blank=True,
+    )
+    start_date = models.DateField("Inicio")
+    end_date = models.DateField("Vencimiento")
+    status = models.CharField(
+        "Estado",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_service_periods",
+        verbose_name="Registrado por",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField("Creado", auto_now_add=True)
+    updated_at = models.DateTimeField("Actualizado", auto_now=True)
+
+    class Meta:
+        verbose_name = "Periodo de servicio"
+        verbose_name_plural = "Periodos de servicio"
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["client", "sale_item"],
+                condition=Q(status="ACTIVE"),
+                name="unique_active_service_period_per_client_item",
+            ),
+        ]
+
+    @property
+    def is_current(self):
+        return self.status == self.Status.ACTIVE and self.end_date >= timezone.localdate()
+
+    def __str__(self):
+        return "{} — {} ({} al {})".format(
+            self.client.nombre,
+            self.sale_item.name,
+            self.start_date,
+            self.end_date,
+        )
 
 
 class Invoice(models.Model):

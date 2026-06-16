@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if object %}Editar casillero{% else %}Nuevo casillero{% endif %} - Perfect Line II{% endblock %}
+{% block page_title %}{% if object %}Editar casillero{% else %}Nuevo casillero{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/lockers.css' %}?v=1.0">
+{% endblock %}
+
+{% block content %}
+<div class="locker-form-page">
+    <a href="{% url 'lockers:locker_list' %}" class="btn btn-secondary locker-form-back">&larr; Volver a casilleros</a>
+
+    <div class="locker-form-card">
+        <h3 class="locker-form-title">
+            {% if object %}Editar casillero {{ object.number }}{% else %}Nuevo casillero{% endif %}
+        </h3>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="locker-form-group">
+                <label for="id_number">Número</label>
+                <input type="text" name="number" id="id_number" value="{{ form.number.value|default:'' }}" maxlength="30" required class="form-control" placeholder="Ej. 12, A-3">
+                {% if form.number.errors %}<small class="locker-form-error">{{ form.number.errors|striptags }}</small>{% endif %}
+            </div>
+
+            <div class="locker-form-group">
+                <label for="id_status">Estado</label>
+                <select name="status" id="id_status" class="form-control" required>
+                    <option value="AVAILABLE" {% if form.status.value == 'AVAILABLE' or not form.status.value %}selected{% endif %}>Disponible</option>
+                    <option value="OCCUPIED" {% if form.status.value == 'OCCUPIED' %}selected{% endif %}>Ocupado</option>
+                    <option value="MAINTENANCE" {% if form.status.value == 'MAINTENANCE' %}selected{% endif %}>Mantenimiento</option>
+                    <option value="INACTIVE" {% if form.status.value == 'INACTIVE' %}selected{% endif %}>Inactivo</option>
+                </select>
+                {% if form.status.errors %}<small class="locker-form-error">{{ form.status.errors|striptags }}</small>{% endif %}
+            </div>
+
+            <div class="locker-form-group">
+                <label for="id_notes">Notas</label>
+                <textarea name="notes" id="id_notes" rows="3" class="form-control" placeholder="Detalle interno para el personal">{{ form.notes.value|default:'' }}</textarea>
+                {% if form.notes.errors %}<small class="locker-form-error">{{ form.notes.errors|striptags }}</small>{% endif %}
+            </div>
+
+            <div class="locker-form-actions">
+                <a href="{% url 'lockers:locker_list' %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Guardar casillero</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

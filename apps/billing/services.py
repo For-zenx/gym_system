@@ -22,6 +22,7 @@ from .models import (
     SaleItem,
     BillingSettings,
     ClientBillingEvent,
+    ClientServicePeriod,
 )
 
 CUT_DATE_CHANGE_REASONS = (
@@ -493,8 +494,107 @@ def parse_product_lines_from_post(post):
         except (TypeError, ValueError):
             qty = 0
         if qty > 0:
-            lines.append((item_id, qty))
+            lines.append(
+                {
+                    "item_id": item_id,
+                    "qty": qty,
+                    "locker_id": (post.get("locker_id_{}".format(item_id)) or "").strip(),
+                    "locker_start": (post.get("locker_start_{}".format(item_id)) or "").strip(),
+                    "locker_end": (post.get("locker_end_{}".format(item_id)) or "").strip(),
+                }
+            )
     return lines
+
+
+def _normalize_product_line(product_line):
+    if isinstance(product_line, dict):
+        return product_line
+    item_id, qty = product_line
+    return {
+        "item_id": item_id,
+        "qty": qty,
+        "locker_id": "",
+        "locker_start": "",
+        "locker_end": "",
+    }
+
+
+def _validate_checkout_product_lines(product_lines, plan):
+    for product_line in product_lines:
+        product_line = _normalize_product_line(product_line)
+        sale_item = SaleItem.objects.filter(pk=product_line["item_id"], is_active=True).first()
+        if sale_item and sale_item.is_plan_linked_service and not plan:
+            raise ValidationError(
+                "Los servicios requieren seleccionar un plan en el mismo cobro."
+            )
+
+
+def expire_overdue_service_periods():
+    today = timezone.localdate()
+    ClientServicePeriod.objects.filter(
+        status=ClientServicePeriod.Status.ACTIVE,
+        end_date__lt=today,
+    ).update(status=ClientServicePeriod.Status.EXPIRED)
+
+
+def validate_service_period_available(client, sale_item):
+    expire_overdue_service_periods()
+    if ClientServicePeriod.objects.filter(
+        client=client,
+        sale_item=sale_item,
+        status=ClientServicePeriod.Status.ACTIVE,
+    ).exists():
+        raise ValidationError(
+            "Este afiliado ya tiene el servicio «{}» activo.".format(sale_item.name)
+        )
+
+
+@transaction.atomic
+def create_service_period(
+    client,
+    sale_item,
+    membership,
+    invoice_line=None,
+    start_date=None,
+    end_date=None,
+    user=None,
+):
+    validate_service_period_available(client, sale_item)
+    if start_date is None:
+        start_date = membership.fecha_inicio
+    if end_date is None:
+        end_date = membership.fecha_fin
+    return ClientServicePeriod.objects.create(
+        client=client,
+        sale_item=sale_item,
+        membership=membership,
+        invoice_line=invoice_line,
+        start_date=start_date,
+        end_date=end_date,
+        created_by=user if getattr(user, "is_authenticated", False) else None,
+    )
+
+
+def get_active_service_periods_for_client(client):
+    expire_overdue_service_periods()
+    today = timezone.localdate()
+    return (
+        ClientServicePeriod.objects.filter(
+            client=client,
+            status=ClientServicePeriod.Status.ACTIVE,
+            end_date__gte=today,
+        )
+        .select_related("sale_item", "membership")
+        .order_by("end_date", "id")
+    )
+
+
+def get_recent_service_periods_for_client(client, limit=5):
+    return (
+        ClientServicePeriod.objects.filter(client=client)
+        .select_related("sale_item", "membership", "invoice_line__invoice")
+        .order_by("-created_at", "-id")[:limit]
+    )
 
 
 def _membership_line_description(membership, plan):
@@ -524,6 +624,8 @@ def register_checkout(
     product_lines = product_lines or []
     if not plan and not product_lines:
         raise ValidationError("Debe incluir al menos una membresía o un producto en el cobro.")
+
+    _validate_checkout_product_lines(product_lines, plan)
 
     tasa = ExchangeRate.get_latest()
     if not tasa:
@@ -594,12 +696,60 @@ def register_checkout(
                             }
                         )
 
-        for item_id, qty in product_lines:
+        for product_line in product_lines:
+            product_line = _normalize_product_line(product_line)
+            item_id = product_line["item_id"]
+            qty = product_line["qty"]
             sale_item = SaleItem.objects.filter(pk=item_id, is_active=True).first()
             if not sale_item:
                 raise ValidationError("Uno de los productos seleccionados no está disponible.")
+            metadata = {}
+            locker_payload = None
+            service_payload = None
+            line_membership = None
+
+            if sale_item.is_plan_linked_service:
+                if not membership:
+                    raise ValidationError(
+                        "Los servicios requieren seleccionar un plan en el mismo cobro."
+                    )
+                line_membership = membership
+
+            if sale_item.requires_locker_assignment:
+                if qty != 1:
+                    raise ValidationError("Los servicios de casillero se cobran de uno en uno.")
+                from apps.lockers.services import (
+                    build_locker_checkout_metadata,
+                    validate_locker_checkout,
+                )
+
+                start_date = membership.fecha_inicio
+                end_date = membership.fecha_fin
+                locker = validate_locker_checkout(
+                    client,
+                    sale_item,
+                    product_line.get("locker_id"),
+                    start_date,
+                    end_date,
+                )
+                metadata = build_locker_checkout_metadata(locker, start_date, end_date)
+                locker_payload = {
+                    "locker_id": locker.pk,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "sale_item": sale_item,
+                }
+            elif sale_item.is_plan_linked_service:
+                validate_service_period_available(client, sale_item)
+                service_payload = {
+                    "sale_item": sale_item,
+                    "start_date": membership.fecha_inicio,
+                    "end_date": membership.fecha_fin,
+                }
             line_ves = sale_item.price_usd * tasa.tasa_ves * qty
             desc = sale_item.name
+            if locker_payload:
+                desc = "{} - Casillero {}".format(sale_item.name, metadata["locker_number"])
             if qty > 1:
                 desc = "{} x{}".format(sale_item.name, qty)
             pending_lines.append(
@@ -610,8 +760,10 @@ def register_checkout(
                     "unit_price_usd": sale_item.price_usd,
                     "amount_ves": line_ves,
                     "sale_item": sale_item,
-                    "membership": None,
-                    "metadata": {},
+                    "membership": line_membership,
+                    "metadata": metadata,
+                    "locker_payload": locker_payload,
+                    "service_payload": service_payload,
                 }
             )
 
@@ -637,7 +789,32 @@ def register_checkout(
             invoice.save(update_fields=["nro_control"])
 
         for line_data in pending_lines:
-            InvoiceLine.objects.create(invoice=invoice, **line_data)
+            locker_payload = line_data.pop("locker_payload", None)
+            service_payload = line_data.pop("service_payload", None)
+            invoice_line = InvoiceLine.objects.create(invoice=invoice, **line_data)
+            if service_payload:
+                create_service_period(
+                    client,
+                    service_payload["sale_item"],
+                    membership,
+                    invoice_line=invoice_line,
+                    start_date=service_payload["start_date"],
+                    end_date=service_payload["end_date"],
+                    user=acting_user,
+                )
+            if locker_payload:
+                from apps.lockers.services import create_locker_rental
+
+                create_locker_rental(
+                    client,
+                    locker_payload["sale_item"],
+                    locker_payload["locker_id"],
+                    locker_payload["start_date"],
+                    locker_payload["end_date"],
+                    invoice_line=invoice_line,
+                    membership=membership,
+                    user=acting_user,
+                )
 
         if was_reactivation:
             log_billing_event(

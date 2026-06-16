@@ -123,3 +123,36 @@ def test_client_delete__access(
     )
     if is_logged_in and "clients.delete" in permissions:
         assert Client.objects.filter(pk=affiliate.pk).exists()
+
+
+@pytest.mark.django_db
+def test_client_profile__active_services_display(
+    client,
+    create_staff_user,
+    create_client,
+    create_plan,
+    create_sale_item,
+    exchange_rate,
+):
+    from apps.billing.models import SaleItem
+    from apps.billing.services import register_checkout
+
+    affiliate = create_client()
+    plan = create_plan()
+    towel = create_sale_item(item_type=SaleItem.ItemType.SERVICE, name="Toallas Test")
+    register_checkout(
+        affiliate,
+        plan=plan,
+        product_lines=[{"item_id": towel.pk, "qty": 1}],
+    )
+
+    staff = create_staff_user(permissions=["clients.view_profile"])
+    client.force_login(staff)
+
+    url = reverse("clients:profile", kwargs={"codigo_afiliado": affiliate.codigo_afiliado})
+    response = client.get(url)
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "Toallas Test" in content
+    assert "Servicios activos" in content

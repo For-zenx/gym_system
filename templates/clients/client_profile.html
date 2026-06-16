@@ -96,6 +96,32 @@
                 </div>
                 {% endif %}
 
+                <div class="profile-caja-line">
+                    <dt>Casillero</dt>
+                    <dd>
+                        {% if active_locker_rental %}
+                        Casillero <strong>{{ active_locker_rental.locker.number }}</strong> hasta <strong>{{ active_locker_rental.end_date|date:"d/m/Y" }}</strong>
+                        {% else %}
+                        Sin casillero activo
+                        {% endif %}
+                    </dd>
+                </div>
+
+                <div class="profile-caja-line">
+                    <dt>Servicios activos</dt>
+                    <dd>
+                        {% if active_service_periods %}
+                        <ul class="profile-service-list">
+                            {% for period in active_service_periods %}
+                            <li>{{ period.sale_item.name }} vigente hasta <strong>{{ period.end_date|date:"d/m/Y" }}</strong></li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        Sin servicios adicionales activos
+                        {% endif %}
+                    </dd>
+                </div>
+
                 {% if subscription_summary.next_charge_hint and subscription_summary.fixed_line.kind == "active" %}
                 <div class="profile-caja-line profile-caja-line-muted">
                     <dt>Próximo periodo a cobrar</dt>
@@ -116,6 +142,36 @@
                             {% if group.period_count > 1 %}{{ group.period_count }} periodos{% else %}1 periodo{% endif %}
                             · {% if group.status == "active" %}Vigente{% elif group.status == "queued" %}Por iniciar{% else %}Vencido{% endif %}
                         </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+
+            {% if locker_rentals %}
+            <details class="profile-period-details">
+                <summary>Ver historial de casilleros</summary>
+                <ul class="profile-period-groups">
+                    {% for rental in locker_rentals %}
+                    <li class="profile-period-group">
+                        <span class="profile-period-plan">Casillero {{ rental.locker.number }}</span>
+                        <span class="profile-period-range">{{ rental.start_date|date:"d/m/Y" }} → {{ rental.end_date|date:"d/m/Y" }}</span>
+                        <span class="profile-period-meta">{{ rental.get_status_display }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+
+            {% if service_periods %}
+            <details class="profile-period-details">
+                <summary>Ver historial de servicios</summary>
+                <ul class="profile-period-groups">
+                    {% for period in service_periods %}
+                    <li class="profile-period-group">
+                        <span class="profile-period-plan">{{ period.sale_item.name }}</span>
+                        <span class="profile-period-range">{{ period.start_date|date:"d/m/Y" }} → {{ period.end_date|date:"d/m/Y" }}</span>
+                        <span class="profile-period-meta">{{ period.get_status_display }}</span>
                     </li>
                     {% endfor %}
                 </ul>

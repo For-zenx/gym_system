@@ -34,7 +34,9 @@
             <tr>
                 <td style="font-weight: 500;">{{ item.name }}</td>
                 <td>
-                    {% if item.item_type == 'SERVICE' %}
+                    {% if item.is_system_managed %}
+                    <span class="badge badge-warning">Sistema</span>
+                    {% elif item.item_type == 'SERVICE' %}
                     <span class="badge badge-warning">Servicio</span>
                     {% else %}
                     <span class="badge badge-success">Producto</span>
@@ -45,10 +47,12 @@
                 <td style="text-align: right;">
                     <div style="display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
                         <a href="{% url 'billing:product_update' item.pk %}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Editar</a>
+                        {% if not item.is_system_managed %}
                         <form method="post" action="{% url 'billing:product_delete' item.pk %}" style="margin: 0;" onsubmit="return confirm('¿Desactivar «{{ item.name }}» del catálogo?');">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Desactivar</button>
                         </form>
+                        {% endif %}
                     </div>
                 </td>
                 {% endif %}

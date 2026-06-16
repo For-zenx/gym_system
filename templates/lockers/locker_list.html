@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Casilleros - Perfect Line II{% endblock %}
+{% block page_title %}Casilleros{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/lockers.css' %}?v=1.0">
+{% endblock %}
+
+{% block content %}
+<div class="lockers-page">
+    <div class="lockers-actions">
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">&larr; Volver</a>
+        {% if 'lockers.manage' in user_permissions %}
+        <a href="{% url 'lockers:locker_create' %}" class="btn btn-primary">+ Nuevo casillero</a>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}" style="margin-bottom: 1rem;">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Casillero</th>
+                    <th>Estado</th>
+                    <th>Afiliado</th>
+                    <th>Vigencia</th>
+                    <th style="text-align: right;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for locker in lockers %}
+                <tr>
+                    <td class="locker-number">{{ locker.number }}</td>
+                    <td>
+                        {% if locker.status == 'AVAILABLE' %}
+                        <span class="badge badge-success">Disponible</span>
+                        {% elif locker.status == 'OCCUPIED' %}
+                        <span class="badge badge-warning">Ocupado</span>
+                        {% elif locker.status == 'MAINTENANCE' %}
+                        <span class="badge badge-danger">Mantenimiento</span>
+                        {% else %}
+                        <span class="badge">Inactivo</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if locker.current_rental %}
+                        <a class="locker-client-link" href="{% url 'clients:profile' locker.current_rental.client.codigo_afiliado %}">
+                            {{ locker.current_rental.client.nombre }}
+                        </a>
+                        <span class="locker-client-code">{{ locker.current_rental.client.codigo_afiliado }}</span>
+                        {% else %}
+                        <span class="locker-muted">Sin afiliado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if locker.current_rental %}
+                        {{ locker.current_rental.start_date|date:"d/m/Y" }} - {{ locker.current_rental.end_date|date:"d/m/Y" }}
+                        {% else %}
+                        <span class="locker-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <div class="locker-row-actions">
+                            {% if locker.current_rental %}
+                            <form method="post" action="{% url 'lockers:locker_release' locker.pk %}" onsubmit="return confirm('¿Liberar el casillero {{ locker.number }}?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-secondary locker-action-btn">Liberar</button>
+                            </form>
+                            {% endif %}
+                            {% if 'lockers.manage' in user_permissions %}
+                            <a href="{% url 'lockers:locker_update' locker.pk %}" class="btn btn-secondary locker-action-btn">Editar</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="locker-empty">No hay casilleros registrados.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

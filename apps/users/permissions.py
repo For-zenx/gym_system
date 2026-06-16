@@ -56,6 +56,13 @@ PERMISSION_GROUPS = {
             ("products.manage", "Gestionar catálogo de productos"),
         ],
     },
+    "lockers": {
+        "label": "Casilleros",
+        "permissions": [
+            ("lockers.view", "Ver casilleros"),
+            ("lockers.manage", "Gestionar casilleros"),
+        ],
+    },
     "access": {
         "label": "Accesos",
         "permissions": [
@@ -109,6 +116,7 @@ CASHIER_PERMISSION_CODES = [
     "billing.print_invoice",
     "plans.view",
     "products.view",
+    "lockers.view",
     "access.view_logs",
     "access.open_turnstile",
     "reports.view",

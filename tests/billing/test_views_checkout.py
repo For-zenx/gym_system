@@ -1,9 +1,14 @@
 import pytest
 from django.urls import reverse
 
+from apps.billing.models import Invoice
+from apps.lockers.models import Locker, LockerRental
+from tests.billing.conftest import build_checkout_post
 from tests.helpers import ACCESS_PARAMS, assert_access, login_if_needed
+from tests import factories
 
 CHARGE_PERMISSION = "billing.charge"
+PRODUCTS_PERMISSION = "products.view"
 CUT_DATE_PERMISSION = "billing.change_cut_date"
 
 
@@ -91,3 +96,81 @@ def test_change_cut_date__access(
             "clients:profile",
             kwargs={"codigo_afiliado": affiliate.codigo_afiliado},
         )
+
+
+@pytest.mark.django_db
+def test_charge_checkout__post_locker_without_products_view(
+    client,
+    create_staff_user,
+    create_client,
+    create_plan,
+    exchange_rate,
+):
+    affiliate = create_client()
+    plan = create_plan()
+    locker_item = factories.get_or_create_locker_rental_item()
+    locker = factories.create_locker()
+    staff = create_staff_user(permissions=[CHARGE_PERMISSION])
+    client.force_login(staff)
+
+    url = reverse("billing:charge_checkout", kwargs={"codigo_afiliado": affiliate.codigo_afiliado})
+    post_data = build_checkout_post(
+        plan,
+        product_lines=[
+            {
+                "item_id": locker_item.pk,
+                "qty": 1,
+                "locker_id": locker.pk,
+            }
+        ],
+    )
+    response = client.post(url, post_data)
+
+    assert response.status_code == 302
+    assert "cobro-exito" not in response.url
+    assert not Invoice.objects.filter(client=affiliate).exists()
+    assert not LockerRental.objects.filter(client=affiliate).exists()
+    locker.refresh_from_db()
+    assert locker.status == Locker.Status.AVAILABLE
+
+
+@pytest.mark.django_db
+def test_charge_checkout__post_plan_and_locker(
+    client,
+    create_staff_user,
+    create_client,
+    create_plan,
+    exchange_rate,
+):
+    affiliate = create_client()
+    plan = create_plan()
+    locker_item = factories.get_or_create_locker_rental_item()
+    locker = factories.create_locker()
+    staff = create_staff_user(permissions=[CHARGE_PERMISSION, PRODUCTS_PERMISSION])
+    client.force_login(staff)
+
+    url = reverse("billing:charge_checkout", kwargs={"codigo_afiliado": affiliate.codigo_afiliado})
+    post_data = build_checkout_post(
+        plan,
+        product_lines=[
+            {
+                "item_id": locker_item.pk,
+                "qty": 1,
+                "locker_id": locker.pk,
+                "locker_start": "2000-01-01",
+                "locker_end": "2000-01-31",
+            }
+        ],
+    )
+    response = client.post(url, post_data)
+
+    assert response.status_code == 302
+    assert "cobro-exito" in response.url
+
+    rental = LockerRental.objects.get(client=affiliate)
+    membership = rental.membership
+    assert membership is not None
+    assert rental.start_date == membership.fecha_inicio
+    assert rental.end_date == membership.fecha_fin
+    locker.refresh_from_db()
+    assert locker.status == Locker.Status.OCCUPIED

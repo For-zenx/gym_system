@@ -15,6 +15,8 @@
     window.initCheckoutProducts = function (config) {
         const tasaDia = config.tasaDia;
         const catalog = config.catalog || [];
+        const availableLockers = config.availableLockers || [];
+        const planPreviews = config.planPreviews || {};
         const confirmBtn = document.getElementById(config.confirmId || 'btnConfirm');
         const linesContainer = document.getElementById(config.linesContainerId || 'checkout-product-lines');
         const picker = document.getElementById(config.pickerId || 'checkout-product-picker');
@@ -42,6 +44,19 @@
             });
         }
 
+        function getSelectedPlanId() {
+            const planSelect = document.getElementById('plan_id');
+            return planSelect && planSelect.value ? planSelect.value : '';
+        }
+
+        function getSelectedPlanPreview() {
+            const planId = getSelectedPlanId();
+            if (!planId) {
+                return null;
+            }
+            return planPreviews[planId] || null;
+        }
+
         function getAddedIds() {
             const ids = [];
             if (!linesContainer) {
@@ -53,17 +68,24 @@
             return ids;
         }
 
+        function isServiceItem(item) {
+            return item && item.item_type === 'SERVICE';
+        }
+
         function refreshPickerOptions() {
             if (!picker) {
                 return;
             }
             const added = getAddedIds();
+            const hasPlan = !!getSelectedPlanId();
             Array.from(picker.options).forEach(function (opt) {
                 if (!opt.value) {
                     opt.disabled = false;
                     return;
                 }
-                opt.disabled = added.indexOf(opt.value) !== -1;
+                const item = catalogById(opt.value);
+                const isService = item && isServiceItem(item);
+                opt.disabled = added.indexOf(opt.value) !== -1 || (isService && !hasPlan);
             });
             if (picker.value && picker.options[picker.selectedIndex].disabled) {
                 picker.value = '';
@@ -94,13 +116,67 @@
         }
 
         function hasPlanSelected() {
-            const planSelect = document.getElementById('plan_id');
-            return planSelect && planSelect.value;
+            return !!getSelectedPlanId();
         }
 
         function hasProductsSelected() {
             const totals = getProductsTotals();
             return totals.usd > 0;
+        }
+
+        function hasServiceLinesSelected() {
+            if (!linesContainer) {
+                return false;
+            }
+            let found = false;
+            linesContainer.querySelectorAll('.checkout-product-line').forEach(function (line) {
+                if (line.getAttribute('data-requires-plan') === '1') {
+                    found = true;
+                }
+            });
+            return found;
+        }
+
+        function areLockerLinesValid() {
+            if (!linesContainer) {
+                return true;
+            }
+            let valid = true;
+            linesContainer.querySelectorAll('.checkout-product-line').forEach(function (line) {
+                if (line.getAttribute('data-requires-locker') !== '1') {
+                    return;
+                }
+                const locker = line.querySelector('.checkout-locker-select');
+                if (!locker || !locker.value) {
+                    valid = false;
+                }
+            });
+            return valid;
+        }
+
+        function updateLockerPeriodFields() {
+            if (!linesContainer) {
+                return;
+            }
+            const preview = getSelectedPlanPreview();
+            linesContainer.querySelectorAll('.checkout-product-line[data-requires-locker="1"]').forEach(function (line) {
+                const startInput = line.querySelector('.checkout-locker-start');
+                const endInput = line.querySelector('.checkout-locker-end');
+                const periodText = line.querySelector('.checkout-locker-period-text');
+                if (preview && preview.fecha_inicio_iso && preview.fecha_fin_iso) {
+                    if (startInput) {
+                        startInput.value = preview.fecha_inicio_iso;
+                    }
+                    if (endInput) {
+                        endInput.value = preview.fecha_fin_iso;
+                    }
+                    if (periodText) {
+                        periodText.textContent = preview.inicio + ' al ' + preview.fin;
+                    }
+                } else if (periodText) {
+                    periodText.textContent = 'Seleccione un plan para ver el periodo';
+                }
+            });
         }
 
         function refreshSummary() {
@@ -118,8 +194,16 @@
                 productsOnlyNotice.style.display = productsOnly ? 'block' : 'none';
             }
 
+            refreshPickerOptions();
+            updateLockerPeriodFields();
+
             if (confirmBtn) {
-                const canSubmit = (hasPlanSelected() || hasProductsSelected()) && tasaDia > 0 && !isNaN(tasaDia);
+                const servicesNeedPlan = hasServiceLinesSelected() && !hasPlanSelected();
+                const canSubmit = (hasPlanSelected() || hasProductsSelected())
+                    && areLockerLinesValid()
+                    && !servicesNeedPlan
+                    && tasaDia > 0
+                    && !isNaN(tasaDia);
                 confirmBtn.disabled = !canSubmit;
             }
         }
@@ -138,6 +222,12 @@
             const line = document.createElement('div');
             line.className = 'checkout-product-line';
             line.setAttribute('data-item-id', String(item.id));
+            if (item.requires_locker_assignment) {
+                line.setAttribute('data-requires-locker', '1');
+            }
+            if (isServiceItem(item)) {
+                line.setAttribute('data-requires-plan', '1');
+            }
 
             const priceUsd = window.parseUsdAmount(item.price_usd);
             const typeLabel = item.item_type === 'SERVICE' ? 'Servicio' : 'Producto';
@@ -155,6 +245,12 @@
             const metaEl = document.createElement('span');
             metaEl.className = 'checkout-product-line-meta';
             metaEl.textContent = typeLabel + ' · ' + window.formatUsd(priceUsd) + ' c/u';
+            if (item.requires_locker_assignment) {
+                metaEl.textContent += ' · requiere casillero';
+            }
+            if (isServiceItem(item)) {
+                metaEl.textContent += ' · ligado al plan';
+            }
             info.appendChild(nameEl);
             info.appendChild(metaEl);
 
@@ -166,9 +262,14 @@
             qtyInput.className = 'checkout-product-line-qty form-control';
             qtyInput.name = 'product_qty_' + item.id;
             qtyInput.min = '1';
+            if (item.requires_locker_assignment || isServiceItem(item)) {
+                qtyInput.max = '1';
+                qtyInput.readOnly = true;
+            }
             qtyInput.value = String(qty);
             qtyLabel.appendChild(qtyInput);
 
+            const lockerFields = buildLockerFields(item);
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.className = 'btn btn-secondary checkout-product-line-remove';
@@ -177,6 +278,9 @@
             line.appendChild(hidden);
             line.appendChild(info);
             line.appendChild(qtyLabel);
+            if (lockerFields) {
+                line.appendChild(lockerFields);
+            }
             line.appendChild(removeBtn);
 
             qtyInput.addEventListener('input', refreshSummary);
@@ -189,6 +293,60 @@
             return line;
         }
 
+        function buildLockerFields(item) {
+            if (!item.requires_locker_assignment) {
+                return null;
+            }
+
+            const wrap = document.createElement('div');
+            wrap.className = 'checkout-locker-fields';
+
+            const lockerLabel = document.createElement('label');
+            lockerLabel.className = 'checkout-locker-field checkout-locker-field--locker';
+            lockerLabel.appendChild(document.createTextNode('Casillero'));
+            const lockerSelect = document.createElement('select');
+            lockerSelect.className = 'checkout-locker-select form-control';
+            lockerSelect.name = 'locker_id_' + item.id;
+
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = availableLockers.length ? 'Seleccione casillero' : 'No hay casilleros disponibles';
+            lockerSelect.appendChild(emptyOpt);
+            availableLockers.forEach(function (locker) {
+                const opt = document.createElement('option');
+                opt.value = String(locker.id);
+                opt.textContent = 'Casillero ' + locker.number;
+                lockerSelect.appendChild(opt);
+            });
+            lockerLabel.appendChild(lockerSelect);
+
+            const periodLabel = document.createElement('div');
+            periodLabel.className = 'checkout-locker-field checkout-locker-period';
+            periodLabel.appendChild(document.createTextNode('Periodo del plan: '));
+            const periodText = document.createElement('span');
+            periodText.className = 'checkout-locker-period-text';
+            periodText.textContent = 'Seleccione un plan para ver el periodo';
+            periodLabel.appendChild(periodText);
+
+            const startInput = document.createElement('input');
+            startInput.type = 'hidden';
+            startInput.className = 'checkout-locker-start';
+            startInput.name = 'locker_start_' + item.id;
+
+            const endInput = document.createElement('input');
+            endInput.type = 'hidden';
+            endInput.className = 'checkout-locker-end';
+            endInput.name = 'locker_end_' + item.id;
+
+            wrap.appendChild(lockerLabel);
+            wrap.appendChild(periodLabel);
+            wrap.appendChild(startInput);
+            wrap.appendChild(endInput);
+
+            lockerSelect.addEventListener('change', refreshSummary);
+            return wrap;
+        }
+
         function addProductFromPicker() {
             if (!picker || !picker.value) {
                 return;
@@ -197,11 +355,20 @@
             if (!item) {
                 return;
             }
+            if (isServiceItem(item) && !hasPlanSelected()) {
+                alert('Los servicios requieren seleccionar un plan de membresía.');
+                return;
+            }
+            if (item.requires_locker_assignment && !availableLockers.length) {
+                alert('No hay casilleros disponibles para asignar.');
+                return;
+            }
             const qty = Math.max(1, parseInt(pickerQty && pickerQty.value, 10) || 1);
             if (linesContainer.querySelector('[data-item-id="' + item.id + '"]')) {
                 return;
             }
-            linesContainer.appendChild(buildLineElement(item, qty));
+            const lineQty = item.requires_locker_assignment || isServiceItem(item) ? 1 : qty;
+            linesContainer.appendChild(buildLineElement(item, lineQty));
             picker.value = '';
             if (pickerQty) {
                 pickerQty.value = '1';
@@ -212,6 +379,11 @@
 
         if (addBtn) {
             addBtn.addEventListener('click', addProductFromPicker);
+        }
+
+        const planSelect = document.getElementById('plan_id');
+        if (planSelect) {
+            planSelect.addEventListener('change', refreshSummary);
         }
 
         refreshPickerOptions();

@@ -4,8 +4,9 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 
-from apps.billing.models import Invoice, InvoiceLine, Membership, Plan, SaleItem
+from apps.billing.models import Invoice, InvoiceLine, Membership, Plan, SaleItem, ExchangeRate
 from apps.clients.models import Client
+from apps.lockers.models import Locker
 from apps.users.models import StaffProfile, StaffRole
 from apps.users.permissions import validate_permissions
 
@@ -17,6 +18,7 @@ _plan_counter = itertools.count(1)
 _sale_item_counter = itertools.count(1)
 _role_counter = itertools.count(1)
 _invoice_counter = itertools.count(1)
+_locker_counter = itertools.count(1)
 
 
 def create_staff_user(permissions=None, username=None, password="testpass123", is_superuser=False):
@@ -66,12 +68,46 @@ def create_plan(nombre=None, billing_type=Plan.BillingType.FLEXIBLE, dias_duraci
     )
 
 
-def create_sale_item(name=None, item_type=SaleItem.ItemType.PRODUCT, price_usd=None):
+def create_sale_item(
+    name=None,
+    item_type=SaleItem.ItemType.PRODUCT,
+    price_usd=None,
+    requires_locker_assignment=False,
+    system_code=None,
+):
     seq = next(_sale_item_counter)
     return SaleItem.objects.create(
         name=name or "Producto Test {}".format(seq),
         item_type=item_type,
         price_usd=price_usd or Decimal("5.00"),
+        requires_locker_assignment=requires_locker_assignment,
+        system_code=system_code,
+        is_active=True,
+    )
+
+
+def create_exchange_rate(tasa_ves=None):
+    return ExchangeRate.objects.create(tasa_ves=tasa_ves or Decimal("50.00"))
+
+
+def create_locker(number=None, status=Locker.Status.AVAILABLE):
+    seq = next(_locker_counter)
+    return Locker.objects.create(
+        number=number or "L-{:03d}".format(seq),
+        status=status,
+    )
+
+
+def get_or_create_locker_rental_item():
+    item = SaleItem.get_locker_rental_item()
+    if item:
+        return item
+    return SaleItem.objects.create(
+        name="Alquiler de casillero",
+        item_type=SaleItem.ItemType.SERVICE,
+        price_usd=Decimal("5.00"),
+        requires_locker_assignment=True,
+        system_code=SaleItem.SystemCode.LOCKER_RENTAL,
         is_active=True,
     )
 

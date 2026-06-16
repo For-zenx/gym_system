@@ -191,6 +191,7 @@
 
 .charge-checkout-page .charge-checkout-charge-card select,
 .charge-checkout-page .charge-checkout-charge-card input[type="number"]:not([type="hidden"]),
+.charge-checkout-page .charge-checkout-charge-card input[type="date"],
 .charge-checkout-page .charge-checkout-charge-card .form-control,
 .charge-checkout-page .checkout-product-field-input,
 .charge-checkout-page .checkout-product-line-qty {
@@ -210,6 +211,7 @@
 
 .charge-checkout-page .charge-checkout-charge-card select:focus,
 .charge-checkout-page .charge-checkout-charge-card input[type="number"]:focus,
+.charge-checkout-page .charge-checkout-charge-card input[type="date"]:focus,
 .charge-checkout-page .charge-checkout-charge-card .form-control:focus,
 .charge-checkout-page .checkout-product-field-input:focus,
 .charge-checkout-page .checkout-product-line-qty:focus {
@@ -580,6 +582,27 @@
     margin-top: 0;
 }
 
+.checkout-locker-fields {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1.5fr) minmax(8rem, 1fr) minmax(8rem, 1fr);
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.checkout-locker-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
 @media (max-width: 600px) {
     .charge-checkout-charge-card {
         padding: 1.25rem 1rem 1.5rem;
@@ -597,5 +620,9 @@
     .charge-checkout-client-meta {
         flex-direction: column;
         gap: 0.25rem;
+    }
+
+    .checkout-locker-fields {
+        grid-template-columns: 1fr;
     }
 }

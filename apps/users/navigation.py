@@ -4,6 +4,7 @@ NAV_ROUTE_PRIORITY = (
     ("dashboard.view", "dashboard"),
     ("clients.view_list", "clients:client_list"),
     ("billing.view_invoices", "billing:invoice_list"),
+    ("lockers.view", "lockers:locker_list"),
     ("access.view_logs", "access:access_log_list"),
     ("access.open_turnstile", "access:turnstile_control"),
     ("clients.enroll", "enrollment"),

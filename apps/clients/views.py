@@ -8,7 +8,12 @@ from .services import delete_client
 from .validation import validate_client_data, client_form_context, apply_client_fields
 from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
 from apps.billing.services import get_profile_subscription_summary
-from apps.billing.services import get_chargeable_plans
+from apps.billing.services import (
+    get_chargeable_plans,
+    get_active_service_periods_for_client,
+    get_recent_service_periods_for_client,
+)
+from apps.lockers.services import get_active_rental_for_client, get_recent_rentals_for_client
 from apps.users.mixins import PermissionRequiredMixin
 from apps.users.permissions import has_permission
 
@@ -56,6 +61,10 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
         context['access_logs'] = self.object.access_logs.all()[:20]
         context['billing_events'] = self.object.billing_events.select_related('created_by')[:15]
         context['subscription_summary'] = get_profile_subscription_summary(self.object)
+        context['active_locker_rental'] = get_active_rental_for_client(self.object)
+        context['locker_rentals'] = get_recent_rentals_for_client(self.object)
+        context['active_service_periods'] = get_active_service_periods_for_client(self.object)
+        context['service_periods'] = get_recent_service_periods_for_client(self.object)
         context['has_chargeable_plans'] = bool(
             get_chargeable_plans(self.object, active_plans)
         )
