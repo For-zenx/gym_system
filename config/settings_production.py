@@ -12,6 +12,7 @@ from .settings import *  # noqa: F403,F401
 
 
 DEBUG = False
+LICENSE_REQUIRED = True
 
 # En instalaciones reales el root sera C:\PerfectLine.
 # En pruebas locales se puede sobrescribir con variable de entorno.

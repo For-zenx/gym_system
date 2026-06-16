@@ -18,8 +18,14 @@ staticfiles/
 .DS_Store
 Thumbs.db
 
-# Credenciales SMTP locales (TASK-051)
-config/local_email_settings.py
+# Configuracion local y licencias
+.env
+license.dat
+build/
+config/licencia.c
+config/licencia*.pyd
+config/licencia*.exp
+config/licencia*.lib
 
 # Deploy (artefactos generados y wheels locales)
 deploy/dist/*

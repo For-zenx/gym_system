@@ -1,33 +1,39 @@
-PerfectLine - instalacion manual (MVP TASK-034)
-===============================================
+Perfect Line - Guia rapida
+===========================
 
-1. Extraer el zip en C:\PerfectLine\
-   (debe quedar: C:\PerfectLine\app\gym_system, tools\, manager\, wheels\)
+USO DIARIO (recepcion / cajera)
+-------------------------------
+1. Abrir: manager\perfectline_manager.pyw
+2. Clic en "Iniciar servidor"
+3. Clic en "Abrir sistema" (o abrir http://127.0.0.1:8000/ en el navegador)
+4. Al cerrar el dia: "Detener servidor"
 
-2. Requisitos en el PC (una vez):
-   - Python 3.8.10 x64 (debe ser el que usa setup_venv; no usar 3.11 en PATH)
-   - Visual C++ Redistributable 2019 x64
-   - Wheel del paquete dlib (NO dlib_bin) en wheels\, por ejemplo:
-     dlib-19.22.99-cp38-cp38-win_amd64.whl
+Si el sistema no abre, avisar a soporte. No borrar carpetas data\ ni config\.
 
-3. Si un setup anterior fallo, borrar C:\PerfectLine\app\gym_system\venv\
 
-4. Instalacion MVP (Administrador):
-   C:\PerfectLine\tools\instalar_o_reinstalar.bat
-   Nota: este asistente ejecuta setup de venv + migrate. NO instala servicio Windows.
+PRIMERA VEZ EN ESTE PC (solo soporte / instalador)
+------------------------------------------------
+1. Ejecutar como Administrador: tools\instalar_o_reinstalar.bat
+2. Colocar license.dat en: config\license.dat
+   (la licencia la genera soporte; no viene en el instalador)
+3. Revisar config\.env si hace falta (ej. puerto del torniquete)
+4. Crear usuario admin: tools\crear_superusuario.bat
+5. Abrir el Manager e iniciar el servidor
 
-7. Uso normal del sistema:
-   - Abrir: C:\PerfectLine\manager\perfectline_manager.pyw
-   - Usar solo: Iniciar servidor / Detener servidor
-   - El Manager es el dueño del proceso Daphne.
 
-8. Scripts tecnicos (soporte):
-   C:\PerfectLine\tools\debug\liberar_puerto_8000.bat (si queda un proceso huerfano en 8000)
-   Otros scripts internos en tools\debug\
+ACTUALIZAR VERSION (solo soporte)
+---------------------------------
+1. Detener servidor desde el Manager
+2. Reemplazar solo la carpeta app\gym_system\
+3. Ejecutar: tools\actualizar.bat
+4. Volver a iniciar desde el Manager
 
-10. Actualizar version:
-   C:\PerfectLine\tools\actualizar.bat
-   (backup DB + copiar app nueva + migrate; iniciar luego con Manager)
+IMPORTANTE: no borrar data\ ni config\ al actualizar.
 
-No borrar C:\PerfectLine\data\ al actualizar solo app\gym_system\.
-Build del zip: ver deploy\README.md en el repo gym_system.
+
+HERRAMIENTAS DE SOPORTE
+-----------------------
+mostrar_machine_id.bat     - ID de esta computadora (para generar licencia)
+crear_superusuario.bat     - crear usuario admin (BD vacia o nueva instalacion)
+actualizar.bat             - backup de BD + migraciones
+debug\liberar_puerto_8000.bat - si el puerto 8000 queda ocupado

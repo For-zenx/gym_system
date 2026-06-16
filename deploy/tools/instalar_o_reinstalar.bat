@@ -49,9 +49,15 @@ if not exist "%PYTHON%" (
   pause
   exit /b 1
 )
+if not exist "%ROOT%\config" mkdir "%ROOT%\config"
 if not exist "%ROOT%\data" mkdir "%ROOT%\data"
 if not exist "%ROOT%\data\media" mkdir "%ROOT%\data\media"
 if not exist "%ROOT%\logs" mkdir "%ROOT%\logs"
+if not exist "%ROOT%\config\.env" if exist "%ROOT%\config\.env.example" (
+  copy "%ROOT%\config\.env.example" "%ROOT%\config\.env" >nul
+  echo Se creo config\.env desde config\.env.example
+  echo Revisa ese archivo antes de usar el sistema en el gym.
+)
 cd /d "%APP%"
 set "DJANGO_SETTINGS_MODULE=config.settings_production"
 set "PERFECTLINE_ROOT=%ROOT%"

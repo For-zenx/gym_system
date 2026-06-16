@@ -13,6 +13,10 @@ from channels.security.websocket import AllowedHostsOriginValidator
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
+# En produccion la licencia es obligatoria; en desarrollo local no.
+from config.licencia import verify_license_if_required
+verify_license_if_required()
+
 django_asgi_app = get_asgi_application()
 
 # Importar rutas WS despues de inicializar Django evita AppRegistryNotReady.

@@ -20,6 +20,31 @@ if (-not (Test-Path $Python)) {
     throw "No se encontro $Python. Activa o crea el venv en gym_system."
 }
 
+Write-Host "Compilando modulo de licencia (Cython, Python 3.8)..."
+$BuildPython = $null
+& py -3.8 -c "import sys" 2>$null
+if ($LASTEXITCODE -eq 0) {
+    $BuildPython = "py -3.8"
+} else {
+    $BuildPython = $Python
+    Write-Warning "Python 3.8 no encontrado; se usara el venv actual para compilar licencia."
+}
+Push-Location $GymSystem
+try {
+    if ($BuildPython -eq "py -3.8") {
+        & py -3.8 -m pip install --quiet cython setuptools
+        & py -3.8 setup_licencia.py build_ext --inplace
+    } else {
+        & $Python setup_licencia.py build_ext --inplace
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "No se pudo compilar licencia.py. El release incluira el .py legible."
+    }
+}
+finally {
+    Pop-Location
+}
+
 if (-not $SkipTests) {
     Write-Host "Ejecutando pytest..."
     Push-Location $GymSystem
@@ -40,16 +65,24 @@ New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 $AppDest = Join-Path $StageDir "app\gym_system"
 New-Item -ItemType Directory -Path $AppDest -Force | Out-Null
 
-Write-Host "Copiando codigo (sin venv, deploy, db, media, staticfiles previos)..."
+Write-Host "Copiando codigo (sin venv, deploy, db, media, tests ni archivos privados)..."
 $RoboArgs = @(
     $GymSystem,
     $AppDest,
     "/MIR",
-    "/XD", "venv", "deploy", "media", "__pycache__", ".pytest_cache", ".git", "staticfiles",
-    "/XF", "db.sqlite3", "*.pyc"
+    "/XD", "venv", "deploy", "media", "__pycache__", ".pytest_cache", ".git", "staticfiles", "tests", "build",
+    "/XF", "db.sqlite3", "*.pyc", "pytest.ini", "README.md", ".env", ".env.example", "license.dat", "generador_licencias.py", "setup_licencia.py", "local_email_settings.py", "local_email_settings.example.py", "licencia.c"
 )
 & robocopy @RoboArgs | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy fallo con codigo $LASTEXITCODE" }
+
+Get-ChildItem -Path $AppDest -Recurse -Directory -Filter __pycache__ -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+$CompiledLicense = Get-ChildItem -Path (Join-Path $AppDest "config\licencia*.pyd") -ErrorAction SilentlyContinue
+if ($CompiledLicense) {
+    Remove-Item (Join-Path $AppDest "config\licencia.py") -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "collectstatic (settings_production)..."
 Push-Location $AppDest
@@ -87,6 +120,17 @@ foreach ($whl in $WheelFiles) {
     Copy-Item $whl.FullName -Destination $WheelsDest -Force
 }
 Copy-Item (Join-Path $DeployRoot "wheels\README.txt") -Destination $WheelsDest -Force -ErrorAction SilentlyContinue
+
+# CREAR CARPETAS DATA Y CONFIG VACIAS PARA QUE ESTÉN EN EL ZIP DE INSTALACIÓN
+$DataDest = Join-Path $StageDir "data"
+New-Item -ItemType Directory -Path $DataDest -Force | Out-Null
+
+$ConfigDest = Join-Path $StageDir "config"
+New-Item -ItemType Directory -Path $ConfigDest -Force | Out-Null
+$EnvExample = Join-Path $GymSystem ".env.example"
+if (Test-Path $EnvExample) {
+    Copy-Item -Path $EnvExample -Destination (Join-Path $ConfigDest ".env.example") -Force
+}
 
 if (-not $NoZip) {
     $ZipPath = Join-Path $DistDir "PerfectLine_$Version.zip"

@@ -13,18 +13,37 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar variables de entorno
+# 1. Intenta cargar desde C:\PerfectLine\config\.env (Producción)
+env_path = BASE_DIR.parent / 'config' / '.env'
+if not env_path.exists():
+    # 2. Si no existe, carga desde la raíz de la app (Desarrollo local)
+    env_path = BASE_DIR / '.env'
+load_dotenv(env_path)
+
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.lower() in ("1", "true", "yes", "on")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-q-8yt_s0v5ioa1#$!@0z18c2m*4umezsy@1-d8et4yoo9iemir'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-q-8yt_s0v5ioa1#$!@0z18c2m*4umezsy@1-d8et4yoo9iemir')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool('DEBUG', True)
+
+LICENSE_REQUIRED = env_bool('LICENSE_REQUIRED', False)
 
 ALLOWED_HOSTS = ['*']  # Permitir acceso desde Tablet y otros dispositivos en la red WiFi local
 
@@ -98,10 +117,15 @@ CHANNEL_LAYERS = {
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# Detectar carpeta de datos (C:\PerfectLine\data\ en producción)
+DATA_DIR = BASE_DIR.parent / 'data'
+if not DATA_DIR.exists():
+    DATA_DIR = BASE_DIR  # Local fallback
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': DATA_DIR / 'db.sqlite3',
     }
 }
 
@@ -145,7 +169,7 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_URL = 'media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = os.path.join(DATA_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -156,13 +180,15 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
+TURNSTILE_COM_PORT = os.getenv("TURNSTILE_COM_PORT", "COM3")
+
 # DEPRECATED: TASK-045 — token único; tokens por rol se añadirán en tarea futura.
 TABLET_TOKEN = "gym-tablet-001"
 
-# Correo (reportes TASK-051): credenciales SMTP vía entorno o config/local_email_settings.py
+# Correo (reportes TASK-051): credenciales SMTP vía .env
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "true").lower() in ("1", "true", "yes")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv(
@@ -170,24 +196,6 @@ DEFAULT_FROM_EMAIL = os.getenv(
     "Perfect Line II <{user}>".format(user=EMAIL_HOST_USER or "noreply@perfectline.local"),
 )
 REPORT_EMAIL_SUBJECT_PREFIX = os.getenv("REPORT_EMAIL_SUBJECT_PREFIX", "Perfect Line II")
-
-_local_email_path = BASE_DIR / "config" / "local_email_settings.py"
-if _local_email_path.exists():
-    import importlib.util
-
-    _spec = importlib.util.spec_from_file_location("local_email_settings", _local_email_path)
-    _local_email = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_local_email)
-    for _key in (
-        "EMAIL_HOST",
-        "EMAIL_PORT",
-        "EMAIL_USE_TLS",
-        "EMAIL_HOST_USER",
-        "EMAIL_HOST_PASSWORD",
-        "DEFAULT_FROM_EMAIL",
-    ):
-        if hasattr(_local_email, _key):
-            globals()[_key] = getattr(_local_email, _key)
 
 if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

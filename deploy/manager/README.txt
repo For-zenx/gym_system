@@ -1,31 +1,26 @@
-PerfectLine Manager (MVP)
-========================
+Perfect Line Manager
+====================
 
-Archivo principal:
-  perfectline_manager.pyw
+Para usar el sistema del gimnasio todos los dias.
 
-Ejecucion en C:\PerfectLine:
-  C:\PerfectLine\manager\perfectline_manager.pyw
 
-Funciones:
-  - Estado del servidor local + puerto 8000
-  - Iniciar servidor
-  - Detener servidor
-  - Abrir sistema
-  - Abrir carpeta logs
+COMO ABRIRLO
+------------
+Doble clic en: perfectline_manager.pyw
 
-Configurable en manager_config.json:
-  {
-    "system_url": "http://127.0.0.1:8000/"
-  }
+(Recomendado: crear acceso directo en el escritorio apuntando a este archivo.)
 
-Acceso directo sugerido (escritorio):
-  Destino: C:\Windows\pyw.exe C:\PerfectLine\manager\perfectline_manager.pyw
-  Iniciar en: C:\PerfectLine\manager
-  Icono: opcional (custom)
 
-Nota:
-  - El Manager inicia y detiene Daphne como proceso propio.
-  - No se usa servicio Windows para el MVP TASK-034.
-  - Instalacion inicial/reinstalacion: tools\instalar_o_reinstalar.bat (Administrador).
-  - Scripts de diagnostico quedaron en tools\debug\.
+BOTONES
+-------
+Iniciar servidor  - Enciende el sistema (dejarlo asi durante el dia)
+Detener servidor  - Apaga el sistema
+Abrir sistema     - Abre la pagina en el navegador
+Abrir logs        - Carpeta de registros (solo si soporte lo pide)
+
+
+NOTAS
+-----
+- Si cierras el Manager, el servidor puede apagarse.
+- La primera instalacion la hace soporte (tools\instalar_o_reinstalar.bat).
+- Si aparece error de licencia, contactar a soporte.
