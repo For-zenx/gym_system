@@ -7,6 +7,8 @@ NAV_ROUTE_PRIORITY = (
     ("lockers.view", "lockers:locker_list"),
     ("access.view_logs", "access:access_log_list"),
     ("access.open_turnstile", "access:turnstile_control"),
+    ("reports.view", "billing:report"),
+    ("stats.view", "stats:entry_hours"),
     ("clients.enroll", "enrollment"),
     ("plans.view", "billing:plan_list"),
 )

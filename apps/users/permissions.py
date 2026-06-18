@@ -77,6 +77,12 @@ PERMISSION_GROUPS = {
             ("reports.send", "Enviar reporte por correo"),
         ],
     },
+    "statistics": {
+        "label": "Estadísticas",
+        "permissions": [
+            ("stats.view", "Ver estadísticas"),
+        ],
+    },
     "settings": {
         "label": "Configuración del negocio",
         "permissions": [

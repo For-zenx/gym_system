@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'apps.billing',
     'apps.lockers',
     'apps.access',
+    'apps.stats',
     'apps.core',
 ]
 

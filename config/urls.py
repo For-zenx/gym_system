@@ -40,6 +40,7 @@ urlpatterns = [
     path('billing/', include('apps.billing.urls')),
     path('casilleros/', include('apps.lockers.urls')),
     path('historial/', include('apps.access.urls')),
+    path('estadisticas/', include('apps.stats.urls')),
     path('configuracion/', include('apps.users.urls')),
     path('perfil/', StaffProfileView.as_view(), name='staff_profile'),
 ]

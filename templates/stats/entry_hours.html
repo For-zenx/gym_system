@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Estadísticas — Perfect Line II{% endblock %}
+{% block page_title %}Estadísticas{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/stats.css' %}?v=1.0">
+{% endblock %}
+
+{% block content %}
+<div class="stats-page" id="stats-page">
+    <div class="card stats-toolbar">
+        <div class="stats-toolbar-heading">
+            <h2 class="stats-metric-title">Entradas por hora del día</h2>
+            <p class="stats-metric-subtitle">Accesos biométricos concedidos agregados por hora local</p>
+        </div>
+
+        <div class="stats-period-buttons" role="group" aria-label="Período">
+            {% for days, short_label in period_options %}
+            <button
+                type="button"
+                class="stats-period-btn{% if period_days == days %} is-active{% endif %}"
+                data-period="{{ days }}"
+            >
+                {{ short_label }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="stats-kpi-row card">
+        <div class="stats-kpi">
+            <span class="stats-kpi-label">Total entradas</span>
+            <strong class="stats-kpi-value" id="stats-total-entries">{{ stats.total_entries }}</strong>
+        </div>
+        <div class="stats-kpi">
+            <span class="stats-kpi-label">Hora pico</span>
+            <strong class="stats-kpi-value" id="stats-peak-hour">{% if stats.peak_hour_label %}{{ stats.peak_hour_label }}{% else %}—{% endif %}</strong>
+        </div>
+        <div class="stats-kpi">
+            <span class="stats-kpi-label">Entradas en pico</span>
+            <strong class="stats-kpi-value" id="stats-peak-count">{% if stats.total_entries %}{{ stats.peak_count }}{% else %}—{% endif %}</strong>
+        </div>
+        <div class="stats-kpi stats-kpi-range">
+            <span class="stats-kpi-label">Período</span>
+            <strong class="stats-kpi-value stats-kpi-value--small" id="stats-period-label">{{ stats.period_label }}</strong>
+            <span class="stats-kpi-meta" id="stats-date-range">{{ stats.date_range }}</span>
+        </div>
+    </div>
+
+    <div class="card stats-chart-card">
+        <div id="stats-empty-state" class="stats-empty-state{% if stats.total_entries %} hidden{% endif %}">
+            No hay accesos concedidos en este período.
+        </div>
+        <div class="stats-chart-wrap{% if not stats.total_entries %} hidden{% endif %}" id="stats-chart-wrap">
+            <canvas id="entry-hours-chart" aria-label="Gráfico de entradas por hora"></canvas>
+        </div>
+    </div>
+</div>
+
+{{ stats|json_script:"entry-hours-stats-data" }}
+<script>
+    window.ENTRY_HOURS_STATS = {
+        dataUrl: "{% url 'stats:entry_hours_data' %}",
+        initialPeriod: {{ period_days }},
+    };
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/stats_entry_hours.js' %}?v=1.0"></script>
+{% endblock %}

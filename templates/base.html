@@ -35,6 +35,9 @@
                 {% if 'reports.view' in user_permissions %}
                 <a href="{% url 'billing:report' %}" class="nav-item {% if request.resolver_match.url_name == 'report' %}active{% endif %}">Reportes</a>
                 {% endif %}
+                {% if 'stats.view' in user_permissions %}
+                <a href="{% url 'stats:entry_hours' %}" class="nav-item {% if '/estadisticas/' in request.path %}active{% endif %}">Estadísticas</a>
+                {% endif %}
                 {% if 'clients.enroll' in user_permissions %}
                 <a href="{% url 'enrollment' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment' %}active{% endif %}">Enrolamiento</a>
                 {% endif %}
