@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.2">
-<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=2.7">
+<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=2.8">
 {% endblock %}
 
 {% block content %}
@@ -79,6 +79,7 @@
 {% include 'billing/includes/charge_checkout_edit_modal.html' %}
 {% if can_checkout %}
 {% include 'billing/includes/charge_checkout_errors_modal.html' %}
+{% include 'billing/includes/charge_checkout_confirm_modal.html' %}
 {% endif %}
 {% endblock %}
 
@@ -87,6 +88,7 @@
 <script src="{% static 'js/billing_numbers.js' %}?v=1.0"></script>
 <script src="{% static 'js/cut_date_motivo.js' %}?v=1.0"></script>
 <script src="{% static 'js/checkout_validation.js' %}?v=1.0"></script>
+<script src="{% static 'js/checkout_confirm.js' %}?v=1.0"></script>
 <script src="{% static 'js/checkout_products.js' %}?v=1.8"></script>
 <script src="{% static 'js/billing_payment.js' %}?v=2.0"></script>
 <script>
@@ -168,7 +170,9 @@
     const checkoutForm = document.getElementById('checkoutForm');
     if (checkoutForm) {
         bindCheckoutFormValidation(checkoutForm, tasaDia);
+        bindCheckoutConfirmFlow(checkoutForm, document.getElementById('btnConfirm'), tasaDia);
         bindDismissibleModalById('checkoutErrorsModal', { onClose: closeCheckoutErrorsModal });
+        bindDismissibleModalById('checkoutConfirmModal', { onClose: closeCheckoutConfirmModal });
         if (tasaDia <= 0 || isNaN(tasaDia)) {
             showCheckoutErrorsModal(collectCheckoutErrors(tasaDia));
         }

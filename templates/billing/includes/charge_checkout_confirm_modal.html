@@ -1,0 +1,62 @@
+<div class="modal-overlay" id="checkoutConfirmModal" aria-hidden="true">
+    <div class="modal-content modal-content-narrow checkout-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-confirm-title">
+        {% include "includes/modal_header.html" with modal_title="Confirme el cobro" %}
+        <p class="checkout-confirm-intro">Revise los conceptos antes de registrar el cobro:</p>
+
+        <section class="checkout-confirm-section">
+            <h3 class="checkout-confirm-section-title">Afiliado</h3>
+            <p class="checkout-confirm-affiliate">
+                <strong id="checkout-confirm-client-name">{{ client.nombre }}</strong>
+                <span class="checkout-confirm-muted" id="checkout-confirm-client-cedula">{{ client.cedula }}</span>
+            </p>
+        </section>
+
+        <section class="checkout-confirm-section" id="checkout-confirm-membership-section" hidden>
+            <h3 class="checkout-confirm-section-title">Membresía</h3>
+            <p class="checkout-confirm-plan" id="checkout-confirm-plan"></p>
+            <p class="checkout-confirm-period" id="checkout-confirm-period"></p>
+            <p class="checkout-confirm-detail checkout-confirm-muted" id="checkout-confirm-period-detail"></p>
+            <p class="checkout-confirm-cut-day checkout-confirm-muted" id="checkout-confirm-cut-day" hidden></p>
+        </section>
+
+        <section class="checkout-confirm-section" id="checkout-confirm-no-membership-section" hidden>
+            <h3 class="checkout-confirm-section-title">Membresía</h3>
+            <p class="checkout-confirm-muted">Sin membresía en este cobro.</p>
+        </section>
+
+        <section class="checkout-confirm-section" id="checkout-confirm-products-section" hidden>
+            <h3 class="checkout-confirm-section-title">Productos y servicios</h3>
+            <ul id="checkout-confirm-products-list" class="checkout-confirm-lines"></ul>
+        </section>
+
+        <section class="checkout-confirm-section" id="checkout-confirm-latefee-section" hidden>
+            <h3 class="checkout-confirm-section-title">Multa</h3>
+            <p id="checkout-confirm-latefee"></p>
+        </section>
+
+        <section class="checkout-confirm-section checkout-confirm-totals">
+            <h3 class="checkout-confirm-section-title">Total a cobrar</h3>
+            <div class="checkout-confirm-total-row">
+                <span>Membresía</span>
+                <strong id="checkout-confirm-membership-total"></strong>
+            </div>
+            <div class="checkout-confirm-total-row">
+                <span>Productos</span>
+                <strong id="checkout-confirm-products-total"></strong>
+            </div>
+            <div class="checkout-confirm-total-row" id="checkout-confirm-latefee-total-row" hidden>
+                <span>Multa</span>
+                <strong id="checkout-confirm-latefee-total"></strong>
+            </div>
+            <div class="checkout-confirm-total-row checkout-confirm-total-row--grand">
+                <span>Total</span>
+                <strong id="checkout-confirm-grand-total"></strong>
+            </div>
+        </section>
+
+        <div class="modal-actions checkout-confirm-actions">
+            <button type="button" class="btn btn-secondary" id="checkout-confirm-cancel-btn">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="checkout-confirm-submit-btn">{{ confirm_submit_label|default:"Confirmar y cobrar" }}</button>
+        </div>
+    </div>
+</div>

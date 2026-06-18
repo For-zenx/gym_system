@@ -216,6 +216,8 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
             "checkout_return_url": _checkout_return_path(client, origin, next_url),
             "page_heading": "Cobro inicial" if origin == "enrollment" else "Registrar cobro",
             "submit_label": "Cobrar e imprimir" if origin == "enrollment" else "Confirmar cobro",
+            "review_label": "Revisar cobro e imprimir" if origin == "enrollment" else "Revisar cobro",
+            "confirm_submit_label": "Confirmar y cobrar e imprimir" if origin == "enrollment" else "Confirmar y cobrar",
         }
         context.update(_checkout_back_context(client, origin, next_url))
         context.update(_charge_form_context(client, planes))
