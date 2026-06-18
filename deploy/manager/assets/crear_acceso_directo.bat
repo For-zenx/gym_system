@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 
 set "SCRIPT_DIR=%~dp0"
-set "MANAGER_DIR=%SCRIPT_DIR%.."
+for %%I in ("%SCRIPT_DIR%..") do set "MANAGER_DIR=%%~fI"
 set "TARGET=%MANAGER_DIR%\perfectline_manager.pyw"
 set "ICON=%SCRIPT_DIR%perfectline.ico"
 set "SHORTCUT=%USERPROFILE%\Desktop\Perfect Line II Manager.lnk"
@@ -19,14 +19,7 @@ if not exist "%ICON%" (
     exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ws = New-Object -ComObject WScript.Shell; ^
-   $sc = $ws.CreateShortcut('%SHORTCUT%'); ^
-   $sc.TargetPath = '%TARGET%'; ^
-   $sc.WorkingDirectory = '%MANAGER_DIR%'; ^
-   $sc.IconLocation = '%ICON%,0'; ^
-   $sc.Description = 'Perfect Line II - Manager del gimnasio'; ^
-   $sc.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut('%SHORTCUT%'); $sc.TargetPath = '%TARGET%'; $sc.WorkingDirectory = '%MANAGER_DIR%'; $sc.IconLocation = '%ICON%,0'; $sc.Description = 'Perfect Line II - Manager del gimnasio'; $sc.Save()"
 
 if errorlevel 1 (
     echo Error al crear el acceso directo.
