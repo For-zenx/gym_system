@@ -147,6 +147,7 @@
     let enrollmentTermsMet = false;
     let tabletTermsAcceptedThisSession = false;
     let termsLookupTimer = null;
+    let lastLookupTermsStored = null;
 
     function setTermsStatus(state, message) {
         if (!termsStatusEl) {
@@ -176,6 +177,7 @@
     function resetEnrollmentTermsState() {
         enrollmentTermsMet = false;
         tabletTermsAcceptedThisSession = false;
+        lastLookupTermsStored = null;
         if (enrollmentPhotoReady) {
             setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
         } else {
@@ -221,10 +223,18 @@
         fetch(TERMS_LOOKUP_URL + '?' + params.toString(), { credentials: 'same-origin' })
             .then(function (response) { return response.json(); })
             .then(function (data) {
-                if (data.terms_already_accepted) {
+                const termsStored = !!data.terms_already_accepted;
+                const wasStored = lastLookupTermsStored;
+                lastLookupTermsStored = termsStored;
+
+                if (termsStored && enrollmentPhotoReady) {
                     window.sendDashboardCommand({ type: 'ENROLLMENT_SKIP_TERMS' });
+                } else if (!termsStored && enrollmentPhotoReady && wasStored === true) {
+                    tabletTermsAcceptedThisSession = false;
+                    window.sendDashboardCommand({ type: 'ENROLLMENT_REQUIRE_TERMS' });
                 }
-                applyTermsStatusAfterLookup(!!data.terms_already_accepted);
+
+                applyTermsStatusAfterLookup(termsStored);
                 updateEnrollmentSaveState();
             })
             .catch(function () {
@@ -285,11 +295,8 @@
         imgElement.previousElementSibling.style.display = 'none';
         inputElement.value = image;
         enrollmentPhotoReady = true;
-        enrollmentTermsMet = false;
-        tabletTermsAcceptedThisSession = false;
-        setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
-        updateEnrollmentSaveState();
         scheduleTermsLookup();
+        updateEnrollmentSaveState();
     });
 
     window.addEventListener('enrollmentTermsAccepted', function () {

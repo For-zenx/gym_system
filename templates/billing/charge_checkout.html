@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.2">
-<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=2.6">
+<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=2.7">
 {% endblock %}
 
 {% block content %}
@@ -77,22 +77,23 @@
 </div>
 
 {% include 'billing/includes/charge_checkout_edit_modal.html' %}
+{% if can_checkout %}
+{% include 'billing/includes/charge_checkout_errors_modal.html' %}
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
 <script src="{% static 'js/billing_numbers.js' %}?v=1.0"></script>
 <script src="{% static 'js/cut_date_motivo.js' %}?v=1.0"></script>
-<script src="{% static 'js/checkout_products.js' %}?v=1.6"></script>
-<script src="{% static 'js/billing_payment.js' %}?v=1.8"></script>
+<script src="{% static 'js/checkout_validation.js' %}?v=1.0"></script>
+<script src="{% static 'js/checkout_products.js' %}?v=1.8"></script>
+<script src="{% static 'js/billing_payment.js' %}?v=2.0"></script>
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
     const tasaDia = parseUsdAmount(tasaDiaStr);
 
     {% if can_checkout %}
-    if (tasaDia <= 0 || isNaN(tasaDia)) {
-        alert("Atención: No hay una tasa de cambio configurada en el sistema para el día de hoy.");
-    }
-
     {% if 'products.view' in user_permissions and sale_items %}
     initCheckoutProducts({
         tasaDia: tasaDia,
@@ -115,10 +116,23 @@
     (function () {
         const btn = document.getElementById('btnConfirm');
         function refresh() {
+            if (btn) btn.disabled = false;
+        }
+        window.collectCheckoutProductErrors = function () {
+            const errors = [];
             const plan = document.getElementById('plan_id');
             const hasPlan = plan && plan.value;
-            if (btn) btn.disabled = !hasPlan || tasaDia <= 0;
-        }
+            const originInput = document.querySelector('#checkoutForm input[name="origin"]');
+            const isEnrollment = originInput && originInput.value === 'enrollment';
+            if (!hasPlan) {
+                if (isEnrollment) {
+                    errors.push('El cobro inicial del enrolamiento requiere seleccionar un plan de membresía.');
+                } else {
+                    errors.push('Seleccione una membresía para cobrar.');
+                }
+            }
+            return errors;
+        };
         window.checkoutRefreshSubmit = refresh;
         const plan = document.getElementById('plan_id');
         if (plan) plan.addEventListener('change', refresh);
@@ -150,6 +164,15 @@
     });
     {% endif %}
     {% endif %}
+
+    const checkoutForm = document.getElementById('checkoutForm');
+    if (checkoutForm) {
+        bindCheckoutFormValidation(checkoutForm, tasaDia);
+        bindDismissibleModalById('checkoutErrorsModal', { onClose: closeCheckoutErrorsModal });
+        if (tasaDia <= 0 || isNaN(tasaDia)) {
+            showCheckoutErrorsModal(collectCheckoutErrors(tasaDia));
+        }
+    }
 
     {% if 'clients.edit' in user_permissions %}
     function openEditModal() {

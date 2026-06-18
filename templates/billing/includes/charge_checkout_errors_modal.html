@@ -1,0 +1,10 @@
+<div class="modal-overlay" id="checkoutErrorsModal" aria-hidden="true">
+    <div class="modal-content modal-content-narrow" role="dialog" aria-modal="true" aria-labelledby="checkout-errors-title">
+        {% include "includes/modal_header.html" with modal_title="Revise el cobro antes de continuar" %}
+        <p class="checkout-errors-intro">Corrija lo siguiente:</p>
+        <ul id="checkout-errors-list" class="checkout-errors-list"></ul>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-primary" onclick="closeCheckoutErrorsModal()">Entendido</button>
+        </div>
+    </div>
+</div>

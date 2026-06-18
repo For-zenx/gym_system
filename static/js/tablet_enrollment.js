@@ -87,6 +87,14 @@ function skipTermsOnTablet() {
     completeEnrollmentIdle();
 }
 
+function requireTermsOnTablet() {
+    termsAcceptedThisSession = false;
+    if (captureCompleted) {
+        showTermsScreen();
+        setStatus('connected', 'Lea y acepte');
+    }
+}
+
 async function detectFaceLoop() {
     if (!isCaptureActive || !isModelsLoaded || captureCompleted) {
         detectionLoopRunning = false;
@@ -284,6 +292,8 @@ function handleServerMessage(data) {
         stopEnrollmentSession();
     } else if (data.type === 'ENROLLMENT_SKIP_TERMS') {
         skipTermsOnTablet();
+    } else if (data.type === 'ENROLLMENT_REQUIRE_TERMS') {
+        requireTermsOnTablet();
     }
 }
 

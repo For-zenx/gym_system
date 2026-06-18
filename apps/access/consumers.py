@@ -201,7 +201,7 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             return
 
         msg_type = payload.get("type")
-        if msg_type in ("ENROLLMENT_START", "ENROLLMENT_END", "ENROLLMENT_SKIP_TERMS"):
+        if msg_type in ("ENROLLMENT_START", "ENROLLMENT_END", "ENROLLMENT_SKIP_TERMS", "ENROLLMENT_REQUIRE_TERMS"):
             await self.channel_layer.group_send(
                 TABLET_ENROLLMENT_GROUP,
                 {"type": "enrollment_command", "data": payload},

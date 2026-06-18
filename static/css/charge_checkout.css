@@ -640,3 +640,24 @@
         grid-template-columns: 1fr;
     }
 }
+
+.checkout-errors-intro {
+    margin: 0 0 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.checkout-errors-list {
+    margin: 0 0 1.25rem;
+    padding-left: 1.25rem;
+    color: var(--text-main);
+}
+
+.checkout-errors-list li {
+    margin-bottom: 0.5rem;
+    line-height: 1.45;
+}
+
+.checkout-errors-list li:last-child {
+    margin-bottom: 0;
+}

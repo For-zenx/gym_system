@@ -218,15 +218,28 @@
             refreshPickerQtyVisibility();
 
             if (confirmBtn) {
-                const servicesNeedPlan = hasServiceLinesSelected() && !hasPlanSelected();
-                const canSubmit = (hasPlanSelected() || hasProductsSelected())
-                    && areLockerLinesValid()
-                    && !servicesNeedPlan
-                    && tasaDia > 0
-                    && !isNaN(tasaDia);
-                confirmBtn.disabled = !canSubmit;
+                confirmBtn.disabled = false;
             }
         }
+
+        window.collectCheckoutProductErrors = function () {
+            const errors = [];
+            const originInput = document.querySelector('#checkoutForm input[name="origin"]');
+            const isEnrollment = originInput && originInput.value === 'enrollment';
+
+            if (!hasPlanSelected() && !hasProductsSelected()) {
+                errors.push('Seleccione una membresía y/o al menos un producto para cobrar.');
+            } else if (isEnrollment && !hasPlanSelected()) {
+                errors.push('El cobro inicial del enrolamiento requiere seleccionar un plan de membresía.');
+            }
+            if (hasServiceLinesSelected() && !hasPlanSelected()) {
+                errors.push('Los servicios ligados al plan requieren una membresía en el mismo cobro.');
+            }
+            if (!areLockerLinesValid()) {
+                errors.push('Seleccione un casillero para cada línea de alquiler de casillero.');
+            }
+            return errors;
+        };
 
         window.checkoutSetMembershipTotals = function (membershipVes, lateFeeVes, membershipUsd, lateFeeUsd) {
             membershipSubtotalVes = membershipVes || 0;

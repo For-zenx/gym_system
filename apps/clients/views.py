@@ -7,11 +7,12 @@ from .models import Client
 from .services import delete_client
 from .validation import validate_client_data, client_form_context, apply_client_fields
 from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
-from apps.billing.services import get_profile_subscription_summary
 from apps.billing.services import (
+    CUT_DATE_CHANGE_REASONS,
     get_chargeable_plans,
     get_display_service_periods_for_client,
     get_recent_service_periods_for_client,
+    get_profile_subscription_summary,
 )
 from apps.lockers.services import (
     get_display_locker_rentals_for_client,
@@ -76,6 +77,7 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
         context['has_chargeable_plans'] = bool(
             get_chargeable_plans(self.object, active_plans)
         )
+        context['cut_date_change_reasons'] = CUT_DATE_CHANGE_REASONS
         can_view_phone = has_permission(self.request.user, "clients.view_phone")
         context.update(
             client_form_context(client=self.object, can_view_phone=can_view_phone)

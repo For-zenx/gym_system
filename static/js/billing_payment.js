@@ -63,6 +63,40 @@
             });
         }
 
+        function isPaymentCutMotivoValid() {
+            if (!cutMotivoSection || cutMotivoSection.style.display === 'none') {
+                return true;
+            }
+            if (!cutMotivoPreset || !cutMotivoPreset.value) {
+                return false;
+            }
+            if (cutMotivoPreset.value === '__other__') {
+                return !!(cutMotivoCustom && cutMotivoCustom.value.trim());
+            }
+            return true;
+        }
+
+        window.checkoutPaymentCutMotivoValid = isPaymentCutMotivoValid;
+
+        window.collectCheckoutPaymentErrors = function () {
+            if (isPaymentCutMotivoValid()) {
+                return [];
+            }
+            if (!cutMotivoSection || cutMotivoSection.style.display === 'none') {
+                return [];
+            }
+            if (cutMotivoPreset && cutMotivoPreset.value === '__other__') {
+                return ['Describa el motivo del cambio de fecha de corte.'];
+            }
+            return ['Seleccione un motivo para el cambio de fecha de corte.'];
+        };
+
+        function refreshCheckoutSubmit() {
+            if (window.checkoutRefreshSubmit) {
+                window.checkoutRefreshSubmit();
+            }
+        }
+
         function updateCutMotivoVisibility() {
             if (!cutMotivoSection || !cutDayDisplay || !cutDayInitial) return;
             const changed = parseInt(cutDayDisplay.value, 10) !== parseInt(cutDayInitial.value, 10);
@@ -76,6 +110,7 @@
                     ensurePaymentCutMotivo();
                 }
             }
+            refreshCheckoutSubmit();
         }
 
         function resetCutDayEditor() {
@@ -214,19 +249,23 @@
                 if (cutDaySection) cutDaySection.style.display = 'none';
                 if (window.checkoutSetMembershipTotals) {
                     window.checkoutSetMembershipTotals(0, 0, 0, 0);
-                } else {
-                    if (totalVesEl) totalVesEl.textContent = 'Total: Bs 0.00';
-                    btnConfirm.disabled = true;
+                } else if (totalVesEl) {
+                    totalVesEl.textContent = 'Total: Bs 0.00';
                 }
                 if (window.checkoutRefreshSubmit) {
                     window.checkoutRefreshSubmit();
                 }
+                btnConfirm.disabled = false;
                 return;
             }
 
             if (tasaDia <= 0 || isNaN(tasaDia)) {
-                alert('Atención: No hay una tasa de cambio configurada en el sistema.');
-                btnConfirm.disabled = true;
+                if (window.checkoutRefreshSubmit) {
+                    window.checkoutRefreshSubmit();
+                }
+                if (btnConfirm) {
+                    btnConfirm.disabled = false;
+                }
                 return;
             }
 
@@ -283,10 +322,10 @@
             }
 
             recalcTotal(priceVes, priceUsd);
-            if (!window.checkoutRefreshSubmit) {
-                btnConfirm.disabled = false;
-            } else {
+            if (window.checkoutRefreshSubmit) {
                 window.checkoutRefreshSubmit();
+            } else if (btnConfirm) {
+                btnConfirm.disabled = false;
             }
         }
 
@@ -326,6 +365,12 @@
         }
         if (cutDayEditBtn) {
             cutDayEditBtn.addEventListener('click', enableCutDayEditor);
+        }
+        if (cutMotivoPreset) {
+            cutMotivoPreset.addEventListener('change', refreshCheckoutSubmit);
+        }
+        if (cutMotivoCustom) {
+            cutMotivoCustom.addEventListener('input', refreshCheckoutSubmit);
         }
 
         ensurePaymentCutMotivo();
