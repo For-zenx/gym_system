@@ -154,3 +154,36 @@ def test_enrollment__post_success_json(client, create_staff_user, monkeypatch):
     assert new_client.nombre == "Nuevo Afiliado Test"
     assert new_client.terms_accepted_at is not None
     mock_apply_photo.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("is_logged_in", "permissions"),
+    ACCESS_PARAMS + [(True, [ENROLL_PERMISSION])],
+)
+@pytest.mark.django_db
+def test_enrollment_billing__access(
+    client,
+    create_staff_user,
+    create_client,
+    get_login_url,
+    is_logged_in,
+    permissions,
+):
+    affiliate = create_client()
+    login_if_needed(client, create_staff_user, is_logged_in, permissions)
+
+    url = reverse("enrollment_billing", kwargs={"codigo_afiliado": affiliate.codigo_afiliado})
+    response = client.get(url)
+    assert_access(
+        response,
+        is_logged_in,
+        permissions,
+        ENROLL_PERMISSION,
+        url,
+        get_login_url,
+        success_status=302,
+    )
+    if is_logged_in and ENROLL_PERMISSION in permissions:
+        assert "/billing/cobro/" in response.url
+        assert affiliate.codigo_afiliado in response.url
+        assert "origin=enrollment" in response.url

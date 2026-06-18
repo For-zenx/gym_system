@@ -1,5 +1,5 @@
 import itertools
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -117,6 +117,24 @@ def create_staff_role(name=None, permissions=None):
     return StaffRole.objects.create(
         name=name or "Plantilla Test {}".format(seq),
         permissions=validate_permissions(permissions or ["plans.view"]),
+    )
+
+
+def create_membership(client=None, plan=None, fecha_inicio=None, fecha_fin=None):
+    if client is None:
+        client = create_client()
+    if plan is None:
+        plan = create_plan(billing_type=Plan.BillingType.FLEXIBLE, dias_duracion=30)
+    if fecha_inicio is None:
+        fecha_inicio = date.today()
+    if fecha_fin is None:
+        duration = plan.dias_duracion or 30
+        fecha_fin = fecha_inicio + timedelta(days=duration)
+    return Membership.objects.create(
+        client=client,
+        plan=plan,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
     )
 
 

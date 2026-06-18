@@ -6,9 +6,14 @@ Para usar el sistema del gimnasio todos los dias.
 
 COMO ABRIRLO
 ------------
-Doble clic en: perfectline_manager.pyw
+Opcion recomendada (acceso directo con icono PL2 en el escritorio):
 
-(Recomendado: crear acceso directo en el escritorio apuntando a este archivo.)
+  Doble clic en: assets\crear_acceso_directo.bat
+
+Eso crea "Perfect Line II Manager" en el escritorio.
+
+Alternativa: doble clic en perfectline_manager.pyw
+(o crear acceso directo manual: Propiedades -> Cambiar icono -> assets\perfectline.ico)
 
 
 BOTONES

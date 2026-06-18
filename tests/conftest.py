@@ -45,5 +45,10 @@ def create_invoice(db):
 
 
 @pytest.fixture
+def create_membership(db):
+    return factories.create_membership
+
+
+@pytest.fixture
 def exchange_rate(db):
     return factories.create_exchange_rate()

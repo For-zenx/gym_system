@@ -20,6 +20,7 @@ class ManagerApp:
         self.root.title("PerfectLine Manager")
         self.root.geometry("420x255")
         self.root.resizable(False, False)
+        self._set_window_icon()
 
         self.base_dir = Path(__file__).resolve().parents[1]
         self.logs_dir = self.base_dir / "logs"
@@ -46,6 +47,14 @@ class ManagerApp:
             except Exception:
                 pass
         return {"system_url": DEFAULT_URL}
+
+    def _set_window_icon(self) -> None:
+        icon_path = Path(__file__).resolve().parent / "assets" / "perfectline.ico"
+        if icon_path.exists():
+            try:
+                self.root.iconbitmap(str(icon_path))
+            except tk.TclError:
+                pass
 
     def _build_ui(self) -> None:
         frame = tk.Frame(self.root, padx=16, pady=14)

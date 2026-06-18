@@ -1,7 +1,8 @@
 import pytest
+from datetime import date, timedelta
 from django.urls import reverse
 
-from apps.billing.models import Invoice
+from apps.billing.models import Invoice, Membership
 from apps.lockers.models import Locker, LockerRental
 from tests.billing.conftest import build_checkout_post
 from tests.helpers import ACCESS_PARAMS, assert_access, login_if_needed
@@ -10,6 +11,7 @@ from tests import factories
 CHARGE_PERMISSION = "billing.charge"
 PRODUCTS_PERMISSION = "products.view"
 CUT_DATE_PERMISSION = "billing.change_cut_date"
+MEMBERSHIP_DELETE_PERMISSION = "billing.delete_queued_membership"
 
 
 @pytest.mark.parametrize(
@@ -174,3 +176,71 @@ def test_charge_checkout__post_plan_and_locker(
     assert rental.end_date == membership.fecha_fin
     locker.refresh_from_db()
     assert locker.status == Locker.Status.OCCUPIED
+
+
+@pytest.mark.parametrize(
+    ("is_logged_in", "permissions"),
+    ACCESS_PARAMS + [(True, [MEMBERSHIP_DELETE_PERMISSION])],
+)
+@pytest.mark.django_db
+def test_membership_delete__access(
+    client,
+    create_staff_user,
+    create_membership,
+    get_login_url,
+    is_logged_in,
+    permissions,
+):
+    membership = create_membership(fecha_inicio=date.today() + timedelta(days=7))
+    affiliate = membership.client
+    login_if_needed(client, create_staff_user, is_logged_in, permissions)
+
+    url = reverse("billing:membership_delete", kwargs={"pk": membership.pk})
+    response = client.post(url)
+    assert_access(
+        response,
+        is_logged_in,
+        permissions,
+        MEMBERSHIP_DELETE_PERMISSION,
+        url,
+        get_login_url,
+        success_status=302,
+    )
+    if is_logged_in and MEMBERSHIP_DELETE_PERMISSION in permissions:
+        assert response.url == reverse(
+            "clients:profile",
+            kwargs={"codigo_afiliado": affiliate.codigo_afiliado},
+        )
+
+
+@pytest.mark.django_db
+def test_membership_delete__post_queued_deletes(client, create_staff_user, create_membership):
+    membership = create_membership(fecha_inicio=date.today() + timedelta(days=7))
+    membership_pk = membership.pk
+    affiliate = membership.client
+    staff = create_staff_user(permissions=[MEMBERSHIP_DELETE_PERMISSION])
+    client.force_login(staff)
+
+    url = reverse("billing:membership_delete", kwargs={"pk": membership_pk})
+    response = client.post(url)
+
+    assert response.status_code == 302
+    assert response.url == reverse(
+        "clients:profile",
+        kwargs={"codigo_afiliado": affiliate.codigo_afiliado},
+    )
+    assert not Membership.objects.filter(pk=membership_pk).exists()
+
+
+@pytest.mark.django_db
+def test_membership_delete__post_active_persists(client, create_staff_user, create_membership):
+    membership = create_membership(fecha_inicio=date.today())
+    membership_pk = membership.pk
+    staff = create_staff_user(permissions=[MEMBERSHIP_DELETE_PERMISSION])
+    client.force_login(staff)
+
+    url = reverse("billing:membership_delete", kwargs={"pk": membership_pk})
+    response = client.post(url)
+
+    assert response.status_code == 302
+    assert Membership.objects.filter(pk=membership_pk).exists()
