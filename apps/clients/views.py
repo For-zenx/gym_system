@@ -6,7 +6,14 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.db.models import Q
 from .models import Client
-from .services import delete_client, replace_client_front_photo
+from .services import (
+    ALLOWED_INACTIVITY_YEARS,
+    BulkDeleteCountMismatchError,
+    bulk_delete_inactive_clients,
+    build_inactive_clients_preview,
+    delete_client,
+    replace_client_front_photo,
+)
 from .validation import validate_client_data, client_form_context, apply_client_fields
 from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
 from apps.billing.services import (
@@ -119,6 +126,85 @@ class EditClientView(PermissionRequiredMixin, View):
         if next_url:
             return redirect(next_url)
         return redirect('clients:profile', codigo_afiliado=codigo_afiliado)
+
+
+class InactiveClientsPreviewView(PermissionRequiredMixin, View):
+    required_permission = "clients.delete"
+
+    def get(self, request):
+        years_raw = request.GET.get("years", "")
+        try:
+            inactivity_years = int(years_raw)
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {"status": "error", "message": "Seleccione un período válido."},
+                status=400,
+            )
+
+        if inactivity_years not in ALLOWED_INACTIVITY_YEARS:
+            return JsonResponse(
+                {"status": "error", "message": "Seleccione 1 o 2 años de inactividad."},
+                status=400,
+            )
+
+        preview = build_inactive_clients_preview(inactivity_years)
+        preview["status"] = "success"
+        return JsonResponse(preview)
+
+
+class BulkDeleteInactiveClientsView(PermissionRequiredMixin, View):
+    required_permission = "clients.delete"
+
+    def post(self, request):
+        if request.POST.get("confirm_bulk_delete") != "1":
+            messages.error(request, "Debes confirmar la eliminación masiva.")
+            return redirect("clients:client_list")
+
+        if request.POST.get("bulk_delete_ack") != "on":
+            messages.error(
+                request,
+                "Debes confirmar que entiendes que la acción no es reversible.",
+            )
+            return redirect("clients:client_list")
+
+        try:
+            inactivity_years = int(request.POST.get("inactivity_years", ""))
+        except (TypeError, ValueError):
+            messages.error(request, "Período de inactividad no válido.")
+            return redirect("clients:client_list")
+
+        if inactivity_years not in ALLOWED_INACTIVITY_YEARS:
+            messages.error(request, "Período de inactividad no válido.")
+            return redirect("clients:client_list")
+
+        try:
+            confirm_count = int(request.POST.get("confirm_count", ""))
+        except (TypeError, ValueError):
+            messages.error(
+                request,
+                "Debes escribir la cantidad exacta de afiliados a eliminar.",
+            )
+            return redirect("clients:client_list")
+
+        try:
+            deleted_codes = bulk_delete_inactive_clients(inactivity_years, confirm_count)
+        except BulkDeleteCountMismatchError:
+            messages.error(
+                request,
+                "La cantidad de afiliados cambió desde la vista previa. "
+                "Vuelva a consultar antes de eliminar.",
+            )
+            return redirect("clients:client_list")
+
+        if not deleted_codes:
+            messages.warning(request, "No había afiliados inactivos que eliminar.")
+        else:
+            messages.success(
+                request,
+                f"Se eliminaron {len(deleted_codes)} afiliados inactivos. "
+                "Las facturas emitidas permanecen en el historial.",
+            )
+        return redirect("clients:client_list")
 
 
 class ClientDeleteView(PermissionRequiredMixin, View):

@@ -4,6 +4,10 @@
 {% block title %}Afiliados - Perfect Line II{% endblock %}
 {% block page_title %}Lista de Afiliados{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inactive_clients_purge.css' %}?v=1.2">
+{% endblock %}
+
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
     <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
@@ -16,8 +20,15 @@
             {% endif %}
         </form>
     </div>
-    {% if 'clients.enroll' in user_permissions %}
-    <a href="{% url 'enrollment' %}" class="btn btn-primary">+ Nuevo Afiliado</a>
+    {% if 'clients.enroll' in user_permissions or 'clients.delete' in user_permissions %}
+    <div class="client-list-header-actions">
+        {% if 'clients.enroll' in user_permissions %}
+        <a href="{% url 'enrollment' %}" class="btn btn-primary">+ Nuevo Afiliado</a>
+        {% endif %}
+        {% if 'clients.delete' in user_permissions %}
+        <button type="button" class="btn btn-danger-outline" id="inactiveClientsPurgeOpenBtn">Limpiar inactivos</button>
+        {% endif %}
+    </div>
     {% endif %}
 </div>
 
@@ -95,5 +106,21 @@
         <a href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">Última &raquo;</a>
     {% endif %}
 </div>
+{% endif %}
+
+{% if 'clients.delete' in user_permissions %}
+{% include "clients/includes/inactive_clients_purge_modal.html" %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if 'clients.delete' in user_permissions %}
+<script>
+    window.INACTIVE_CLIENTS_PURGE = {
+        previewUrl: "{% url 'clients:inactive_clients_preview' %}",
+    };
+</script>
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
+<script src="{% static 'js/inactive_clients_purge.js' %}?v=1.2"></script>
 {% endif %}
 {% endblock %}

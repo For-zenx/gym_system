@@ -131,6 +131,70 @@ def test_client_delete__access(
 
 @pytest.mark.parametrize(
     ("is_logged_in", "permissions"),
+    ACCESS_PARAMS + [(True, ["clients.delete"])],
+)
+@pytest.mark.django_db
+def test_inactive_clients_preview__access(
+    client,
+    create_staff_user,
+    get_login_url,
+    is_logged_in,
+    permissions,
+):
+    login_if_needed(client, create_staff_user, is_logged_in, permissions)
+
+    base_url = reverse("clients:inactive_clients_preview")
+    url = base_url + "?years=1"
+    response = client.get(base_url, {"years": "1"})
+    assert_access(
+        response,
+        is_logged_in,
+        permissions,
+        "clients.delete",
+        url,
+        get_login_url,
+        success_status=200,
+    )
+    if is_logged_in and "clients.delete" in permissions:
+        payload = response.json()
+        assert payload["status"] == "success"
+        assert "count" in payload
+        assert "sample" in payload
+
+
+@pytest.mark.parametrize(
+    ("is_logged_in", "permissions"),
+    ACCESS_PARAMS + [(True, ["clients.delete"])],
+)
+@pytest.mark.django_db
+def test_inactive_clients_bulk_delete__access(
+    client,
+    create_staff_user,
+    create_client,
+    get_login_url,
+    is_logged_in,
+    permissions,
+):
+    affiliate = create_client()
+    login_if_needed(client, create_staff_user, is_logged_in, permissions)
+
+    url = reverse("clients:inactive_clients_bulk_delete")
+    response = client.post(url, {})
+    assert_access(
+        response,
+        is_logged_in,
+        permissions,
+        "clients.delete",
+        url,
+        get_login_url,
+        success_status=302,
+    )
+    if is_logged_in and "clients.delete" in permissions:
+        assert Client.objects.filter(pk=affiliate.pk).exists()
+
+
+@pytest.mark.parametrize(
+    ("is_logged_in", "permissions"),
     ACCESS_PARAMS + [(True, ["clients.edit"])],
 )
 @pytest.mark.django_db

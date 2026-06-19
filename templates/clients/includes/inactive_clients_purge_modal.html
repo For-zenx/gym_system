@@ -1,0 +1,92 @@
+<div class="modal-overlay" id="inactiveClientsPurgeModal" aria-hidden="true">
+    <div class="modal-content modal-content-narrow inactive-clients-purge-modal" role="dialog" aria-modal="true" aria-labelledby="inactive-clients-purge-title">
+        <div id="inactiveClientsPurgeStep1">
+            {% include "includes/modal_header.html" with modal_title="Limpiar afiliados inactivos" %}
+            <p class="inactive-clients-purge-intro">
+                Elimina afiliados sin membresía activa ni encolada cuyo último vencimiento
+                (o fecha de ingreso si nunca pagaron) supera el umbral elegido.
+            </p>
+            <fieldset class="inactive-clients-purge-years">
+                <legend class="inactive-clients-purge-legend">Tiempo de inactividad</legend>
+                <label class="inactive-clients-purge-option">
+                    <input type="radio" name="inactive_clients_years" value="1" checked>
+                    <span>Inactivos desde hace 1 año o más</span>
+                </label>
+                <label class="inactive-clients-purge-option">
+                    <input type="radio" name="inactive_clients_years" value="2">
+                    <span>Inactivos desde hace 2 años o más</span>
+                </label>
+            </fieldset>
+            <p id="inactiveClientsStep1Error" class="inactive-clients-purge-status inactive-clients-purge-status--error" hidden></p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+                <button type="button" class="btn btn-primary" id="inactiveClientsNextBtn">Siguiente</button>
+            </div>
+        </div>
+
+        <div id="inactiveClientsPurgeStep2" hidden>
+            {% include "includes/modal_header.html" with modal_title="Revisar afiliados inactivos" %}
+            <p id="inactiveClientsLoading" class="inactive-clients-purge-loading">Consultando afiliados...</p>
+
+            <div id="inactiveClientsReviewPanel" hidden>
+                <p id="inactiveClientsReviewSummary" class="inactive-clients-purge-summary"></p>
+                <p id="inactiveClientsReviewEmpty" class="inactive-clients-purge-empty" hidden>
+                    Ningún afiliado cumple este criterio de inactividad.
+                </p>
+                <div id="inactiveClientsTableWrap" class="inactive-clients-purge-table-wrap" hidden>
+                    <table class="data-table inactive-clients-purge-table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Código</th>
+                                <th>Cédula</th>
+                                <th>Inactivo desde</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inactiveClientsTableBody"></tbody>
+                    </table>
+                </div>
+                <p id="inactiveClientsReviewTruncated" class="inactive-clients-purge-muted" hidden></p>
+
+                <div id="inactiveClientsConfirmPanel" hidden>
+                    <p class="inactive-clients-purge-danger">
+                        Esta acción no se puede deshacer. Se eliminarán membresías, historial de accesos
+                        y fotos biométricas de <strong id="inactiveClientsConfirmCountLabel">0</strong> afiliados.
+                        Las facturas ya emitidas permanecen en el historial con datos históricos.
+                    </p>
+                    <form method="POST" action="{% url 'clients:inactive_clients_bulk_delete' %}" id="inactiveClientsPurgeForm">
+                        {% csrf_token %}
+                        <input type="hidden" name="confirm_bulk_delete" value="1">
+                        <input type="hidden" name="inactivity_years" id="inactiveClientsFormYears" value="1">
+                        <div class="form-group">
+                            <label for="inactiveClientsConfirmCount">
+                                Escribe la cantidad exacta de afiliados a eliminar
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                id="inactiveClientsConfirmCount"
+                                name="confirm_count"
+                                required
+                                autocomplete="off"
+                                inputmode="numeric"
+                            >
+                        </div>
+                        <label class="inactive-clients-purge-ack">
+                            <input type="checkbox" id="inactiveClientsConfirmAck" name="bulk_delete_ack" required>
+                            <span>Entiendo que las facturas históricas permanecerán sin vínculo al perfil.</span>
+                        </label>
+                    </form>
+                </div>
+
+                <div class="modal-actions" id="inactiveClientsStep2Actions">
+                    <button type="button" class="btn btn-secondary" id="inactiveClientsBackBtn">Volver</button>
+                    <button type="button" class="btn btn-secondary" id="inactiveClientsCloseBtn" data-modal-close hidden>Cerrar</button>
+                    <button type="submit" class="btn btn-danger" id="inactiveClientsSubmitBtn" form="inactiveClientsPurgeForm" disabled hidden>
+                        Eliminar afiliados
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,116 @@
+.inactive-clients-purge-intro,
+.inactive-clients-purge-danger {
+    margin: 0 0 1.25rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.inactive-clients-purge-danger {
+    color: #f8b4b4;
+}
+
+.inactive-clients-purge-years {
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    margin: 0 0 1.25rem;
+}
+
+.inactive-clients-purge-legend {
+    padding: 0 0.25rem;
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.inactive-clients-purge-option {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    margin-top: 0.75rem;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.inactive-clients-purge-option:first-of-type {
+    margin-top: 0.5rem;
+}
+
+.inactive-clients-purge-status {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    line-height: 1.45;
+}
+
+.inactive-clients-purge-status--error {
+    background: rgba(239, 68, 68, 0.12);
+    color: #fecaca;
+}
+
+.inactive-clients-purge-loading {
+    margin: 0 0 1.25rem;
+    color: var(--text-muted);
+}
+
+.inactive-clients-purge-summary {
+    margin: 0 0 1rem;
+    color: var(--text-main);
+    line-height: 1.5;
+}
+
+.inactive-clients-purge-empty {
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.25rem;
+    border-radius: 0.5rem;
+    background: rgba(59, 130, 246, 0.12);
+    color: #bfdbfe;
+    line-height: 1.45;
+}
+
+.inactive-clients-purge-table-wrap {
+    margin-bottom: 0.75rem;
+    max-height: 14rem;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+}
+
+.inactive-clients-purge-table {
+    margin: 0;
+}
+
+.inactive-clients-purge-table th,
+.inactive-clients-purge-table td {
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.inactive-clients-purge-muted {
+    margin: 0 0 1rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.inactive-clients-purge-ack {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    margin: 1rem 0 0;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.inactive-clients-purge-modal .modal-actions {
+    flex-wrap: wrap;
+}
+
+#inactiveClientsConfirmPanel {
+    margin-top: 1rem;
+}
+
+.client-list-header-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
