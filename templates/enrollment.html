@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Alta de Nuevo Afiliado — Perfect Line II{% endblock %}
-{% block page_title %}Enrolamiento de Nuevo Afiliado{% endblock %}
+{% block title %}Enrolamiento — Perfect Line II{% endblock %}
+{% block page_title %}Enrolamiento{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=2.5">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=2.6">
 {% endblock %}
 
 {% block content %}
@@ -33,7 +33,7 @@
 
         <div class="photo-slots photo-slots-single" style="z-index: 5;">
             <div class="photo-slot">
-                <span>Foto del afiliado</span>
+                <span id="photo-slot-label">Foto</span>
                 <img id="img-frente" src="" alt="Foto del afiliado" style="display: none; width: 100%; height: 100%; object-fit: cover;">
             </div>
         </div>
@@ -46,10 +46,10 @@
     </div>
 
     <div class="form-section">
-        <h2 class="enrollment-section-title">Datos del Afiliado</h2>
+        <h2 class="enrollment-section-title" id="enrollment-form-title">Datos</h2>
 
         <div id="enrollment-cedula-warning" class="enrollment-cedula-warning" role="alert">
-            Esta cédula ya pertenece a un afiliado registrado.
+            <span id="enrollment-cedula-warning-text">Esta cédula ya está registrada.</span>
             <a id="enrollment-cedula-re-enroll-link" href="#">Ir a re-enrolar</a>
         </div>
 
@@ -65,6 +65,31 @@
             {% csrf_token %}
             <input type="hidden" name="foto_frente_base64" id="input-foto-frente">
             <input type="hidden" name="terms_accepted" id="input-terms-accepted" value="">
+
+            {% if can_enroll_member and can_enroll_staff %}
+            <div class="enrollment-category-picker" id="enrollment-category-picker" role="radiogroup" aria-label="Tipo de persona">
+                <label class="enrollment-category-option{% if person_category == 'MEMBER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="MEMBER" {% if person_category == 'MEMBER' %}checked{% endif %}> Afiliado
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'EMPLOYEE' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="EMPLOYEE" {% if person_category == 'EMPLOYEE' %}checked{% endif %}> Empleado
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'TRAINER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
+                </label>
+            </div>
+            {% elif can_enroll_staff %}
+            <div class="enrollment-category-picker" id="enrollment-category-picker" role="radiogroup" aria-label="Tipo de personal">
+                <label class="enrollment-category-option{% if person_category == 'EMPLOYEE' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="EMPLOYEE" {% if person_category == 'EMPLOYEE' %}checked{% endif %}> Empleado
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'TRAINER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
+                </label>
+            </div>
+            {% else %}
+            <input type="hidden" name="person_category" value="MEMBER">
+            {% endif %}
 
             <div class="form-group">
                 <label for="cedula_numero">Cédula / RIF</label>
@@ -104,7 +129,7 @@
 
             <div class="enrollment-form-actions">
                 <a href="{% url 'dashboard' %}" class="btn btn-outline-light">Cancelar</a>
-                <button type="submit" class="btn btn-primary btn-enrollment-save">Guardar Afiliado</button>
+                <button type="submit" class="btn btn-primary btn-enrollment-save" id="enrollment-save-btn">Guardar</button>
             </div>
         </form>
     </div>
@@ -123,8 +148,8 @@
         </div>
         <div id="enrollment-process-success" class="enrollment-process-state hidden">
             <div class="enrollment-success-icon" aria-hidden="true">✓</div>
-            <h2 class="enrollment-process-title">Afiliado registrado</h2>
-            <p class="enrollment-process-text">Redirigiendo al cobro...</p>
+            <h2 class="enrollment-process-title" id="enrollment-success-title">Registro completado</h2>
+            <p class="enrollment-process-text" id="enrollment-success-text">Redirigiendo...</p>
         </div>
         <div id="enrollment-process-error" class="enrollment-process-state hidden">
             <div class="enrollment-error-icon" aria-hidden="true">✕</div>
@@ -150,10 +175,54 @@
     const cedulaNumeroInput = document.getElementById('cedula_numero');
     const cedulaWarningEl = document.getElementById('enrollment-cedula-warning');
     const cedulaReEnrollLink = document.getElementById('enrollment-cedula-re-enroll-link');
+    const cedulaWarningTextEl = document.getElementById('enrollment-cedula-warning-text');
+    const enrollmentFormTitle = document.getElementById('enrollment-form-title');
+    const photoSlotLabel = document.getElementById('photo-slot-label');
+    const enrollmentSaveBtn = document.getElementById('enrollment-save-btn');
+    const enrollmentSuccessTitle = document.getElementById('enrollment-success-title');
+    const enrollmentSuccessText = document.getElementById('enrollment-success-text');
     let enrollmentPhotoReady = false;
     let enrollmentTermsMet = false;
     let cedulaExists = false;
     let cedulaCheckTimer = null;
+
+    function getSelectedCategory() {
+        const checked = document.querySelector('#enrollment-form input[name="person_category"]:checked');
+        if (checked) {
+            return checked.value;
+        }
+        const hidden = document.querySelector('#enrollment-form input[name="person_category"][type="hidden"]');
+        return hidden ? hidden.value : 'MEMBER';
+    }
+
+    function isMemberEnrollment() {
+        return getSelectedCategory() === 'MEMBER';
+    }
+
+    function syncCategoryPickerStyles() {
+        document.querySelectorAll('.enrollment-category-option').forEach(function (label) {
+            const input = label.querySelector('input[name="person_category"]');
+            label.classList.toggle('is-active', !!(input && input.checked));
+        });
+    }
+
+    function applyCategoryUi() {
+        const isMember = isMemberEnrollment();
+        if (enrollmentFormTitle) {
+            enrollmentFormTitle.textContent = isMember ? 'Datos del Afiliado' : 'Datos del Personal';
+        }
+        if (photoSlotLabel) {
+            photoSlotLabel.textContent = isMember ? 'Foto del afiliado' : 'Foto';
+        }
+        if (enrollmentSaveBtn) {
+            enrollmentSaveBtn.textContent = isMember ? 'Guardar Afiliado' : 'Guardar Personal';
+        }
+        if (!isMember) {
+            enrollmentTermsMet = enrollmentPhotoReady;
+        }
+        resetEnrollmentSessionState();
+        syncCategoryPickerStyles();
+    }
 
     function setTermsStatus(state, message) {
         if (!termsStatusEl) {
@@ -173,14 +242,28 @@
         const saveButton = document.getElementById('enrollment-form')
             ? document.getElementById('enrollment-form').querySelector('.btn-enrollment-save')
             : null;
-        const canSave = enrollmentPhotoReady && enrollmentTermsMet && !cedulaExists;
+        const termsOk = isMemberEnrollment() ? enrollmentTermsMet : enrollmentPhotoReady;
+        const canSave = enrollmentPhotoReady && termsOk && !cedulaExists;
         if (saveButton) {
             saveButton.disabled = !canSave;
         }
-        syncTermsAcceptedInput();
+        if (!isMemberEnrollment() && enrollmentPhotoReady) {
+            syncTermsAcceptedInput();
+        } else {
+            syncTermsAcceptedInput();
+        }
     }
 
     function resetEnrollmentSessionState() {
+        if (!isMemberEnrollment()) {
+            if (enrollmentPhotoReady) {
+                setTermsStatus('accepted', 'Foto capturada');
+            } else {
+                setTermsStatus('pending', 'Esperando foto en la tablet');
+            }
+            updateEnrollmentSaveState();
+            return;
+        }
         enrollmentTermsMet = false;
         if (enrollmentPhotoReady) {
             setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
@@ -190,13 +273,29 @@
         updateEnrollmentSaveState();
     }
 
-    function setCedulaWarning(visible, reEnrollUrl) {
+    function setCedulaWarning(visible, reEnrollUrl, existingCategory) {
         cedulaExists = visible;
         if (cedulaWarningEl) {
             cedulaWarningEl.classList.toggle('is-visible', visible);
         }
-        if (cedulaReEnrollLink && reEnrollUrl) {
-            cedulaReEnrollLink.href = reEnrollUrl;
+        if (cedulaReEnrollLink) {
+            cedulaReEnrollLink.style.display = reEnrollUrl ? '' : 'none';
+            if (reEnrollUrl) {
+                cedulaReEnrollLink.href = reEnrollUrl;
+            }
+        }
+        if (cedulaWarningTextEl && visible) {
+            if (isMemberEnrollment()) {
+                if (existingCategory === 'EMPLOYEE' || existingCategory === 'TRAINER') {
+                    cedulaWarningTextEl.textContent = 'Esta cédula pertenece a personal del gimnasio.';
+                } else {
+                    cedulaWarningTextEl.textContent = 'Esta cédula ya pertenece a un afiliado registrado.';
+                }
+            } else if (existingCategory === 'MEMBER') {
+                cedulaWarningTextEl.textContent = 'Esta cédula pertenece a un afiliado registrado.';
+            } else {
+                cedulaWarningTextEl.textContent = 'Esta cédula ya está registrada como personal.';
+            }
         }
         updateEnrollmentSaveState();
     }
@@ -217,7 +316,7 @@
         fetch(CEDULA_CHECK_URL + '?' + params.toString(), { credentials: 'same-origin' })
             .then(function (response) { return response.json(); })
             .then(function (data) {
-                setCedulaWarning(!!data.exists, data.re_enroll_url || null);
+                setCedulaWarning(!!data.exists, data.re_enroll_url || null, data.person_category || null);
             })
             .catch(function () {
                 setCedulaWarning(false);
@@ -270,8 +369,14 @@
         imgElement.previousElementSibling.style.display = 'none';
         inputElement.value = e.detail.image;
         enrollmentPhotoReady = true;
-        if (!enrollmentTermsMet) {
-            setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
+        if (isMemberEnrollment()) {
+            if (!enrollmentTermsMet) {
+                setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
+            }
+        } else {
+            enrollmentTermsMet = true;
+            setTermsStatus('accepted', 'Foto capturada');
+            syncTermsAcceptedInput();
         }
         updateEnrollmentSaveState();
     });
@@ -299,7 +404,15 @@
         cedulaNumeroInput.addEventListener('blur', scheduleCedulaCheck);
     }
 
+    document.querySelectorAll('#enrollment-form input[name="person_category"]').forEach(function (input) {
+        input.addEventListener('change', function () {
+            applyCategoryUi();
+            lookupEnrollmentCedula();
+        });
+    });
+
     document.addEventListener('DOMContentLoaded', function () {
+        applyCategoryUi();
         updateEnrollmentSaveState();
         setTimeout(function () {
             window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
@@ -381,11 +494,11 @@
                 return;
             }
             if (!enrollmentPhotoReady) {
-                processErrorMessage.textContent = 'Debe capturar la foto del afiliado en la tablet.';
+                processErrorMessage.textContent = 'Debe capturar la foto en la tablet de enrolamiento.';
                 openProcessModal('error');
                 return;
             }
-            if (!enrollmentTermsMet) {
+            if (isMemberEnrollment() && !enrollmentTermsMet) {
                 processErrorMessage.textContent = 'El afiliado debe aceptar los términos y condiciones en la tablet.';
                 openProcessModal('error');
                 return;
@@ -408,6 +521,13 @@
                 })
                 .then(function (result) {
                     if (result.ok && result.data.status === 'success') {
+                        if (isMemberEnrollment()) {
+                            if (enrollmentSuccessTitle) enrollmentSuccessTitle.textContent = 'Afiliado registrado';
+                            if (enrollmentSuccessText) enrollmentSuccessText.textContent = 'Redirigiendo al cobro...';
+                        } else {
+                            if (enrollmentSuccessTitle) enrollmentSuccessTitle.textContent = 'Personal registrado';
+                            if (enrollmentSuccessText) enrollmentSuccessText.textContent = 'Redirigiendo al perfil...';
+                        }
                         openProcessModal('success');
                         window.setTimeout(function () {
                             window.location.href = result.data.redirect_url;

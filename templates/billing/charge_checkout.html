@@ -27,7 +27,7 @@
     {% if can_checkout %}
     <div class="charge-checkout-stack">
         <div class="charge-checkout-client-card">
-            <p class="charge-checkout-client-label">Afiliado</p>
+            <p class="charge-checkout-client-label">{% if products_only_checkout %}{{ client.get_person_category_display }}{% else %}Afiliado{% endif %}</p>
             {% include 'billing/includes/charge_checkout_client_bar.html' %}
         </div>
 

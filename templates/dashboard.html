@@ -11,7 +11,7 @@
 
     <div class="feed-grid-xl" id="live-feed-grid">
         {% for log in logs %}
-            <a href="{% url 'clients:profile' log.client.codigo_afiliado %}" class="feed-card-xl {% if log.resultado %}granted{% else %}denied{% endif %}" id="log-{{ log.id }}">
+            <a href="{% if log.client.is_staff_person %}{% url 'staff_persons:profile' log.client.codigo_afiliado %}{% else %}{% url 'clients:profile' log.client.codigo_afiliado %}{% endif %}" class="feed-card-xl {% if log.resultado %}granted{% else %}denied{% endif %}" id="log-{{ log.id }}">
                 <div class="feed-header-xl">
                     <img src="{% if log.client.foto_frente %}{{ log.client.foto_frente.url }}{% else %}{% static 'img/gym_bg.png' %}{% endif %}" alt="Foto" class="feed-avatar-xl">
                     <div class="feed-title-container">
@@ -30,7 +30,7 @@
                         <span class="feed-data-value">{{ log.client.cedula }}</span>
                     </div>
                     <div class="feed-data-item">
-                        <span class="feed-data-label">Código Afiliado</span>
+                        <span class="feed-data-label">Código</span>
                         <span class="feed-data-value">{{ log.client.codigo_afiliado }}</span>
                     </div>
                     <div class="feed-data-item">
@@ -77,7 +77,9 @@
         if (emptyMsg) emptyMsg.remove();
 
         const card = document.createElement('a');
-        card.href = `/afiliados/${data.codigo}/`;
+        card.href = data.is_staff_person
+            ? `/personal/${data.codigo}/`
+            : `/afiliados/${data.codigo}/`;
         card.className = `feed-card-xl ${data.granted ? 'granted' : 'denied'}`;
         
         // Initial state for animation
@@ -136,7 +138,7 @@
                     <span class="feed-data-value">${data.cedula}</span>
                 </div>
                 <div class="feed-data-item">
-                    <span class="feed-data-label">Código Afiliado</span>
+                    <span class="feed-data-label">Código</span>
                     <span class="feed-data-value">${data.codigo}</span>
                 </div>
                 <div class="feed-data-item">

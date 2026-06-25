@@ -147,3 +147,35 @@
     max-width: 100%;
     box-sizing: border-box;
 }
+
+.staff-list-filter-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.staff-list-filter-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.staff-list-filter-tab:hover {
+    color: var(--text-main);
+    border-color: rgba(59, 130, 246, 0.45);
+}
+
+.staff-list-filter-tab.is-active {
+    background-color: rgba(59, 130, 246, 0.22);
+    border-color: rgba(96, 165, 250, 0.65);
+    color: #93c5fd;
+}

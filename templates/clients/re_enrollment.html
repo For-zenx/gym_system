@@ -11,7 +11,7 @@
 {% block content %}
 <div class="enrollment-container re-enrollment-container">
     <div class="re-enrollment-top">
-        <a href="{% url 'clients:profile' client.codigo_afiliado %}" class="btn btn-secondary">&larr; Volver al perfil</a>
+        <a href="{% if client.is_staff_person %}{% url 'staff_persons:profile' client.codigo_afiliado %}{% else %}{% url 'clients:profile' client.codigo_afiliado %}{% endif %}" class="btn btn-secondary">&larr; Volver al perfil</a>
     </div>
 
     <div class="camera-section">

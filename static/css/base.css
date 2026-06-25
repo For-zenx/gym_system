@@ -35,6 +35,7 @@ body, html {
     margin: 0;
     padding: 0;
     height: 100%;
+    overflow: hidden;
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-main);
     color: var(--text-main);
@@ -127,6 +128,8 @@ h1, h2, h3, h4, h5, h6 {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     z-index: 10;
 }
 
@@ -194,6 +197,7 @@ a.sidebar-brand-link:hover span {
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -234,6 +238,7 @@ a.sidebar-brand-link:hover span {
 .content-area {
     flex: 1;
     padding: 2rem;
+    min-height: 0;
     overflow-y: auto;
 }
 

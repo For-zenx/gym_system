@@ -19,6 +19,45 @@
     color: var(--text-main);
 }
 
+.enrollment-category-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.enrollment-category-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-card, var(--bg-surface));
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.enrollment-category-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.enrollment-category-option:hover {
+    color: var(--text-main);
+    border-color: rgba(59, 130, 246, 0.45);
+}
+
+.enrollment-category-option.is-active {
+    background-color: rgba(59, 130, 246, 0.22);
+    border-color: rgba(96, 165, 250, 0.65);
+    color: #93c5fd;
+}
+
 .camera-section {
     position: relative;
     display: flex;

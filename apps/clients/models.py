@@ -3,6 +3,24 @@ from django.db import models
 from .fields import SQLiteJSONField
 
 
+class PersonCategory(models.TextChoices):
+    MEMBER = "MEMBER", "Afiliado"
+    EMPLOYEE = "EMPLOYEE", "Empleado"
+    TRAINER = "TRAINER", "Entrenador"
+
+
+PERSON_CODE_PREFIX = {
+    PersonCategory.MEMBER: "M",
+    PersonCategory.EMPLOYEE: "E",
+    PersonCategory.TRAINER: "T",
+}
+
+STAFF_PERSON_CATEGORIES = frozenset({
+    PersonCategory.EMPLOYEE,
+    PersonCategory.TRAINER,
+})
+
+
 class Client(models.Model):
     SEXO_CHOICES = [
         ('', 'Sin especificar'),
@@ -15,7 +33,14 @@ class Client(models.Model):
     telefono = models.CharField("Teléfono", max_length=20, blank=True, null=True)
     fecha_nacimiento = models.DateField("Fecha de Nacimiento", blank=True, null=True)
     sexo = models.CharField("Sexo", max_length=1, choices=SEXO_CHOICES, blank=True, default='')
-    codigo_afiliado = models.CharField("Cód. Afiliado", max_length=20, unique=True)
+    codigo_afiliado = models.CharField("Código", max_length=20, unique=True)
+    person_category = models.CharField(
+        "Categoría",
+        max_length=10,
+        choices=PersonCategory.choices,
+        default=PersonCategory.MEMBER,
+        db_index=True,
+    )
     fecha_ingreso = models.DateField(auto_now_add=True)
     fecha_corte_dia = models.PositiveSmallIntegerField(
         "Día de corte (suscripción fija)",
@@ -46,6 +71,25 @@ class Client(models.Model):
     @property
     def is_enrolled(self):
         return bool(self.foto_frente and self.face_id_embeddings)
+
+    @property
+    def is_member(self):
+        return self.person_category == PersonCategory.MEMBER
+
+    @property
+    def is_staff_person(self):
+        return self.person_category in STAFF_PERSON_CATEGORIES
+
+    @property
+    def access_requires_membership(self):
+        return self.person_category == PersonCategory.MEMBER
+
+    @property
+    def can_purchase_membership(self):
+        return self.person_category == PersonCategory.MEMBER
+
+    def get_category_display_short(self):
+        return self.get_person_category_display()
 
     @property
     def active_memberships(self):

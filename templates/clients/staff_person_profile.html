@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% load static perm_tags %}
+
+{% block title %}Perfil: {{ client.nombre }} - Perfect Line II{% endblock %}
+{% block page_title %}Perfil de Personal{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.5">
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" style="padding: 1rem; background: rgba(16,185,129,0.1); border-left: 4px solid var(--success); color: var(--success); margin-bottom: 1rem; border-radius: 6px;">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="profile-header status-active">
+        <div class="profile-avatar-container">
+            {% if client.foto_frente %}
+            <img src="{{ client.foto_frente.url }}" alt="Foto" class="profile-avatar">
+            {% else %}
+            <span style="color: var(--text-muted); font-weight: 600;">Sin Foto</span>
+            {% endif %}
+        </div>
+
+        <div class="profile-info-wrapper">
+            <div class="profile-title-row">
+                <h1>{{ client.nombre }}</h1>
+                {% if 'staff_persons.edit' in user_permissions %}
+                <div class="profile-header-actions">
+                    <button type="button" class="btn btn-secondary profile-edit-btn" onclick="openEditModal()">Editar Datos</button>
+                    <a href="{% url 'clients:re_enroll' client.codigo_afiliado %}" class="btn btn-primary profile-reenroll-btn">Re-enrolar</a>
+                </div>
+                {% endif %}
+            </div>
+            <dl class="profile-meta-grid">
+                <div class="profile-meta-item"><dt>C.I.</dt><dd>{{ client.cedula }}</dd></div>
+                <div class="profile-meta-item"><dt>Código</dt><dd>{{ client.codigo_afiliado }}</dd></div>
+                <div class="profile-meta-item"><dt>Tipo</dt><dd>{{ client.get_person_category_display }}</dd></div>
+                <div class="profile-meta-item"><dt>Teléfono</dt><dd>{% client_phone_display client.telefono %}</dd></div>
+                <div class="profile-meta-item"><dt>Nacimiento</dt><dd>{% if client.fecha_nacimiento %}{{ client.fecha_nacimiento|date:"d/m/Y" }}{% else %}N/A{% endif %}</dd></div>
+                <div class="profile-meta-item"><dt>Acceso</dt><dd><span class="badge badge-success">Personal autorizado</span></dd></div>
+            </dl>
+        </div>
+    </div>
+
+    <div class="profile-content">
+        <div class="card profile-caja-card">
+            <h3 class="profile-section-title">Caja</h3>
+            <p class="profile-caja-note" style="margin-bottom: 1rem;">Puede registrar consumos (productos) en caja. No aplica membresía ni servicios ligados al plan.</p>
+            <div class="profile-caja-actions">
+                {% if 'billing.charge' in user_permissions and 'products.view' in user_permissions %}
+                <a href="{% url 'billing:charge_checkout' client.codigo_afiliado %}?origin=profile" class="btn btn-primary">Registrar cobro</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card profile-tabs-card">
+            <div class="profile-tabs-nav" role="tablist">
+                <button type="button" class="profile-tab-btn is-active" data-tab="facturas" role="tab">Facturas</button>
+                <button type="button" class="profile-tab-btn" data-tab="accesos" role="tab">Accesos</button>
+            </div>
+
+            <div class="profile-tab-panel is-active" id="tab-facturas" role="tabpanel">
+                {% if invoices %}
+                <ul class="invoice-list">
+                    {% for invoice in invoices %}
+                    <li class="invoice-item">
+                        <div class="invoice-info">
+                            <strong>{{ invoice.nro_control }}</strong>
+                            <span>{{ invoice.fecha_emision|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="invoice-item-actions">
+                            <span class="invoice-amount">Bs {{ invoice.monto_total }}</span>
+                            {% if 'billing.view_invoice_detail' in user_permissions %}
+                            <a href="{% url 'billing:invoice_detail' invoice.id %}?next={{ request.path|urlencode }}" class="btn btn-primary-outline profile-tab-link">Ver ticket</a>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="profile-tab-empty">No hay facturas registradas.</p>
+                {% endif %}
+            </div>
+
+            <div class="profile-tab-panel" id="tab-accesos" role="tabpanel">
+                {% if access_logs %}
+                <ul class="access-list">
+                    {% for log in access_logs %}
+                    <li class="access-item">
+                        <div class="access-row-top">
+                            <strong class="access-timestamp">{{ log.timestamp|date:"d/m/Y H:i:s" }}</strong>
+                            {% if log.resultado %}<span class="badge badge-success access-badge">Concedido</span>{% else %}<span class="badge badge-danger access-badge">Denegado</span>{% endif %}
+                        </div>
+                        {% if log.motivo %}<span class="access-motivo">{{ log.motivo }}</span>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="profile-tab-empty">No hay registros de acceso.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if 'staff_persons.delete' in user_permissions %}
+    <div class="card profile-danger-card">
+        <h3 class="profile-section-title">Zona de riesgo</h3>
+        <p class="profile-danger-text">
+            Eliminar el registro borra fotos biométricas y el historial de accesos de esta persona.
+        </p>
+        <button type="button" class="btn btn-danger" onclick="openDeleteModal()">Eliminar registro</button>
+    </div>
+
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal-content">
+            {% include "includes/modal_header.html" with modal_title="Eliminar personal" %}
+            <form method="POST" action="{% url 'staff_persons:delete' client.codigo_afiliado %}">
+                {% csrf_token %}
+                <input type="hidden" name="confirm_delete" value="1">
+                <div class="form-group">
+                    <label for="confirm_codigo">Escribe el código para confirmar</label>
+                    <input type="text" id="confirm_codigo" name="confirm_codigo" required autocomplete="off" placeholder="{{ client.codigo_afiliado }}">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Eliminar definitivamente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if 'staff_persons.edit' in user_permissions %}
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-content">
+            {% include "includes/modal_header.html" with modal_title="Editar Datos Personales" %}
+            <form method="POST" action="{% url 'clients:edit_client' client.codigo_afiliado %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="edit_nombre">Nombre Completo</label>
+                    <input type="text" id="edit_nombre" name="nombre" value="{{ form_nombre }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_cedula_numero">Cédula / RIF</label>
+                    <div class="cedula-input-group">
+                        <select id="edit_cedula_prefix" name="cedula_prefix" aria-label="Tipo de documento">
+                            <option value="V-" {% if form_cedula_prefix == 'V-' %}selected{% endif %}>V-</option>
+                            <option value="J-" {% if form_cedula_prefix == 'J-' %}selected{% endif %}>J-</option>
+                        </select>
+                        <input type="text" id="edit_cedula_numero" name="cedula_numero" required inputmode="numeric" value="{{ form_cedula_numero }}">
+                    </div>
+                </div>
+                {% include "clients/includes/phone_edit_field.html" with field_id="edit_telefono" %}
+                <div class="form-group">
+                    <label for="edit_fecha_nacimiento">Fecha de Nacimiento (Opcional)</label>
+                    <input type="date" id="edit_fecha_nacimiento" name="fecha_nacimiento" value="{{ form_fecha_nacimiento }}">
+                </div>
+                <div class="form-group">
+                    <label for="edit_sexo">Sexo (Opcional)</label>
+                    <select id="edit_sexo" name="sexo">
+                        <option value="" {% if not form_sexo %}selected{% endif %}>Sin especificar</option>
+                        <option value="M" {% if form_sexo == 'M' %}selected{% endif %}>Masculino</option>
+                        <option value="F" {% if form_sexo == 'F' %}selected{% endif %}>Femenino</option>
+                    </select>
+                </div>
+                <div class="modal-actions" style="margin-top: 2rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
+<script>
+    {% if 'staff_persons.edit' in user_permissions %}
+    function openEditModal() { document.getElementById('editModal').classList.add('show'); }
+    function closeEditModal() { document.getElementById('editModal').classList.remove('show'); }
+    bindDismissibleModalById('editModal', { onClose: closeEditModal });
+    {% endif %}
+    {% if 'staff_persons.delete' in user_permissions %}
+    function openDeleteModal() { document.getElementById('deleteModal').classList.add('show'); }
+    function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('show'); }
+    bindDismissibleModalById('deleteModal', { onClose: closeDeleteModal });
+    {% endif %}
+    document.querySelectorAll('.profile-tab-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var tab = btn.getAttribute('data-tab');
+            document.querySelectorAll('.profile-tab-btn').forEach(function (b) { b.classList.remove('is-active'); });
+            document.querySelectorAll('.profile-tab-panel').forEach(function (p) { p.classList.remove('is-active'); });
+            btn.classList.add('is-active');
+            document.getElementById('tab-' + tab).classList.add('is-active');
+        });
+    });
+</script>
+{% endblock %}

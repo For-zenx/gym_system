@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 def evaluate_access_integrity(client):
+    if not client.access_requires_membership:
+        return True, "Acceso personal"
+
     active_memberships = client.active_memberships
 
     if not active_memberships.exists():
@@ -130,8 +133,11 @@ def build_tablet_access_payload(client, granted, detail, membership_data=None):
 
     if granted:
         payload["status"] = "GRANTED"
-        payload["variant"] = "granted"
-        payload["covered_until_display"] = _tablet_covered_until_display(client)
+        if client.access_requires_membership:
+            payload["variant"] = "granted"
+            payload["covered_until_display"] = _tablet_covered_until_display(client)
+        else:
+            payload["variant"] = "granted_staff"
         return payload
 
     payload["status"] = "DENIED"

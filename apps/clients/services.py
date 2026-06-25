@@ -11,7 +11,7 @@ from django.db.models.functions import Coalesce
 
 from apps.billing.models import Membership
 
-from .models import Client
+from .models import Client, PERSON_CODE_PREFIX, PersonCategory
 
 ALLOWED_INACTIVITY_YEARS = (1, 2)
 INACTIVE_CLIENTS_PREVIEW_LIMIT = 20
@@ -23,6 +23,30 @@ class BulkDeleteCountMismatchError(Exception):
         super().__init__(actual_count)
 
 CLIENT_IMAGE_FIELDS = ("foto_frente", "foto_perfil_izq", "foto_perfil_der")
+
+
+def get_next_person_code(category):
+    if category not in PERSON_CODE_PREFIX:
+        raise ValueError("Invalid person category")
+
+    prefix = PERSON_CODE_PREFIX[category]
+    max_num = 0
+    for code in Client.objects.filter(
+        codigo_afiliado__startswith="{}-".format(prefix)
+    ).values_list("codigo_afiliado", flat=True):
+        parts = code.split("-")
+        if len(parts) >= 2 and parts[0] == prefix:
+            try:
+                max_num = max(max_num, int(parts[1]))
+            except ValueError:
+                continue
+    return "{}-{:05d}-00".format(prefix, max_num + 1)
+
+
+def get_person_profile_url_name(client):
+    if client.person_category == PersonCategory.MEMBER:
+        return "clients:profile"
+    return "staff_persons:profile"
 
 
 def _content_file_from_b64(b64_str, filename_base):
@@ -100,7 +124,8 @@ def get_inactive_clients_queryset(inactivity_years, today=None):
     )
 
     return (
-        Client.objects.annotate(last_membership_end=Max("memberships__fecha_fin"))
+        Client.objects.filter(person_category=PersonCategory.MEMBER)
+        .annotate(last_membership_end=Max("memberships__fecha_fin"))
         .annotate(inactivity_anchor=Coalesce("last_membership_end", "fecha_ingreso"))
         .exclude(Exists(active_membership))
         .exclude(Exists(queued_membership))

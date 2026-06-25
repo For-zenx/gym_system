@@ -7,6 +7,7 @@ from django.db.models.functions import ExtractHour
 from django.utils import timezone
 
 from apps.access.models import AccessLog
+from apps.clients.models import PersonCategory
 
 STATS_PERIOD_CHOICES = (7, 21, 30, 90, 365)
 
@@ -59,7 +60,11 @@ def build_entry_hour_stats(period_days: int) -> dict:
     tzinfo = timezone.get_current_timezone()
 
     rows = (
-        AccessLog.objects.filter(resultado=True, timestamp__gte=start)
+        AccessLog.objects.filter(
+            resultado=True,
+            timestamp__gte=start,
+            client__person_category=PersonCategory.MEMBER,
+        )
         .annotate(hour=ExtractHour("timestamp", tzinfo=tzinfo))
         .values("hour")
         .annotate(count=Count("id"))

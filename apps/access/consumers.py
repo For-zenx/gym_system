@@ -111,6 +111,7 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
                 "photo_url": photo_url,
                 "granted": granted,
                 "detail": detail,
+                "is_staff_person": client.is_staff_person,
                 "membership_lines": membership_lines,
                 "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S'),
             },
@@ -237,6 +238,7 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             "photo_url": event.get("photo_url"),
             "granted": event.get("granted"),
             "detail": event.get("detail"),
+            "is_staff_person": event.get("is_staff_person", False),
             "membership_lines": event.get("membership_lines", []),
             "timestamp": event.get("timestamp"),
         }))

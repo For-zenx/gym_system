@@ -50,10 +50,14 @@ function setFaceGuideVariant(variant) {
     faceGuide.className = 'face-guide face-guide-access active' + (variant ? ' ' + variant : '');
 }
 
+function isGrantedVariant(variant) {
+    return variant === 'granted' || variant === 'granted_staff';
+}
+
 function hideBottomBanner() {
     accessBottomBanner.className = 'access-bottom-banner hidden';
     accessBottomBanner.classList.remove(
-        'granted', 'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_other', 'processing'
+        'granted', 'granted_staff', 'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_other', 'processing'
     );
 }
 
@@ -162,11 +166,15 @@ function buildResultCopy(data, variant) {
     let title = '';
     let subtitle = '';
 
-    if (variant === 'granted') {
+    if (isGrantedVariant(variant)) {
         title = '¡Aprobado!';
         const name = data.name ? data.name + ' — ' : '';
-        const cutLine = formatCutLine(data);
-        subtitle = name + (cutLine || 'Acceso concedido');
+        if (variant === 'granted_staff') {
+            subtitle = name + (data.detail || 'Acceso personal');
+        } else {
+            const cutLine = formatCutLine(data);
+            subtitle = name + (cutLine || 'Acceso concedido');
+        }
     } else if (variant === 'denied_unknown') {
         title = 'No reconocido';
         subtitle = data.detail || 'Rostro no registrado en el sistema';
@@ -235,7 +243,7 @@ function showAccessResult(data) {
     clearTimeout(resultTimeout);
     clearTimeout(quickRetryTimeout);
 
-    if (variant === 'granted') {
+    if (isGrantedVariant(variant)) {
         exitQuickRetryMode();
         isCooldown = true;
         resultTimeout = setTimeout(function () {

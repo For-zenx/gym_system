@@ -9,7 +9,8 @@ from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from apps.clients.models import Client
+from apps.clients.models import Client, PersonCategory
+from apps.clients.services import get_person_profile_url_name
 from django.db.models import Q
 from .models import Plan, Membership, ExchangeRate, Invoice, SaleItem
 from .services import (
@@ -115,12 +116,21 @@ def _checkout_back_context(client, origin, next_url=""):
             "back_label": "Volver al enrolamiento",
         }
     if origin == "list":
+        list_url = (
+            reverse("clients:client_list")
+            if client.is_member
+            else reverse("staff_persons:staff_list")
+        )
         return {
-            "back_url": reverse("clients:client_list"),
-            "back_label": "Volver a afiliados",
+            "back_url": list_url,
+            "back_label": "Volver a la lista",
         }
+    profile_url = reverse(
+        get_person_profile_url_name(client),
+        kwargs={"codigo_afiliado": client.codigo_afiliado},
+    )
     return {
-        "back_url": reverse("clients:profile", kwargs={"codigo_afiliado": client.codigo_afiliado}),
+        "back_url": profile_url,
         "back_label": "Volver al perfil",
     }
 
@@ -129,6 +139,9 @@ def _process_checkout_charge(request, client, origin):
     plan_id = (request.POST.get("plan_id") or "").strip()
     plan = None
     if plan_id:
+        if not client.can_purchase_membership:
+            messages.error(request, "El personal del gym no puede cobrar planes ni membresías.")
+            return None
         plan = get_object_or_404(Plan, id=plan_id, is_active=True)
 
     product_lines = parse_product_lines_from_post(request.POST)
@@ -138,6 +151,23 @@ def _process_checkout_charge(request, client, origin):
         if not has_permission(request.user, "products.view"):
             messages.error(request, "No tienes permiso para cobrar productos.")
             return None
+        if not client.can_purchase_membership:
+            from .models import SaleItem
+
+            for line in product_lines:
+                item = get_object_or_404(SaleItem, pk=line["item_id"])
+                if item.item_type != SaleItem.ItemType.PRODUCT:
+                    messages.error(
+                        request,
+                        "Solo se pueden cobrar productos al personal del gym.",
+                    )
+                    return None
+                if line.get("locker_id"):
+                    messages.error(
+                        request,
+                        "El personal del gym no puede alquilar casilleros en caja.",
+                    )
+                    return None
 
     if not plan and not product_lines:
         messages.error(request, "Seleccione un plan y/o al menos un producto para cobrar.")
@@ -205,7 +235,8 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
         origin = _normalize_checkout_origin(request.GET.get("origin", "profile"))
         next_url = _get_safe_next_url(request, request.GET.get("next", ""))
-        planes = Plan.objects.filter(is_active=True)
+        planes = Plan.objects.filter(is_active=True) if client.can_purchase_membership else Plan.objects.none()
+        products_only = not client.can_purchase_membership
 
         context = {
             "client": client,
@@ -213,6 +244,7 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
             "origin": origin,
             "next_url": next_url,
             "is_enrollment": origin == "enrollment",
+            "products_only_checkout": products_only,
             "checkout_return_url": _checkout_return_path(client, origin, next_url),
             "page_heading": "Cobro inicial" if origin == "enrollment" else "Registrar cobro",
             "submit_label": "Cobrar e imprimir" if origin == "enrollment" else "Confirmar cobro",
@@ -228,9 +260,12 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
 
         can_view_phone = has_permission(request.user, "clients.view_phone")
         context.update(client_form_context(client=client, can_view_phone=can_view_phone))
-        context["subscription_summary"] = get_profile_subscription_summary(client)
+        if client.can_purchase_membership:
+            context["subscription_summary"] = get_profile_subscription_summary(client)
 
         sale_items = SaleItem.objects.filter(is_active=True)
+        if products_only:
+            sale_items = sale_items.filter(item_type=SaleItem.ItemType.PRODUCT)
         context["sale_items"] = sale_items
         can_sell_products = has_permission(request.user, "products.view")
         context["can_checkout"] = bool(context.get("planes")) or (
@@ -301,6 +336,8 @@ class PaymentPeriodPreviewView(PermissionRequiredMixin, View):
     required_permission = "billing.charge"
     def get(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if not client.can_purchase_membership:
+            return JsonResponse({"error": "Solo afiliados pueden previsualizar membresías."}, status=400)
         plan_id = request.GET.get("plan_id")
         if not plan_id:
             return JsonResponse({"error": "plan_id requerido"}, status=400)
@@ -349,6 +386,14 @@ class ChangeCutDateView(PermissionRequiredMixin, View):
     required_permission = "billing.change_cut_date"
     def post(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if not client.can_purchase_membership:
+            messages.error(request, "Solo los afiliados tienen fecha de corte.")
+            return redirect(
+                reverse(
+                    get_person_profile_url_name(client),
+                    kwargs={"codigo_afiliado": codigo_afiliado},
+                )
+            )
 
         try:
             new_day = int(request.POST.get("cut_day", ""))

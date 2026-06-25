@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 
 from apps.billing.models import Invoice, InvoiceLine, Membership, Plan, SaleItem, ExchangeRate
-from apps.clients.models import Client
+from apps.clients.models import Client, PERSON_CODE_PREFIX, PersonCategory
 from apps.lockers.models import Locker
 from apps.users.models import StaffProfile, StaffRole
 from apps.users.permissions import validate_permissions
@@ -47,13 +47,15 @@ def create_staff_user(permissions=None, username=None, password="testpass123", i
     return user
 
 
-def create_client(cedula=None, nombre=None, codigo_afiliado=None, telefono=None):
+def create_client(cedula=None, nombre=None, codigo_afiliado=None, telefono=None, person_category=PersonCategory.MEMBER):
     seq = next(_client_counter)
+    prefix = PERSON_CODE_PREFIX.get(person_category, "M")
     return Client.objects.create(
         cedula=cedula or "V-{:08d}".format(seq),
         nombre=nombre or "Afiliado Test {}".format(seq),
-        codigo_afiliado=codigo_afiliado or "M-{:05d}-00".format(seq),
+        codigo_afiliado=codigo_afiliado or "{}-{:05d}-00".format(prefix, seq),
         telefono=telefono,
+        person_category=person_category,
     )
 
 

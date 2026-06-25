@@ -21,6 +21,16 @@ PERMISSION_GROUPS = {
             ("clients.delete", "Eliminar afiliados"),
         ],
     },
+    "staff_persons": {
+        "label": "Personal del gym",
+        "permissions": [
+            ("staff_persons.view_list", "Ver lista de personal"),
+            ("staff_persons.view_profile", "Ver perfil de personal"),
+            ("staff_persons.edit", "Editar personal"),
+            ("staff_persons.enroll", "Enrolar personal"),
+            ("staff_persons.delete", "Eliminar personal"),
+        ],
+    },
     "billing_ops": {
         "label": "Caja",
         "permissions": [
@@ -113,6 +123,10 @@ CASHIER_PERMISSION_CODES = [
     "clients.view_profile",
     "clients.edit",
     "clients.enroll",
+    "staff_persons.view_list",
+    "staff_persons.view_profile",
+    "staff_persons.edit",
+    "staff_persons.enroll",
     "billing.charge",
     "billing.change_cut_date",
     "billing.view_audit",

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Personal - Perfect Line II{% endblock %}
+{% block page_title %}Lista de personal{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/inactive_clients_purge.css' %}?v=1.5">
+{% endblock %}
+
+{% block content %}
+<div class="client-list-toolbar">
+    <div class="client-list-toolbar-main">
+        <form method="GET" action="{% url 'staff_persons:staff_list' %}" class="client-list-search-form">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Buscar por cédula, código o nombre..." class="client-list-search-input">
+            {% if active_tipo %}<input type="hidden" name="tipo" value="{{ active_tipo }}">{% endif %}
+            <button type="submit" class="btn btn-primary">Buscar</button>
+            {% if search_query %}
+            <a href="{% url 'staff_persons:staff_list' %}{% if active_tipo %}?tipo={{ active_tipo }}{% endif %}" class="btn btn-secondary">Limpiar</a>
+            {% endif %}
+        </form>
+        {% if 'staff_persons.enroll' in user_permissions %}
+        <a href="{% url 'enrollment' %}?tipo=empleado" class="btn btn-primary">+ Nuevo personal</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="staff-list-filter-tabs" role="group" aria-label="Filtrar personal">
+    <a href="{% url 'staff_persons:staff_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if not active_tipo %} is-active{% endif %}">Todos</a>
+    <a href="{% url 'staff_persons:staff_list' %}?tipo=empleado{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if active_tipo == 'empleado' %} is-active{% endif %}">Empleados</a>
+    <a href="{% url 'staff_persons:staff_list' %}?tipo=entrenador{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if active_tipo == 'entrenador' %} is-active{% endif %}">Entrenadores</a>
+</div>
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Foto</th>
+                <th>Nombre</th>
+                <th>Cédula</th>
+                <th>Código</th>
+                <th>Tipo</th>
+                <th>Ingreso</th>
+                <th>Biometría</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for person in staff_persons %}
+            <tr onclick="window.location='{% url 'staff_persons:profile' person.codigo_afiliado %}'" style="cursor: pointer;">
+                <td>
+                    {% if person.foto_frente %}
+                        <img src="{{ person.foto_frente.url }}" alt="{{ person.nombre }}" class="avatar-sm">
+                    {% else %}
+                        <div class="avatar-sm" style="background-color: var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--text-muted);">Sin foto</div>
+                    {% endif %}
+                </td>
+                <td style="font-weight: 500;">{{ person.nombre }}</td>
+                <td>{{ person.cedula }}</td>
+                <td style="color: var(--text-muted);">{{ person.codigo_afiliado }}</td>
+                <td>{{ person.get_person_category_display }}</td>
+                <td>{{ person.fecha_ingreso|date:"d/m/Y" }}</td>
+                <td>
+                    {% if person.is_enrolled %}
+                        <span class="badge badge-success">Enrolado</span>
+                    {% else %}
+                        <span class="badge badge-danger">Pendiente</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    No se encontró personal registrado.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if is_paginated %}
+<div style="display: flex; justify-content: center; margin-top: 2rem; gap: 0.5rem;">
+    {% if page_obj.has_previous %}
+        <a href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if active_tipo %}&tipo={{ active_tipo }}{% endif %}" class="btn btn-secondary">&laquo; Primera</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if active_tipo %}&tipo={{ active_tipo }}{% endif %}" class="btn btn-secondary">Anterior</a>
+    {% endif %}
+    <span class="btn btn-secondary" style="cursor: default; background-color: var(--border-color);">
+        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if active_tipo %}&tipo={{ active_tipo }}{% endif %}" class="btn btn-secondary">Siguiente</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if active_tipo %}&tipo={{ active_tipo }}{% endif %}" class="btn btn-secondary">Última &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
