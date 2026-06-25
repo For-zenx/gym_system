@@ -31,6 +31,16 @@ PERMISSION_GROUPS = {
             ("staff_persons.delete", "Eliminar personal"),
         ],
     },
+    "guests": {
+        "label": "Invitados",
+        "permissions": [
+            ("guests.view_list", "Ver lista de invitados"),
+            ("guests.view_profile", "Ver perfil de invitado"),
+            ("guests.register", "Registrar invitados y emitir pases"),
+            ("guests.revoke_pass", "Revocar pase de invitado"),
+            ("guests.delete", "Eliminar invitados"),
+        ],
+    },
     "billing_ops": {
         "label": "Caja",
         "permissions": [
@@ -127,6 +137,10 @@ CASHIER_PERMISSION_CODES = [
     "staff_persons.view_profile",
     "staff_persons.edit",
     "staff_persons.enroll",
+    "guests.view_list",
+    "guests.view_profile",
+    "guests.register",
+    "guests.revoke_pass",
     "billing.charge",
     "billing.change_cut_date",
     "billing.view_audit",

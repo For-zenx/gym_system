@@ -1,6 +1,7 @@
 from django import template
 
 from apps.billing.services import get_membership_feed_lines, get_membership_status_display
+from apps.clients.services import get_guest_feed_lines
 
 register = template.Library()
 
@@ -23,6 +24,12 @@ def feed_membership_status(client):
                 "secondary": None,
             }
         ]
+        kicker = "Membresía"
     else:
-        lines = get_membership_feed_lines(client)
-    return {"lines": lines}
+        if getattr(client, "is_guest", False):
+            lines = get_guest_feed_lines(client)
+            kicker = "Pase invitado"
+        else:
+            lines = get_membership_feed_lines(client)
+            kicker = "Membresía"
+    return {"lines": lines, "kicker": kicker}

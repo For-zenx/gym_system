@@ -112,6 +112,149 @@ def validate_client_data(nombre, cedula_prefix, cedula_numero, telefono, fecha_n
     return errors, cleaned
 
 
+GUEST_MINOR_MAX_AGE = 17
+
+
+def _calculate_age(birth_date, today=None):
+    if today is None:
+        today = date.today()
+    return today.year - birth_date.year - (
+        (today.month, today.day) < (birth_date.month, birth_date.day)
+    )
+
+
+def validate_guest_data(
+    nombre,
+    cedula_prefix,
+    cedula_numero,
+    telefono,
+    fecha_nacimiento_raw,
+    sexo,
+    minor_without_cedula=False,
+):
+    errors = {}
+    cleaned = {}
+
+    nombre = (nombre or '').strip()
+    if len(nombre) < 3:
+        errors['nombre'] = 'El nombre debe tener al menos 3 caracteres.'
+    elif not NAME_PATTERN.match(nombre):
+        errors['nombre'] = 'El nombre debe contener letras válidas (no use solo números ni símbolos).'
+    elif not re.search(r'[A-Za-zÁÉÍÓÚáéíóúÑñÜü]', nombre):
+        errors['nombre'] = 'El nombre debe incluir al menos una letra.'
+    else:
+        cleaned['nombre'] = nombre
+
+    telefono = (telefono or '').strip()
+    if telefono:
+        if not PHONE_DIGITS_PATTERN.match(telefono):
+            errors['telefono'] = 'El teléfono no parece válido. Use solo números, espacios, guiones o +.'
+        elif len(re.sub(r'\D', '', telefono)) < 7:
+            errors['telefono'] = 'El teléfono debe tener al menos 7 dígitos.'
+        else:
+            cleaned['telefono'] = telefono
+    else:
+        cleaned['telefono'] = ''
+
+    sexo = (sexo or '').strip().upper()
+    if sexo not in VALID_SEX_VALUES:
+        errors['sexo'] = 'Seleccione un sexo válido.'
+    else:
+        cleaned['sexo'] = sexo
+
+    fecha_nacimiento = None
+    if (fecha_nacimiento_raw or '').strip():
+        try:
+            parsed = datetime.strptime(fecha_nacimiento_raw.strip(), '%Y-%m-%d').date()
+        except ValueError:
+            errors['fecha_nacimiento'] = 'La fecha de nacimiento no es válida.'
+        else:
+            today = date.today()
+            if parsed > today:
+                errors['fecha_nacimiento'] = 'La fecha de nacimiento no puede ser futura.'
+            else:
+                age = _calculate_age(parsed, today)
+                if age < 0:
+                    errors['fecha_nacimiento'] = 'La fecha de nacimiento no parece válida.'
+                elif age > 120:
+                    errors['fecha_nacimiento'] = 'La fecha de nacimiento no parece válida.'
+                else:
+                    fecha_nacimiento = parsed
+    cleaned['fecha_nacimiento'] = fecha_nacimiento
+
+    minor_flag = str(minor_without_cedula).lower() in ('1', 'true', 'on', 'yes')
+    cleaned['minor_without_cedula'] = minor_flag
+
+    if minor_flag:
+        if fecha_nacimiento is None:
+            errors['fecha_nacimiento'] = 'Indique la fecha de nacimiento del menor.'
+        elif _calculate_age(fecha_nacimiento) > GUEST_MINOR_MAX_AGE:
+            errors['fecha_nacimiento'] = (
+                'La opción «menor sin cédula» solo aplica a menores de 18 años.'
+            )
+        cleaned['cedula'] = None
+    else:
+        cedula = build_cedula(cedula_prefix, cedula_numero)
+        if not CEDULA_PATTERN.match(cedula):
+            errors['cedula'] = 'La cédula/RIF debe tener formato V-12345678 o J-401234567 (6 a 10 dígitos).'
+        else:
+            cleaned['cedula'] = cedula
+
+    return errors, cleaned
+
+
+def validate_guest_enrollment_data(nombre):
+    errors = {}
+    cleaned = {}
+
+    nombre = (nombre or '').strip()
+    if len(nombre) < 3:
+        errors['nombre'] = 'El nombre debe tener al menos 3 caracteres.'
+    elif not NAME_PATTERN.match(nombre):
+        errors['nombre'] = 'El nombre debe contener letras válidas (no use solo números ni símbolos).'
+    elif not re.search(r'[A-Za-zÁÉÍÓÚáéíóúÑñÜü]', nombre):
+        errors['nombre'] = 'El nombre debe incluir al menos una letra.'
+    else:
+        cleaned['nombre'] = nombre
+
+    cleaned['cedula'] = None
+    cleaned['telefono'] = None
+    cleaned['fecha_nacimiento'] = None
+    cleaned['sexo'] = ''
+
+    return errors, cleaned
+
+
+def validate_guest_pass_dates(valid_from_raw, valid_until_raw):
+    errors = {}
+    cleaned = {}
+    today = date.today()
+
+    if not (valid_from_raw or '').strip():
+        cleaned['valid_from'] = today
+    else:
+        try:
+            cleaned['valid_from'] = datetime.strptime(valid_from_raw.strip(), '%Y-%m-%d').date()
+        except ValueError:
+            errors['valid_until'] = 'La fecha de inicio del pase no es válida.'
+
+    if not (valid_until_raw or '').strip():
+        errors['valid_until'] = 'Indique la fecha de vencimiento del pase.'
+    else:
+        try:
+            valid_until = datetime.strptime(valid_until_raw.strip(), '%Y-%m-%d').date()
+        except ValueError:
+            errors['valid_until'] = 'La fecha de vencimiento del pase no es válida.'
+        else:
+            valid_from = cleaned.get('valid_from', today)
+            if valid_until < valid_from:
+                errors['valid_until'] = 'La fecha de vencimiento no puede ser anterior al inicio del pase.'
+            else:
+                cleaned['valid_until'] = valid_until
+
+    return errors, cleaned
+
+
 def client_form_context(client=None, post_data=None, can_view_phone=True):
     if post_data is not None:
         prefix = post_data.get('cedula_prefix', 'V-')

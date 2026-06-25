@@ -95,16 +95,21 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
         await self.send(json.dumps(tablet_payload))
 
         photo_url = client.foto_frente.url if client.foto_frente else ""
-        from apps.billing.services import get_membership_feed_lines
+        if client.is_guest:
+            from apps.clients.services import get_guest_feed_lines
 
-        membership_lines = await database_sync_to_async(get_membership_feed_lines)(client)
+            membership_lines = await database_sync_to_async(get_guest_feed_lines)(client)
+        else:
+            from apps.billing.services import get_membership_feed_lines
+
+            membership_lines = await database_sync_to_async(get_membership_feed_lines)(client)
 
         await self.channel_layer.group_send(
             DASHBOARD_GROUP,
             {
                 "type": "new_access_log",
                 "name": client.nombre,
-                "cedula": client.cedula,
+                "cedula": client.cedula or "",
                 "codigo": client.codigo_afiliado,
                 "telefono": client.telefono,
                 "fecha_ingreso": client.fecha_ingreso.strftime('%d/%m/%Y'),
@@ -112,6 +117,7 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
                 "granted": granted,
                 "detail": detail,
                 "is_staff_person": client.is_staff_person,
+                "is_guest_person": client.is_guest,
                 "membership_lines": membership_lines,
                 "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S'),
             },
@@ -239,6 +245,7 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             "granted": event.get("granted"),
             "detail": event.get("detail"),
             "is_staff_person": event.get("is_staff_person", False),
+            "is_guest_person": event.get("is_guest_person", False),
             "membership_lines": event.get("membership_lines", []),
             "timestamp": event.get("timestamp"),
         }))

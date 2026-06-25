@@ -5,7 +5,7 @@
 {% block page_title %}Enrolamiento{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=2.6">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=2.9">
 {% endblock %}
 
 {% block content %}
@@ -66,7 +66,22 @@
             <input type="hidden" name="foto_frente_base64" id="input-foto-frente">
             <input type="hidden" name="terms_accepted" id="input-terms-accepted" value="">
 
-            {% if can_enroll_member and can_enroll_staff %}
+            {% if can_enroll_member and can_enroll_staff and can_enroll_guest %}
+            <div class="enrollment-category-picker" id="enrollment-category-picker" role="radiogroup" aria-label="Tipo de persona">
+                <label class="enrollment-category-option{% if person_category == 'MEMBER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="MEMBER" {% if person_category == 'MEMBER' %}checked{% endif %}> Afiliado
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'EMPLOYEE' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="EMPLOYEE" {% if person_category == 'EMPLOYEE' %}checked{% endif %}> Empleado
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'TRAINER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'GUEST' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="GUEST" {% if person_category == 'GUEST' %}checked{% endif %}> Invitado
+                </label>
+            </div>
+            {% elif can_enroll_member and can_enroll_staff %}
             <div class="enrollment-category-picker" id="enrollment-category-picker" role="radiogroup" aria-label="Tipo de persona">
                 <label class="enrollment-category-option{% if person_category == 'MEMBER' %} is-active{% endif %}">
                     <input type="radio" name="person_category" value="MEMBER" {% if person_category == 'MEMBER' %}checked{% endif %}> Afiliado
@@ -78,6 +93,27 @@
                     <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
                 </label>
             </div>
+            {% elif can_enroll_member and can_enroll_guest %}
+            <div class="enrollment-category-picker" id="enrollment-category-picker" role="radiogroup" aria-label="Tipo de persona">
+                <label class="enrollment-category-option{% if person_category == 'MEMBER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="MEMBER" {% if person_category == 'MEMBER' %}checked{% endif %}> Afiliado
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'GUEST' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="GUEST" {% if person_category == 'GUEST' %}checked{% endif %}> Invitado
+                </label>
+            </div>
+            {% elif can_enroll_staff and can_enroll_guest %}
+            <div class="enrollment-category-picker" id="enrollment-category-picker" role="radiogroup" aria-label="Tipo de persona">
+                <label class="enrollment-category-option{% if person_category == 'EMPLOYEE' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="EMPLOYEE" {% if person_category == 'EMPLOYEE' %}checked{% endif %}> Empleado
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'TRAINER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'GUEST' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="GUEST" {% if person_category == 'GUEST' %}checked{% endif %}> Invitado
+                </label>
+            </div>
             {% elif can_enroll_staff %}
             <div class="enrollment-category-picker" id="enrollment-category-picker" role="radiogroup" aria-label="Tipo de personal">
                 <label class="enrollment-category-option{% if person_category == 'EMPLOYEE' %} is-active{% endif %}">
@@ -87,11 +123,14 @@
                     <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
                 </label>
             </div>
+            {% elif can_enroll_guest %}
+            <input type="hidden" name="person_category" value="GUEST">
             {% else %}
             <input type="hidden" name="person_category" value="MEMBER">
             {% endif %}
 
-            <div class="form-group">
+            <div id="enrollment-standard-fields">
+            <div class="form-group enrollment-field-cedula">
                 <label for="cedula_numero">Cédula / RIF</label>
                 <div class="cedula-input-group">
                     <select id="cedula_prefix" name="cedula_prefix" aria-label="Tipo de documento">
@@ -101,18 +140,20 @@
                     <input type="text" id="cedula_numero" name="cedula_numero" required inputmode="numeric" placeholder="12345678" value="{{ form_cedula_numero|default:'' }}">
                 </div>
             </div>
-
-            <div class="form-group">
-                <label for="nombre">Nombre Completo</label>
-                <input type="text" id="nombre" name="nombre" required placeholder="Ej: Juan Pérez" value="{{ form_nombre|default:'' }}">
             </div>
 
             <div class="form-group">
+                <label for="nombre">Nombre completo</label>
+                <input type="text" id="nombre" name="nombre" required placeholder="Ej: Juan Pérez" value="{{ form_nombre|default:'' }}">
+            </div>
+
+            <div id="enrollment-standard-extra-fields">
+            <div class="form-group enrollment-field-telefono">
                 <label for="telefono">Teléfono (Opcional)</label>
                 <input type="text" id="telefono" name="telefono" placeholder="Ej: 0414-1234567" value="{{ form_telefono|default:'' }}">
             </div>
 
-            <div class="form-row-split">
+            <div class="form-row-split enrollment-field-extra">
                 <div class="form-group">
                     <label for="fecha_nacimiento">Fecha de Nacimiento (Opcional)</label>
                     <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" value="{{ form_fecha_nacimiento|default:'' }}">
@@ -124,6 +165,26 @@
                         <option value="M" {% if form_sexo == 'M' %}selected{% endif %}>Masculino</option>
                         <option value="F" {% if form_sexo == 'F' %}selected{% endif %}>Femenino</option>
                     </select>
+                </div>
+            </div>
+            </div>
+
+            <div id="enrollment-guest-fields" class="enrollment-guest-fields" hidden>
+                <div class="form-group">
+                    <label>Vigencia del pase</label>
+                    <div class="guest-pass-presets" role="group" aria-label="Duración del pase">
+                        <button type="button" class="guest-pass-preset is-active" data-days="1">1 día</button>
+                        <button type="button" class="guest-pass-preset" data-days="3">3 días</button>
+                        <button type="button" class="guest-pass-preset" data-days="7">7 días</button>
+                    </div>
+                    <p id="guest-pass-validity-text" class="guest-pass-validity-text" aria-live="polite"></p>
+                    <input type="hidden" name="valid_from" id="valid_from" value="{{ default_valid_from }}">
+                    <input type="hidden" name="valid_until" id="valid_until" value="{{ default_valid_until }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Notas (opcional)</label>
+                    <input type="text" id="notes" name="notes" maxlength="500" placeholder="Ej. visita puntual" value="{{ form_notes|default:'' }}">
                 </div>
             </div>
 
@@ -181,6 +242,12 @@
     const enrollmentSaveBtn = document.getElementById('enrollment-save-btn');
     const enrollmentSuccessTitle = document.getElementById('enrollment-success-title');
     const enrollmentSuccessText = document.getElementById('enrollment-success-text');
+    const standardFieldsEl = document.getElementById('enrollment-standard-fields');
+    const standardExtraFieldsEl = document.getElementById('enrollment-standard-extra-fields');
+    const guestFieldsEl = document.getElementById('enrollment-guest-fields');
+    const validFromInput = document.getElementById('valid_from');
+    const validUntilInput = document.getElementById('valid_until');
+    const guestPassValidityText = document.getElementById('guest-pass-validity-text');
     let enrollmentPhotoReady = false;
     let enrollmentTermsMet = false;
     let cedulaExists = false;
@@ -199,6 +266,65 @@
         return getSelectedCategory() === 'MEMBER';
     }
 
+    function isGuestEnrollment() {
+        return getSelectedCategory() === 'GUEST';
+    }
+
+    function isStaffEnrollment() {
+        const category = getSelectedCategory();
+        return category === 'EMPLOYEE' || category === 'TRAINER';
+    }
+
+    function formatGuestDate(isoDate) {
+        if (!isoDate) {
+            return '';
+        }
+        const parts = isoDate.split('-');
+        if (parts.length !== 3) {
+            return isoDate;
+        }
+        return parts[2] + '/' + parts[1] + '/' + parts[0];
+    }
+
+    function updateGuestPassValidityText() {
+        if (!guestPassValidityText || !validFromInput || !validUntilInput) {
+            return;
+        }
+        guestPassValidityText.textContent = 'Válido desde ' + formatGuestDate(validFromInput.value) +
+            ' hasta ' + formatGuestDate(validUntilInput.value);
+    }
+
+    function applyGuestPassPreset(days, button) {
+        const from = new Date();
+        const until = new Date(from);
+        until.setDate(until.getDate() + parseInt(days, 10));
+        const fromIso = from.toISOString().slice(0, 10);
+        const untilIso = until.toISOString().slice(0, 10);
+        validFromInput.value = fromIso;
+        validUntilInput.value = untilIso;
+        document.querySelectorAll('.guest-pass-preset').forEach(function (btn) {
+            btn.classList.toggle('is-active', btn === button);
+        });
+        updateGuestPassValidityText();
+    }
+
+    function setEnrollmentSection(el, visible) {
+        if (!el) {
+            return;
+        }
+        el.hidden = !visible;
+        el.classList.toggle('hidden', !visible);
+    }
+
+    function setGuestFieldEnabled(enabled) {
+        const notesInput = document.getElementById('notes');
+        [validFromInput, validUntilInput, notesInput].forEach(function (input) {
+            if (input) {
+                input.disabled = !enabled;
+            }
+        });
+    }
+
     function syncCategoryPickerStyles() {
         document.querySelectorAll('.enrollment-category-option').forEach(function (label) {
             const input = label.querySelector('input[name="person_category"]');
@@ -208,20 +334,60 @@
 
     function applyCategoryUi() {
         const isMember = isMemberEnrollment();
+        const isGuest = isGuestEnrollment();
         if (enrollmentFormTitle) {
-            enrollmentFormTitle.textContent = isMember ? 'Datos del Afiliado' : 'Datos del Personal';
+            if (isMember) {
+                enrollmentFormTitle.textContent = 'Datos del Afiliado';
+            } else if (isGuest) {
+                enrollmentFormTitle.textContent = 'Datos del invitado';
+            } else {
+                enrollmentFormTitle.textContent = 'Datos del Personal';
+            }
         }
         if (photoSlotLabel) {
-            photoSlotLabel.textContent = isMember ? 'Foto del afiliado' : 'Foto';
+            if (isMember) {
+                photoSlotLabel.textContent = 'Foto del afiliado';
+            } else if (isGuest) {
+                photoSlotLabel.textContent = 'Foto del invitado';
+            } else {
+                photoSlotLabel.textContent = 'Foto';
+            }
         }
         if (enrollmentSaveBtn) {
-            enrollmentSaveBtn.textContent = isMember ? 'Guardar Afiliado' : 'Guardar Personal';
+            if (isMember) {
+                enrollmentSaveBtn.textContent = 'Guardar Afiliado';
+            } else if (isGuest) {
+                enrollmentSaveBtn.textContent = 'Registrar invitado';
+            } else {
+                enrollmentSaveBtn.textContent = 'Guardar Personal';
+            }
         }
-        if (!isMember) {
+        setEnrollmentSection(standardFieldsEl, !isGuest);
+        setEnrollmentSection(standardExtraFieldsEl, !isGuest);
+        setEnrollmentSection(guestFieldsEl, isGuest);
+        setGuestFieldEnabled(isGuest);
+        if (cedulaWarningEl) {
+            cedulaWarningEl.classList.toggle('is-visible', !isGuest && cedulaExists);
+        }
+        if (cedulaNumeroInput) {
+            if (isGuest) {
+                cedulaNumeroInput.removeAttribute('required');
+            } else {
+                cedulaNumeroInput.setAttribute('required', 'required');
+            }
+        }
+        if (isGuest) {
+            enrollmentTermsMet = enrollmentPhotoReady;
+            updateGuestPassValidityText();
+        } else if (!isMember) {
             enrollmentTermsMet = enrollmentPhotoReady;
         }
         resetEnrollmentSessionState();
         syncCategoryPickerStyles();
+        const contentArea = document.querySelector('.content-area');
+        if (contentArea) {
+            contentArea.scrollTop = 0;
+        }
     }
 
     function setTermsStatus(state, message) {
@@ -243,7 +409,8 @@
             ? document.getElementById('enrollment-form').querySelector('.btn-enrollment-save')
             : null;
         const termsOk = isMemberEnrollment() ? enrollmentTermsMet : enrollmentPhotoReady;
-        const canSave = enrollmentPhotoReady && termsOk && !cedulaExists;
+        const cedulaOk = isGuestEnrollment() ? true : !cedulaExists;
+        const canSave = enrollmentPhotoReady && termsOk && cedulaOk;
         if (saveButton) {
             saveButton.disabled = !canSave;
         }
@@ -255,11 +422,11 @@
     }
 
     function resetEnrollmentSessionState() {
-        if (!isMemberEnrollment()) {
+        if (isGuestEnrollment() || isStaffEnrollment()) {
             if (enrollmentPhotoReady) {
                 setTermsStatus('accepted', 'Foto capturada');
             } else {
-                setTermsStatus('pending', 'Esperando foto en la tablet');
+                setTermsStatus('pending', isGuestEnrollment() ? 'Esperando foto del invitado en la tablet' : 'Esperando foto en la tablet');
             }
             updateEnrollmentSaveState();
             return;
@@ -301,6 +468,10 @@
     }
 
     function lookupEnrollmentCedula() {
+        if (isGuestEnrollment()) {
+            setCedulaWarning(false);
+            return;
+        }
         if (!cedulaPrefixInput || !cedulaNumeroInput) {
             return;
         }
@@ -404,6 +575,12 @@
         cedulaNumeroInput.addEventListener('blur', scheduleCedulaCheck);
     }
 
+    document.querySelectorAll('.guest-pass-preset').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            applyGuestPassPreset(btn.getAttribute('data-days'), btn);
+        });
+    });
+
     document.querySelectorAll('#enrollment-form input[name="person_category"]').forEach(function (input) {
         input.addEventListener('change', function () {
             applyCategoryUi();
@@ -413,6 +590,7 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         applyCategoryUi();
+        updateGuestPassValidityText();
         updateEnrollmentSaveState();
         setTimeout(function () {
             window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
@@ -488,7 +666,7 @@
     if (enrollmentForm) {
         enrollmentForm.addEventListener('submit', function (event) {
             event.preventDefault();
-            if (cedulaExists) {
+            if (!isGuestEnrollment() && cedulaExists) {
                 processErrorMessage.textContent = 'Esta cédula ya está registrada. Use Re-enrolar desde el perfil del afiliado.';
                 openProcessModal('error');
                 return;
@@ -521,9 +699,13 @@
                 })
                 .then(function (result) {
                     if (result.ok && result.data.status === 'success') {
-                        if (isMemberEnrollment()) {
+                        const category = getSelectedCategory();
+                        if (category === 'MEMBER') {
                             if (enrollmentSuccessTitle) enrollmentSuccessTitle.textContent = 'Afiliado registrado';
                             if (enrollmentSuccessText) enrollmentSuccessText.textContent = 'Redirigiendo al cobro...';
+                        } else if (category === 'GUEST') {
+                            if (enrollmentSuccessTitle) enrollmentSuccessTitle.textContent = 'Invitado registrado';
+                            if (enrollmentSuccessText) enrollmentSuccessText.textContent = 'Redirigiendo al perfil...';
                         } else {
                             if (enrollmentSuccessTitle) enrollmentSuccessTitle.textContent = 'Personal registrado';
                             if (enrollmentSuccessText) enrollmentSuccessText.textContent = 'Redirigiendo al perfil...';

@@ -233,6 +233,11 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
 
     def get(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if client.is_guest:
+            messages.error(request, "Los invitados no pueden usar el cobro en caja.")
+            return redirect(
+                reverse("guests:profile", kwargs={"codigo_afiliado": codigo_afiliado})
+            )
         origin = _normalize_checkout_origin(request.GET.get("origin", "profile"))
         next_url = _get_safe_next_url(request, request.GET.get("next", ""))
         planes = Plan.objects.filter(is_active=True) if client.can_purchase_membership else Plan.objects.none()
@@ -300,6 +305,11 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
 
     def post(self, request, codigo_afiliado):
         client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if client.is_guest:
+            messages.error(request, "Los invitados no pueden usar el cobro en caja.")
+            return redirect(
+                reverse("guests:profile", kwargs={"codigo_afiliado": codigo_afiliado})
+            )
         origin = _normalize_checkout_origin(
             request.POST.get("origin", request.GET.get("origin", "profile"))
         )

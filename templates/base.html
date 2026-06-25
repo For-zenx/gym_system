@@ -27,7 +27,9 @@
                 <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Inicio</a>
                 {% endif %}
                 {% if 'clients.view_list' in user_permissions %}
-                <a href="{% url 'clients:client_list' %}" class="nav-item {% if request.resolver_match.url_name == 'client_list' %}active{% endif %}">Lista de afiliados</a>
+                <a href="{% url 'clients:client_list' %}" class="nav-item {% if request.resolver_match.url_name == 'client_list' or '/invitados/' in request.path %}active{% endif %}">Lista de afiliados</a>
+                {% elif 'guests.view_list' in user_permissions %}
+                <a href="{% url 'clients:client_list' %}?tipo=invitados" class="nav-item {% if request.resolver_match.url_name == 'client_list' or '/invitados/' in request.path %}active{% endif %}">Lista de invitados</a>
                 {% endif %}
                 {% if 'staff_persons.view_list' in user_permissions %}
                 <a href="{% url 'staff_persons:staff_list' %}" class="nav-item {% if '/personal/' in request.path and 'enrolamiento' not in request.path %}active{% endif %}">Lista de personal</a>
@@ -47,7 +49,7 @@
                 {% if 'stats.view' in user_permissions %}
                 <a href="{% url 'stats:entry_hours' %}" class="nav-item {% if '/estadisticas/' in request.path %}active{% endif %}">Estadísticas</a>
                 {% endif %}
-                {% if 'clients.enroll' in user_permissions or 'staff_persons.enroll' in user_permissions %}
+                {% if 'clients.enroll' in user_permissions or 'staff_persons.enroll' in user_permissions or 'guests.register' in user_permissions %}
                 <a href="{% url 'enrollment' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment' %}active{% endif %}">Enrolamiento</a>
                 {% endif %}
                 {% if 'plans.view' in user_permissions %}

@@ -51,13 +51,13 @@ function setFaceGuideVariant(variant) {
 }
 
 function isGrantedVariant(variant) {
-    return variant === 'granted' || variant === 'granted_staff';
+    return variant === 'granted' || variant === 'granted_staff' || variant === 'granted_guest';
 }
 
 function hideBottomBanner() {
     accessBottomBanner.className = 'access-bottom-banner hidden';
     accessBottomBanner.classList.remove(
-        'granted', 'granted_staff', 'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_other', 'processing'
+        'granted', 'granted_staff', 'granted_guest', 'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_other', 'processing'
     );
 }
 
@@ -171,6 +171,12 @@ function buildResultCopy(data, variant) {
         const name = data.name ? data.name + ' — ' : '';
         if (variant === 'granted_staff') {
             subtitle = name + (data.detail || 'Acceso personal');
+        } else if (variant === 'granted_guest') {
+            const guestLine = data.pass_until_display
+                ? 'Pase vigente hasta ' + data.pass_until_display
+                : (data.detail || 'Acceso de invitado');
+            const sponsor = data.sponsor_name ? ' · Responsable: ' + data.sponsor_name : '';
+            subtitle = name + guestLine + sponsor;
         } else {
             const cutLine = formatCutLine(data);
             subtitle = name + (cutLine || 'Acceso concedido');

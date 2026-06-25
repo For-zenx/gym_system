@@ -127,7 +127,12 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.client-list-toolbar-secondary .staff-list-filter-tabs {
+    margin-bottom: 0;
 }
 
 .client-list-search-form {

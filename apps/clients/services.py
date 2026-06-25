@@ -11,7 +11,7 @@ from django.db.models.functions import Coalesce
 
 from apps.billing.models import Membership
 
-from .models import Client, PERSON_CODE_PREFIX, PersonCategory
+from .models import Client, GuestPass, PERSON_CODE_PREFIX, PersonCategory
 
 ALLOWED_INACTIVITY_YEARS = (1, 2)
 INACTIVE_CLIENTS_PREVIEW_LIMIT = 20
@@ -46,7 +46,129 @@ def get_next_person_code(category):
 def get_person_profile_url_name(client):
     if client.person_category == PersonCategory.MEMBER:
         return "clients:profile"
+    if client.person_category == PersonCategory.GUEST:
+        return "guests:profile"
     return "staff_persons:profile"
+
+
+def guest_pass_is_valid(guest_pass, on_date=None):
+    if on_date is None:
+        on_date = date.today()
+    if guest_pass.revoked_at:
+        return False
+    return guest_pass.valid_from <= on_date <= guest_pass.valid_until
+
+
+def get_active_guest_pass(client, on_date=None):
+    if on_date is None:
+        on_date = date.today()
+    if not client.is_guest:
+        return None
+    return (
+        GuestPass.objects.filter(
+            guest=client,
+            revoked_at__isnull=True,
+            valid_from__lte=on_date,
+            valid_until__gte=on_date,
+        )
+        .select_related("sponsor")
+        .order_by("-valid_until", "-created_at")
+        .first()
+    )
+
+
+def _apply_guest_client_fields(client, cleaned):
+    client.nombre = cleaned["nombre"]
+    client.cedula = cleaned["cedula"]
+    client.telefono = cleaned["telefono"] or None
+    client.fecha_nacimiento = cleaned["fecha_nacimiento"]
+    client.sexo = cleaned["sexo"]
+    client.person_category = PersonCategory.GUEST
+
+
+@transaction.atomic
+def issue_guest_pass(guest, sponsor, valid_from, valid_until, registered_by=None, notes=""):
+    if not guest.is_guest:
+        raise ValueError("Solo los invitados pueden recibir pases de invitado.")
+    if sponsor is not None and not sponsor.is_member:
+        raise ValueError("El responsable debe ser un afiliado.")
+    return GuestPass.objects.create(
+        guest=guest,
+        sponsor=sponsor,
+        valid_from=valid_from,
+        valid_until=valid_until,
+        registered_by=registered_by,
+        notes=(notes or "").strip(),
+    )
+
+
+@transaction.atomic
+def create_guest_with_pass(
+    sponsor,
+    cleaned_data,
+    valid_from,
+    valid_until,
+    registered_by=None,
+    notes="",
+    foto_frente_b64=None,
+):
+    if sponsor is not None and not sponsor.is_member:
+        raise ValueError("El responsable debe ser un afiliado.")
+
+    codigo = get_next_person_code(PersonCategory.GUEST)
+    guest = Client(codigo_afiliado=codigo)
+    _apply_guest_client_fields(guest, cleaned_data)
+    guest.save()
+
+    guest_pass = issue_guest_pass(
+        guest,
+        sponsor,
+        valid_from,
+        valid_until,
+        registered_by=registered_by,
+        notes=notes,
+    )
+
+    if foto_frente_b64:
+        apply_front_photo_from_b64(guest, foto_frente_b64)
+
+    return guest, guest_pass
+
+
+@transaction.atomic
+def revoke_guest_pass(guest_pass):
+    from django.utils import timezone
+
+    if guest_pass.revoked_at:
+        return guest_pass
+    guest_pass.revoked_at = timezone.now()
+    guest_pass.save(update_fields=["revoked_at"])
+    return guest_pass
+
+
+def get_guest_feed_lines(client):
+    active = get_active_guest_pass(client)
+    if active:
+        return [
+            {
+                "status": "active",
+                "title": "Pase de invitado",
+                "primary": "Vigente hasta {}".format(active.valid_until.strftime("%d/%m/%Y")),
+                "secondary": (
+                    "Responsable: {}".format(active.sponsor.nombre)
+                    if active.sponsor_id
+                    else None
+                ),
+            }
+        ]
+    return [
+        {
+            "status": "empty",
+            "title": "Sin pase activo",
+            "primary": None,
+            "secondary": None,
+        }
+    ]
 
 
 def _content_file_from_b64(b64_str, filename_base):

@@ -1,8 +1,28 @@
 /* Panel de configuración — mismo lenguaje visual que base.css */
 
-.config-body {
+html.config-layout {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+html.config-layout body.config-body {
+    height: auto;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: visible;
+    margin: 0;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+}
+
+body.config-body {
     margin: 0;
     min-height: 100vh;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     background-color: var(--bg-main);
     color: var(--text-main);
 }
@@ -106,7 +126,7 @@
 
 .config-form-card {
     padding: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .config-form-section {

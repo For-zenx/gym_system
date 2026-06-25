@@ -6,6 +6,10 @@
     margin: 0 auto;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 .form-section, .camera-section {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
@@ -563,3 +567,92 @@
         max-width: 220px;
     }
 }
+
+.guest-sponsor-search {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.guest-sponsor-results {
+    margin-top: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-main);
+    overflow: hidden;
+}
+
+.guest-sponsor-results.hidden {
+    display: none !important;
+}
+
+.guest-sponsor-option,
+.guest-sponsor-empty {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-main);
+    font: inherit;
+    cursor: pointer;
+}
+
+.guest-sponsor-option:hover {
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.guest-sponsor-empty {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.guest-pass-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.guest-pass-preset {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.guest-pass-preset:hover {
+    color: var(--text-main);
+    border-color: rgba(59, 130, 246, 0.45);
+}
+
+.guest-pass-preset.is-active {
+    background-color: rgba(59, 130, 246, 0.22);
+    border-color: rgba(96, 165, 250, 0.65);
+    color: #93c5fd;
+}
+
+.guest-pass-validity-text {
+    margin: 0.25rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.guest-minor-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+

@@ -11,7 +11,7 @@
 
     <div class="feed-grid-xl" id="live-feed-grid">
         {% for log in logs %}
-            <a href="{% if log.client.is_staff_person %}{% url 'staff_persons:profile' log.client.codigo_afiliado %}{% else %}{% url 'clients:profile' log.client.codigo_afiliado %}{% endif %}" class="feed-card-xl {% if log.resultado %}granted{% else %}denied{% endif %}" id="log-{{ log.id }}">
+            <a href="{% if log.client.is_guest %}{% url 'guests:profile' log.client.codigo_afiliado %}{% elif log.client.is_staff_person %}{% url 'staff_persons:profile' log.client.codigo_afiliado %}{% else %}{% url 'clients:profile' log.client.codigo_afiliado %}{% endif %}" class="feed-card-xl {% if log.resultado %}granted{% else %}denied{% endif %}" id="log-{{ log.id }}">
                 <div class="feed-header-xl">
                     <img src="{% if log.client.foto_frente %}{{ log.client.foto_frente.url }}{% else %}{% static 'img/gym_bg.png' %}{% endif %}" alt="Foto" class="feed-avatar-xl">
                     <div class="feed-title-container">
@@ -27,7 +27,7 @@
                 <div class="feed-details-grid">
                     <div class="feed-data-item">
                         <span class="feed-data-label">Cédula de Identidad</span>
-                        <span class="feed-data-value">{{ log.client.cedula }}</span>
+                        <span class="feed-data-value">{% if log.client.cedula %}{{ log.client.cedula }}{% else %}—{% endif %}</span>
                     </div>
                     <div class="feed-data-item">
                         <span class="feed-data-label">Código</span>
@@ -77,9 +77,9 @@
         if (emptyMsg) emptyMsg.remove();
 
         const card = document.createElement('a');
-        card.href = data.is_staff_person
-            ? `/personal/${data.codigo}/`
-            : `/afiliados/${data.codigo}/`;
+        card.href = data.is_guest_person
+            ? `/invitados/${data.codigo}/`
+            : (data.is_staff_person ? `/personal/${data.codigo}/` : `/afiliados/${data.codigo}/`);
         card.className = `feed-card-xl ${data.granted ? 'granted' : 'denied'}`;
         
         // Initial state for animation
@@ -98,7 +98,16 @@
             return div.innerHTML;
         }
 
-        function renderMembershipBlock(lines) {
+        function renderMembershipBlock(lines, isGuest) {
+            if (isGuest) {
+                const line = lines[0] || { title: 'Sin pase activo', primary: null };
+                return '<div class="feed-membership-block">' +
+                    '<p class="feed-membership-kicker">Pase invitado</p>' +
+                    '<ul class="feed-membership-lines"><li class="feed-membership-line feed-membership-line--' + escapeHtml(line.status || 'empty') + '">' +
+                    '<span class="feed-membership-line-title">' + escapeHtml(line.title) + '</span>' +
+                    (line.primary ? '<span class="feed-membership-line-primary">' + escapeHtml(line.primary) + '</span>' : '') +
+                    '</li></ul></div>';
+            }
             if (!lines.length) {
                 lines = [{ status: 'empty', title: 'Sin plan activo', primary: null, secondary: null }];
             }
@@ -150,7 +159,7 @@
                     <span class="feed-data-value">${data.fecha_ingreso}</span>
                 </div>
                 <div class="feed-data-item feed-data-item--membership">
-                    ${renderMembershipBlock(membershipLines)}
+                    ${renderMembershipBlock(membershipLines, data.is_guest_person)}
                 </div>
             </div>
         `;

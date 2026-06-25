@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 
 from apps.billing.models import Invoice, InvoiceLine, Membership, Plan, SaleItem, ExchangeRate
-from apps.clients.models import Client, PERSON_CODE_PREFIX, PersonCategory
+from apps.clients.models import Client, GuestPass, PERSON_CODE_PREFIX, PersonCategory
 from apps.lockers.models import Locker
 from apps.users.models import StaffProfile, StaffRole
 from apps.users.permissions import validate_permissions
@@ -56,6 +56,47 @@ def create_client(cedula=None, nombre=None, codigo_afiliado=None, telefono=None,
         codigo_afiliado=codigo_afiliado or "{}-{:05d}-00".format(prefix, seq),
         telefono=telefono,
         person_category=person_category,
+    )
+
+
+def create_guest(cedula=None, nombre=None, codigo_afiliado=None, sponsor=None, valid_until=None):
+    guest = create_client(
+        cedula=cedula,
+        nombre=nombre or "Invitado Test {}".format(next(_client_counter)),
+        codigo_afiliado=codigo_afiliado,
+        person_category=PersonCategory.GUEST,
+    )
+    if sponsor is None:
+        sponsor = create_client(
+            cedula="V-{:08d}".format(next(_client_counter)),
+            person_category=PersonCategory.MEMBER,
+        )
+    if valid_until is None:
+        valid_until = date.today() + timedelta(days=1)
+    GuestPass.objects.create(
+        guest=guest,
+        sponsor=sponsor,
+        valid_from=date.today(),
+        valid_until=valid_until,
+    )
+    return guest
+
+
+def create_guest_pass(guest=None, sponsor=None, valid_from=None, valid_until=None):
+    if guest is None:
+        guest = create_guest(sponsor=sponsor, valid_until=valid_until)
+        return guest.guest_passes.latest("created_at")
+    if sponsor is None:
+        sponsor = create_client(person_category=PersonCategory.MEMBER)
+    if valid_from is None:
+        valid_from = date.today()
+    if valid_until is None:
+        valid_until = valid_from + timedelta(days=1)
+    return GuestPass.objects.create(
+        guest=guest,
+        sponsor=sponsor,
+        valid_from=valid_from,
+        valid_until=valid_until,
     )
 
 

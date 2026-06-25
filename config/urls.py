@@ -39,6 +39,7 @@ urlpatterns = [
     path('afiliados/', include('apps.clients.urls')),
     path('personal/enrolamiento/', core_views.staff_person_enrollment, name='staff_person_enrollment'),
     path('personal/', include('apps.clients.staff_urls')),
+    path('invitados/', include('apps.clients.guest_urls')),
     path('billing/', include('apps.billing.urls')),
     path('casilleros/', include('apps.lockers.urls')),
     path('historial/', include('apps.access.urls')),

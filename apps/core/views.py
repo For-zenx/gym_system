@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from functools import wraps
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -8,8 +10,19 @@ from django.http import JsonResponse
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from apps.clients.models import Client, PersonCategory
-from apps.clients.validation import validate_client_data, client_form_context, build_cedula
-from apps.clients.services import apply_front_photo_from_b64, get_next_person_code, get_person_profile_url_name
+from apps.clients.validation import (
+    validate_client_data,
+    validate_guest_enrollment_data,
+    validate_guest_pass_dates,
+    client_form_context,
+    build_cedula,
+)
+from apps.clients.services import (
+    apply_front_photo_from_b64,
+    create_guest_with_pass,
+    get_next_person_code,
+    get_person_profile_url_name,
+)
 from apps.access.models import AccessLog
 from apps.users.decorators import permission_required
 from apps.users.permissions import has_permission
@@ -24,6 +37,7 @@ ENROLLMENT_TIPO_MAP = {
     "afiliado": PersonCategory.MEMBER,
     "empleado": PersonCategory.EMPLOYEE,
     "entrenador": PersonCategory.TRAINER,
+    "invitado": PersonCategory.GUEST,
 }
 
 
@@ -38,6 +52,8 @@ def _enrollment_wants_json(request):
 def _user_can_enroll_category(user, category):
     if category == PersonCategory.MEMBER:
         return has_permission(user, "clients.enroll")
+    if category == PersonCategory.GUEST:
+        return has_permission(user, "guests.register")
     if category in STAFF_ENROLLMENT_CATEGORIES:
         return has_permission(user, "staff_persons.enroll")
     return False
@@ -55,11 +71,13 @@ def _resolve_enrollment_category(request, post_data=None):
     if not raw:
         tipo = request.GET.get("tipo", "")
         raw = ENROLLMENT_TIPO_MAP.get(tipo)
-    if raw in (PersonCategory.MEMBER, PersonCategory.EMPLOYEE, PersonCategory.TRAINER):
+    if raw in (PersonCategory.MEMBER, PersonCategory.EMPLOYEE, PersonCategory.TRAINER, PersonCategory.GUEST):
         if _user_can_enroll_category(request.user, raw):
             return raw
     if has_permission(request.user, "clients.enroll"):
         return PersonCategory.MEMBER
+    if has_permission(request.user, "guests.register"):
+        return PersonCategory.GUEST
     return PersonCategory.EMPLOYEE
 
 
@@ -70,6 +88,18 @@ def _enrollment_page_context(request, post_data=None, person_category=None):
     context["person_category"] = person_category
     context["can_enroll_member"] = has_permission(request.user, "clients.enroll")
     context["can_enroll_staff"] = has_permission(request.user, "staff_persons.enroll")
+    context["can_enroll_guest"] = has_permission(request.user, "guests.register")
+    today = date.today()
+    context["default_valid_from"] = today.isoformat()
+    context["default_valid_until"] = (today + timedelta(days=1)).isoformat()
+    if post_data is not None:
+        if post_data.get("valid_from"):
+            context["default_valid_from"] = post_data.get("valid_from")
+        if post_data.get("valid_until"):
+            context["default_valid_until"] = post_data.get("valid_until")
+        context["form_notes"] = post_data.get("notes", "")
+    else:
+        context["form_notes"] = ""
     return context
 
 
@@ -92,6 +122,7 @@ def enrollment_access(view_func):
         if not (
             has_permission(request.user, "clients.enroll")
             or has_permission(request.user, "staff_persons.enroll")
+            or has_permission(request.user, "guests.register")
         ):
             return _enrollment_access_denied(request)
         return view_func(request, *args, **kwargs)
@@ -138,6 +169,60 @@ def enrollment(request):
         if not _user_can_enroll_category(request.user, person_category):
             return _enrollment_access_denied(request)
 
+        foto_frente_b64 = request.POST.get("foto_frente_base64")
+        if not foto_frente_b64:
+            return _enrollment_error_response(
+                request,
+                "Debe capturar la foto en la tablet de enrolamiento.",
+                post_data=request.POST,
+            )
+
+        if person_category == PersonCategory.GUEST:
+            errors, cleaned = validate_guest_enrollment_data(request.POST.get("nombre"))
+            pass_errors, pass_cleaned = validate_guest_pass_dates(
+                request.POST.get("valid_from"),
+                request.POST.get("valid_until"),
+            )
+            errors.update(pass_errors)
+            if errors:
+                first_error = next(iter(errors.values()))
+                if _enrollment_wants_json(request):
+                    return JsonResponse({"status": "error", "message": first_error}, status=400)
+                for message in errors.values():
+                    messages.error(request, message)
+                return render(
+                    request,
+                    "enrollment.html",
+                    _enrollment_page_context(request, post_data=request.POST, person_category=person_category),
+                )
+
+            notes = (request.POST.get("notes") or "").strip()
+            try:
+                guest, _guest_pass = create_guest_with_pass(
+                    sponsor=None,
+                    cleaned_data=cleaned,
+                    valid_from=pass_cleaned["valid_from"],
+                    valid_until=pass_cleaned["valid_until"],
+                    registered_by=request.user,
+                    notes=notes,
+                    foto_frente_b64=foto_frente_b64,
+                )
+            except Exception as exc:
+                return _enrollment_error_response(
+                    request,
+                    "No se pudo registrar el invitado: {}".format(exc),
+                    post_data=request.POST,
+                )
+
+            redirect_target = reverse(
+                "guests:profile",
+                kwargs={"codigo_afiliado": guest.codigo_afiliado},
+            )
+            if _enrollment_wants_json(request):
+                return JsonResponse({"status": "success", "redirect_url": redirect_target})
+            messages.success(request, "Invitado {} registrado correctamente.".format(guest.nombre))
+            return redirect(redirect_target)
+
         errors, cleaned = validate_client_data(
             request.POST.get("nombre"),
             request.POST.get("cedula_prefix"),
@@ -161,7 +246,6 @@ def enrollment(request):
 
         cedula = cleaned["cedula"]
         nombre = cleaned["nombre"]
-        foto_frente_b64 = request.POST.get("foto_frente_base64")
 
         if not foto_frente_b64:
             return _enrollment_error_response(

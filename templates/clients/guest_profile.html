@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+{% load static perm_tags %}
+
+{% block title %}Perfil: {{ client.nombre }} - Perfect Line II{% endblock %}
+{% block page_title %}Perfil de invitado{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.7">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=2.8">
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" style="padding: 1rem; background: rgba(16,185,129,0.1); border-left: 4px solid var(--success); color: var(--success); margin-bottom: 1rem; border-radius: 6px;">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="profile-header status-active">
+        <div class="profile-avatar-container">
+            {% if client.foto_frente %}
+            <img src="{{ client.foto_frente.url }}" alt="Foto" class="profile-avatar">
+            {% else %}
+            <span style="color: var(--text-muted); font-weight: 600;">Sin Foto</span>
+            {% endif %}
+        </div>
+
+        <div class="profile-info-wrapper">
+            <div class="profile-title-row">
+                <h1>{{ client.nombre }}</h1>
+            </div>
+            <dl class="profile-meta-grid">
+                <div class="profile-meta-item"><dt>Código</dt><dd>{{ client.codigo_afiliado }}</dd></div>
+                <div class="profile-meta-item"><dt>Pase actual</dt><dd>
+                    {% if active_pass %}
+                        <span class="badge badge-success">Vigente hasta {{ active_pass.valid_until|date:"d/m/Y" }}</span>
+                    {% else %}
+                        <span class="badge badge-danger">Sin pase activo</span>
+                    {% endif %}
+                </dd></div>
+            </dl>
+        </div>
+    </div>
+
+    <div class="profile-content">
+        {% if 'guests.register' in user_permissions %}
+        <div class="card profile-caja-card">
+            <div class="profile-card-body">
+            {% if active_pass %}
+            <h3 class="profile-section-title">Pase activo</h3>
+            <p class="profile-caja-note">Este invitado ya tiene un pase vigente hasta el {{ active_pass.valid_until|date:"d/m/Y" }}. Revóquelo desde el historial o espere a que venza para emitir otro.</p>
+            {% else %}
+            <h3 class="profile-section-title">Emitir pase</h3>
+            <form method="POST" action="{% url 'guests:issue_pass' client.codigo_afiliado %}" id="guest-issue-pass-form">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label>Vigencia del pase</label>
+                    <div class="guest-pass-presets" role="group" aria-label="Duración del pase">
+                        <button type="button" class="guest-pass-preset is-active" data-days="1">1 día</button>
+                        <button type="button" class="guest-pass-preset" data-days="3">3 días</button>
+                        <button type="button" class="guest-pass-preset" data-days="7">7 días</button>
+                    </div>
+                    <p id="guest-pass-validity-text" class="guest-pass-validity-text" aria-live="polite"></p>
+                    <input type="hidden" name="valid_from" id="valid_from" value="{{ default_valid_from }}">
+                    <input type="hidden" name="valid_until" id="valid_until" value="{{ default_valid_until }}">
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notas (opcional)</label>
+                    <input type="text" id="notes" name="notes" maxlength="500" placeholder="Opcional">
+                </div>
+                <button type="submit" class="btn btn-primary">Emitir pase</button>
+            </form>
+            {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card profile-tabs-card guest-pass-history-card">
+            <div class="profile-card-body">
+            <h3 class="profile-section-title">Historial de pases</h3>
+            <table class="data-table profile-embedded-table">
+                    <thead>
+                        <tr>
+                            <th>Desde</th>
+                            <th>Hasta</th>
+                            <th>Registrado por</th>
+                            <th>Estado</th>
+                            {% if 'guests.revoke_pass' in user_permissions %}<th></th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for guest_pass in guest_passes %}
+                        <tr>
+                            <td>{{ guest_pass.valid_from|date:"d/m/Y" }}</td>
+                            <td>{{ guest_pass.valid_until|date:"d/m/Y" }}</td>
+                            <td>{% if guest_pass.registered_by %}{{ guest_pass.registered_by.get_full_name|default:guest_pass.registered_by.username }}{% else %}—{% endif %}</td>
+                            <td>
+                                {% if guest_pass.revoked_at %}
+                                    <span class="badge badge-danger">Revocado</span>
+                                {% elif guest_pass.valid_until < today %}
+                                    <span class="badge badge-danger">Vencido</span>
+                                {% elif guest_pass.valid_from > today %}
+                                    <span class="badge badge-warning">Por iniciar</span>
+                                {% else %}
+                                    <span class="badge badge-success">Activo</span>
+                                {% endif %}
+                            </td>
+                            {% if 'guests.revoke_pass' in user_permissions %}
+                            <td>
+                                {% if not guest_pass.revoked_at and guest_pass.valid_from <= today and guest_pass.valid_until >= today %}
+                                <form method="POST" action="{% url 'guests:revoke_pass' client.codigo_afiliado %}" style="margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="pass_id" value="{{ guest_pass.pk }}">
+                                    <button type="submit" class="btn btn-secondary btn-sm" onclick="return confirm('¿Revocar este pase?');">Revocar</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="{% if 'guests.revoke_pass' in user_permissions %}5{% else %}4{% endif %}" style="text-align:center;color:var(--text-muted);padding:2rem;">Sin pases registrados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+            </table>
+            </div>
+        </div>
+
+        <div class="card profile-tabs-card guest-access-card">
+            <div class="profile-card-body">
+            <h3 class="profile-section-title">Accesos recientes</h3>
+            {% if access_logs %}
+            <ul class="invoice-list">
+                {% for log in access_logs %}
+                <li class="invoice-item">
+                    <div class="invoice-info">
+                        <strong>{% if log.resultado %}Concedido{% else %}Denegado{% endif %}</strong>
+                        <span>{{ log.timestamp|date:"d/m/Y H:i:s" }}</span>
+                    </div>
+                    <span class="invoice-amount" style="font-size:0.85rem;color:var(--text-muted);">{{ log.motivo }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="profile-tab-empty">Sin accesos registrados.</p>
+            {% endif %}
+            </div>
+        </div>
+
+        {% if 'guests.delete' in user_permissions %}
+        <div class="card" style="margin-top: 1.5rem; border-color: rgba(239,68,68,0.35);">
+            <h3 class="profile-section-title" style="color: #ef4444;">Zona de peligro</h3>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('guest-delete-modal').classList.add('show')">Eliminar invitado</button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if 'guests.delete' in user_permissions %}
+<div class="modal-overlay" id="guest-delete-modal">
+    <div class="modal-content modal-content-narrow">
+        {% include "includes/modal_header.html" with modal_title="Eliminar invitado" %}
+        <form method="POST" action="{% url 'guests:delete' client.codigo_afiliado %}">
+            {% csrf_token %}
+            <input type="hidden" name="confirm_delete" value="1">
+            <div class="form-group">
+                <label for="confirm_codigo">Escribe el código para confirmar</label>
+                <input type="text" id="confirm_codigo" name="confirm_codigo" required autocomplete="off" placeholder="{{ client.codigo_afiliado }}">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('guest-delete-modal').classList.remove('show')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="background: var(--danger); border-color: var(--danger);">Eliminar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if 'guests.register' in user_permissions and not active_pass %}
+<script>
+(function () {
+    const validFromInput = document.getElementById('valid_from');
+    const validUntilInput = document.getElementById('valid_until');
+    const validityText = document.getElementById('guest-pass-validity-text');
+
+    function formatGuestDate(isoDate) {
+        if (!isoDate) return '';
+        const parts = isoDate.split('-');
+        if (parts.length !== 3) return isoDate;
+        return parts[2] + '/' + parts[1] + '/' + parts[0];
+    }
+
+    function updateValidityText() {
+        if (!validityText || !validFromInput || !validUntilInput) return;
+        validityText.textContent = 'Válido desde ' + formatGuestDate(validFromInput.value) +
+            ' hasta ' + formatGuestDate(validUntilInput.value);
+    }
+
+    function applyPreset(days, button) {
+        const from = new Date();
+        const until = new Date(from);
+        until.setDate(until.getDate() + parseInt(days, 10));
+        validFromInput.value = from.toISOString().slice(0, 10);
+        validUntilInput.value = until.toISOString().slice(0, 10);
+        document.querySelectorAll('.guest-pass-preset').forEach(function (btn) {
+            btn.classList.toggle('is-active', btn === button);
+        });
+        updateValidityText();
+    }
+
+    document.querySelectorAll('.guest-pass-preset').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            applyPreset(btn.getAttribute('data-days'), btn);
+        });
+    });
+
+    document.addEventListener('DOMContentLoaded', updateValidityText);
+})();
+</script>
+{% endif %}
+{% endblock %}

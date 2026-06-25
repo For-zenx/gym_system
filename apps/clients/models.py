@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from .fields import SQLiteJSONField
@@ -7,12 +8,14 @@ class PersonCategory(models.TextChoices):
     MEMBER = "MEMBER", "Afiliado"
     EMPLOYEE = "EMPLOYEE", "Empleado"
     TRAINER = "TRAINER", "Entrenador"
+    GUEST = "GUEST", "Invitado"
 
 
 PERSON_CODE_PREFIX = {
     PersonCategory.MEMBER: "M",
     PersonCategory.EMPLOYEE: "E",
     PersonCategory.TRAINER: "T",
+    PersonCategory.GUEST: "G",
 }
 
 STAFF_PERSON_CATEGORIES = frozenset({
@@ -28,7 +31,7 @@ class Client(models.Model):
         ('F', 'Femenino'),
     ]
 
-    cedula = models.CharField("Cédula", max_length=20, unique=True)
+    cedula = models.CharField("Cédula", max_length=20, unique=True, blank=True, null=True)
     nombre = models.CharField("Nombre Completo", max_length=255)
     telefono = models.CharField("Teléfono", max_length=20, blank=True, null=True)
     fecha_nacimiento = models.DateField("Fecha de Nacimiento", blank=True, null=True)
@@ -81,8 +84,16 @@ class Client(models.Model):
         return self.person_category in STAFF_PERSON_CATEGORIES
 
     @property
+    def is_guest(self):
+        return self.person_category == PersonCategory.GUEST
+
+    @property
     def access_requires_membership(self):
         return self.person_category == PersonCategory.MEMBER
+
+    @property
+    def access_requires_guest_pass(self):
+        return self.person_category == PersonCategory.GUEST
 
     @property
     def can_purchase_membership(self):
@@ -144,3 +155,45 @@ class Client(models.Model):
         ).exists():
             return 'ACTIVE'
         return 'SUSPENDED'
+
+
+class GuestPass(models.Model):
+    guest = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name="guest_passes",
+        verbose_name="Invitado",
+    )
+    sponsor = models.ForeignKey(
+        Client,
+        on_delete=models.PROTECT,
+        related_name="sponsored_guest_passes",
+        verbose_name="Afiliado responsable",
+        blank=True,
+        null=True,
+    )
+    valid_from = models.DateField("Válido desde")
+    valid_until = models.DateField("Válido hasta")
+    registered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="registered_guest_passes",
+        verbose_name="Registrado por",
+        blank=True,
+        null=True,
+    )
+    notes = models.CharField("Notas", max_length=500, blank=True)
+    revoked_at = models.DateTimeField("Revocado el", blank=True, null=True)
+    created_at = models.DateTimeField("Creado el", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Pase de invitado"
+        verbose_name_plural = "Pases de invitado"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return "{} — {} hasta {}".format(
+            self.guest.nombre,
+            self.sponsor.nombre,
+            self.valid_until.strftime("%d/%m/%Y"),
+        )

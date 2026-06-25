@@ -1,22 +1,37 @@
+from urllib.parse import urlencode
+
+from datetime import date, timedelta
+
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.generic import DetailView, ListView
+from django.views.generic.base import RedirectView
 from django.core.exceptions import PermissionDenied
 from django.views import View
 from django.contrib import messages
 from django.http import JsonResponse
-from django.db.models import Q
-from .models import Client, PersonCategory, STAFF_PERSON_CATEGORIES
+from django.db.models import Exists, OuterRef, Q
+from .models import Client, GuestPass, PersonCategory, STAFF_PERSON_CATEGORIES
 from .services import (
     ALLOWED_INACTIVITY_YEARS,
     BulkDeleteCountMismatchError,
     bulk_delete_inactive_clients,
     build_inactive_clients_preview,
     delete_client,
+    get_active_guest_pass,
     get_person_profile_url_name,
+    issue_guest_pass,
     replace_client_front_photo,
+    revoke_guest_pass,
 )
-from .validation import validate_client_data, client_form_context, apply_client_fields
+from .validation import (
+    apply_client_fields,
+    build_cedula,
+    client_form_context,
+    validate_client_data,
+    validate_guest_pass_dates,
+)
 from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
 from apps.billing.services import (
     CUT_DATE_CHANGE_REASONS,
@@ -57,32 +72,93 @@ def _delete_permission_for_client(client):
     return "staff_persons.delete"
 
 
-class ClientListView(PermissionRequiredMixin, ListView):
-    required_permission = "clients.view_list"
+class ClientListView(LoginRequiredMixin, ListView):
     model = Client
     template_name = 'clients/client_list.html'
     context_object_name = 'clients'
     paginate_by = 10
 
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not (
+            has_permission(request.user, "clients.view_list")
+            or has_permission(request.user, "guests.view_list")
+        ):
+            raise PermissionDenied("No tienes permiso para ver esta lista.")
+        tipo = self._resolve_list_tipo(request)
+        if tipo == "invitados" and not has_permission(request.user, "guests.view_list"):
+            return redirect(reverse("clients:client_list"))
+        if tipo == "afiliados" and not has_permission(request.user, "clients.view_list"):
+            return redirect("{}?tipo=invitados".format(reverse("clients:client_list")))
+        return super().dispatch(request, *args, **kwargs)
+
+    def _resolve_list_tipo(self, request):
+        tipo = (request.GET.get("tipo") or "afiliados").strip().lower()
+        if tipo not in ("afiliados", "invitados"):
+            return "afiliados"
+        return tipo
+
     def get_queryset(self):
+        tipo = self._resolve_list_tipo(self.request)
+        q = self.request.GET.get('q', '')
+
+        if tipo == "invitados":
+            today = date.today()
+            active_pass = GuestPass.objects.filter(
+                guest=OuterRef("pk"),
+                revoked_at__isnull=True,
+                valid_from__lte=today,
+                valid_until__gte=today,
+            )
+            queryset = (
+                Client.objects.filter(person_category=PersonCategory.GUEST)
+                .annotate(has_active_pass=Exists(active_pass))
+                .order_by("-fecha_ingreso", "-id")
+            )
+            if q:
+                queryset = queryset.filter(
+                    Q(codigo_afiliado__icontains=q)
+                    | Q(nombre__icontains=q)
+                    | Q(cedula__icontains=q)
+                )
+            return queryset
+
         queryset = (
             Client.objects.filter(person_category=PersonCategory.MEMBER)
             .prefetch_related("memberships")
             .order_by("-fecha_ingreso", "-id")
         )
-        q = self.request.GET.get('q', '')
         if q:
             queryset = queryset.filter(
-                Q(cedula__icontains=q) |
-                Q(codigo_afiliado__icontains=q) |
-                Q(nombre__icontains=q)
+                Q(cedula__icontains=q)
+                | Q(codigo_afiliado__icontains=q)
+                | Q(nombre__icontains=q)
             )
-
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        tipo = self._resolve_list_tipo(self.request)
         context['search_query'] = self.request.GET.get('q', '')
+        context['list_tipo'] = tipo
+        context['can_view_members'] = has_permission(self.request.user, "clients.view_list")
+        context['can_view_guests'] = has_permission(self.request.user, "guests.view_list")
+
+        if tipo == "invitados":
+            guest_ids = [g.pk for g in context["clients"]]
+            active_passes = {
+                p.guest_id: p
+                for p in GuestPass.objects.filter(
+                    guest_id__in=guest_ids,
+                    revoked_at__isnull=True,
+                    valid_from__lte=date.today(),
+                    valid_until__gte=date.today(),
+                ).select_related("sponsor")
+            }
+            context["active_pass_by_guest_id"] = active_passes
+            for guest in context["clients"]:
+                guest.active_pass = active_passes.get(guest.pk)
         return context
 
 
@@ -96,6 +172,13 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
 
     def get(self, request, *args, **kwargs):
         self.object = self.get_object()
+        if self.object.is_guest:
+            return redirect(
+                reverse(
+                    "guests:profile",
+                    kwargs={"codigo_afiliado": self.object.codigo_afiliado},
+                )
+            )
         if not self.object.is_member:
             return redirect(
                 reverse(
@@ -390,6 +473,13 @@ class StaffPersonProfileView(PermissionRequiredMixin, DetailView):
                     kwargs={"codigo_afiliado": self.object.codigo_afiliado},
                 )
             )
+        if self.object.is_guest:
+            return redirect(
+                reverse(
+                    "guests:profile",
+                    kwargs={"codigo_afiliado": self.object.codigo_afiliado},
+                )
+            )
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -412,6 +502,10 @@ class StaffPersonDeleteView(PermissionRequiredMixin, View):
             return redirect(
                 reverse("clients:profile", kwargs={"codigo_afiliado": codigo_afiliado})
             )
+        if client.is_guest:
+            return redirect(
+                reverse("guests:profile", kwargs={"codigo_afiliado": codigo_afiliado})
+            )
 
         if request.POST.get("confirm_delete") != "1":
             messages.error(request, "Debes confirmar la eliminación.")
@@ -430,3 +524,159 @@ class StaffPersonDeleteView(PermissionRequiredMixin, View):
         delete_client(client)
         messages.success(request, "Registro de {} eliminado.".format(nombre))
         return redirect("staff_persons:staff_list")
+
+
+class GuestListRedirectView(LoginRequiredMixin, RedirectView):
+    permanent = False
+
+    def get_redirect_url(self, *args, **kwargs):
+        params = {"tipo": "invitados"}
+        q = self.request.GET.get("q")
+        if q:
+            params["q"] = q
+        return "{}?{}".format(reverse("clients:client_list"), urlencode(params))
+
+
+class GuestRegisterRedirectView(LoginRequiredMixin, RedirectView):
+    permanent = False
+
+    def get_redirect_url(self, *args, **kwargs):
+        return "{}?tipo=invitado".format(reverse("enrollment"))
+
+
+class GuestProfileView(PermissionRequiredMixin, DetailView):
+    required_permission = "guests.view_profile"
+    model = Client
+    template_name = "clients/guest_profile.html"
+    context_object_name = "client"
+    slug_field = "codigo_afiliado"
+    slug_url_kwarg = "codigo_afiliado"
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if not self.object.is_guest:
+            return redirect(
+                reverse(
+                    get_person_profile_url_name(self.object),
+                    kwargs={"codigo_afiliado": self.object.codigo_afiliado},
+                )
+            )
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_pass"] = get_active_guest_pass(self.object)
+        context["guest_passes"] = (
+            self.object.guest_passes.select_related("registered_by")
+            .order_by("-created_at")
+        )
+        context["access_logs"] = self.object.access_logs.all()[:20]
+        can_view_phone = has_permission(self.request.user, "clients.view_phone")
+        context.update(
+            client_form_context(client=self.object, can_view_phone=can_view_phone)
+        )
+        today = date.today()
+        context["default_valid_from"] = today.isoformat()
+        context["default_valid_until"] = (today + timedelta(days=1)).isoformat()
+        context["today"] = today
+        return context
+
+
+class GuestIssuePassView(PermissionRequiredMixin, View):
+    required_permission = "guests.register"
+
+    def post(self, request, codigo_afiliado):
+        guest = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if not guest.is_guest:
+            return redirect(
+                reverse(
+                    get_person_profile_url_name(guest),
+                    kwargs={"codigo_afiliado": codigo_afiliado},
+                )
+            )
+
+        if get_active_guest_pass(guest):
+            messages.error(
+                request,
+                "Este invitado ya tiene un pase activo. Revóquelo o espere a que venza antes de emitir otro.",
+            )
+            return redirect("guests:profile", codigo_afiliado=codigo_afiliado)
+
+        pass_errors, pass_cleaned = validate_guest_pass_dates(
+            request.POST.get("valid_from"),
+            request.POST.get("valid_until"),
+        )
+        sponsor_id = (request.POST.get("sponsor_id") or "").strip()
+        sponsor = None
+        if sponsor_id:
+            sponsor = Client.objects.filter(
+                pk=sponsor_id,
+                person_category=PersonCategory.MEMBER,
+            ).first()
+        if sponsor is None:
+            active = get_active_guest_pass(guest)
+            sponsor = active.sponsor if active and active.sponsor_id else None
+
+        if pass_errors:
+            messages.error(request, next(iter(pass_errors.values())))
+            return redirect("guests:profile", codigo_afiliado=codigo_afiliado)
+
+        notes = (request.POST.get("notes") or "").strip()
+        issue_guest_pass(
+            guest,
+            sponsor,
+            pass_cleaned["valid_from"],
+            pass_cleaned["valid_until"],
+            registered_by=request.user,
+            notes=notes,
+        )
+        messages.success(request, "Nuevo pase de invitado registrado.")
+        return redirect("guests:profile", codigo_afiliado=codigo_afiliado)
+
+
+class GuestRevokePassView(PermissionRequiredMixin, View):
+    required_permission = "guests.revoke_pass"
+
+    def post(self, request, codigo_afiliado):
+        guest = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if not guest.is_guest:
+            return redirect(
+                reverse(
+                    get_person_profile_url_name(guest),
+                    kwargs={"codigo_afiliado": codigo_afiliado},
+                )
+            )
+
+        pass_id = request.POST.get("pass_id")
+        guest_pass = get_object_or_404(GuestPass, pk=pass_id, guest=guest)
+        revoke_guest_pass(guest_pass)
+        messages.success(request, "Pase de invitado revocado.")
+        return redirect("guests:profile", codigo_afiliado=codigo_afiliado)
+
+
+class GuestDeleteView(PermissionRequiredMixin, View):
+    required_permission = "guests.delete"
+
+    def post(self, request, codigo_afiliado):
+        client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if not client.is_guest:
+            return redirect(
+                reverse(
+                    get_person_profile_url_name(client),
+                    kwargs={"codigo_afiliado": codigo_afiliado},
+                )
+            )
+
+        if request.POST.get("confirm_delete") != "1":
+            messages.error(request, "Debes confirmar la eliminación.")
+            return redirect("guests:profile", codigo_afiliado=codigo_afiliado)
+
+        typed_code = (request.POST.get("confirm_codigo") or "").strip()
+        if typed_code != client.codigo_afiliado:
+            messages.error(request, "El código no coincide. No se eliminó el registro.")
+            return redirect("guests:profile", codigo_afiliado=codigo_afiliado)
+
+        nombre = client.nombre
+        delete_client(client)
+        messages.success(request, "Registro de {} eliminado.".format(nombre))
+        return redirect("{}?tipo=invitados".format(reverse("clients:client_list")))

@@ -145,7 +145,8 @@ html, body {
 }
 
 .face-guide-access.granted .access-guide-oval,
-.face-guide-access.granted_staff .access-guide-oval {
+.face-guide-access.granted_staff .access-guide-oval,
+.face-guide-access.granted_guest .access-guide-oval {
     border-color: rgba(255, 255, 255, 0.95);
     box-shadow: 0 0 0 9999px rgba(16, 185, 129, 0.8);
 }
@@ -212,7 +213,8 @@ html, body {
 }
 
 .access-bottom-banner.granted .access-banner-title,
-.access-bottom-banner.granted_staff .access-banner-title {
+.access-bottom-banner.granted_staff .access-banner-title,
+.access-bottom-banner.granted_guest .access-banner-title {
     color: #047857;
 }
 
