@@ -108,6 +108,7 @@ PERMISSION_GROUPS = {
         "permissions": [
             ("settings.exchange_rate", "Cambiar tasa VES/$"),
             ("settings.billing", "Configuración de multa"),
+            ("settings.grace", "Configurar días de gracia"),
             ("settings.reports", "Configurar correo de reportes"),
         ],
     },

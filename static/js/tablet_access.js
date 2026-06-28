@@ -51,13 +51,13 @@ function setFaceGuideVariant(variant) {
 }
 
 function isGrantedVariant(variant) {
-    return variant === 'granted' || variant === 'granted_staff' || variant === 'granted_guest';
+    return variant === 'granted' || variant === 'granted_staff' || variant === 'granted_guest' || variant === 'granted_grace';
 }
 
 function hideBottomBanner() {
     accessBottomBanner.className = 'access-bottom-banner hidden';
     accessBottomBanner.classList.remove(
-        'granted', 'granted_staff', 'granted_guest', 'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_other', 'processing'
+        'granted', 'granted_staff', 'granted_guest', 'granted_grace', 'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_other', 'processing'
     );
 }
 
@@ -167,19 +167,34 @@ function buildResultCopy(data, variant) {
     let subtitle = '';
 
     if (isGrantedVariant(variant)) {
-        title = '¡Aprobado!';
-        const name = data.name ? data.name + ' — ' : '';
-        if (variant === 'granted_staff') {
-            subtitle = name + (data.detail || 'Acceso personal');
-        } else if (variant === 'granted_guest') {
-            const guestLine = data.pass_until_display
-                ? 'Pase vigente hasta ' + data.pass_until_display
-                : (data.detail || 'Acceso de invitado');
-            const sponsor = data.sponsor_name ? ' · Responsable: ' + data.sponsor_name : '';
-            subtitle = name + guestLine + sponsor;
+        if (variant === 'granted_grace') {
+            title = 'Período de gracia';
+            const name = data.name ? data.name + ' — ' : '';
+            const remaining = data.grace_days_remaining;
+            let graceLine = 'Debe pagar en caja';
+            if (remaining !== undefined && remaining !== null) {
+                const dayWord = remaining === 1 ? 'día' : 'días';
+                graceLine = remaining + ' ' + dayWord + ' de acceso restante' + (remaining === 1 ? '' : 's');
+            }
+            if (data.grace_until_display) {
+                graceLine += ' · Hasta ' + data.grace_until_display;
+            }
+            subtitle = name + graceLine;
         } else {
-            const cutLine = formatCutLine(data);
-            subtitle = name + (cutLine || 'Acceso concedido');
+            title = '¡Aprobado!';
+            const name = data.name ? data.name + ' — ' : '';
+            if (variant === 'granted_staff') {
+                subtitle = name + (data.detail || 'Acceso personal');
+            } else if (variant === 'granted_guest') {
+                const guestLine = data.pass_until_display
+                    ? 'Pase vigente hasta ' + data.pass_until_display
+                    : (data.detail || 'Acceso de invitado');
+                const sponsor = data.sponsor_name ? ' · Responsable: ' + data.sponsor_name : '';
+                subtitle = name + guestLine + sponsor;
+            } else {
+                const cutLine = formatCutLine(data);
+                subtitle = name + (cutLine || 'Acceso concedido');
+            }
         }
     } else if (variant === 'denied_unknown') {
         title = 'No reconocido';

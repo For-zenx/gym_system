@@ -260,6 +260,15 @@
     color: #fbbf24;
 }
 
+.profile-caja-line-grace dd {
+    color: #ca8a04;
+}
+
+.profile-header.status-grace {
+    border-color: #ca8a04;
+    box-shadow: 0 0 0 1px rgba(202, 138, 4, 0.25), var(--shadow-sm);
+}
+
 .profile-caja-line-muted dd,
 .profile-caja-note {
     color: var(--text-muted);

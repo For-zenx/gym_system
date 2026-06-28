@@ -38,7 +38,7 @@ class ExchangeRateAdmin(admin.ModelAdmin):
 
 @admin.register(BillingSettings)
 class BillingSettingsAdmin(admin.ModelAdmin):
-    list_display = ('multa_monto_usd', 'updated_at')
+    list_display = ('multa_monto_usd', 'fixed_grace_days', 'updated_at')
 
     def has_add_permission(self, request):
         return not BillingSettings.objects.exists()

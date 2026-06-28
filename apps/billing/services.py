@@ -13,6 +13,9 @@ from .cycle import (
     is_subscription_suspended,
     unpaid_fixed_periods,
     days_since_last_unpaid_cut,
+    is_in_fixed_grace_period,
+    fixed_grace_days_remaining,
+    fixed_grace_deadline,
 )
 from .models import (
     Membership,
@@ -213,7 +216,8 @@ def get_profile_subscription_summary(client):
     active_memberships = [
         m for m in memberships if m.fecha_inicio <= today <= m.fecha_fin
     ]
-    has_access = bool(active_memberships)
+    in_grace = is_in_fixed_grace_period(client, today)
+    has_access = bool(active_memberships) or in_grace
 
     fixed_groups = group_consecutive_fixed_memberships(memberships, today)
     current_fixed_group = None
@@ -224,7 +228,28 @@ def get_profile_subscription_summary(client):
 
     fixed_status = client.fixed_subscription_status
     fixed_line = {"kind": "none"}
-    if fixed_status == "SUSPENDED" and client.fecha_corte_dia:
+    if in_grace and client.fecha_corte_dia:
+        expired_fixed = [
+            m for m in memberships
+            if m.plan.billing_type == Plan.BillingType.FIXED and m.fecha_fin < today
+        ]
+        last_paid_end = (
+            max(m.fecha_fin for m in expired_fixed) if expired_fixed else None
+        )
+        grace_deadline = fixed_grace_deadline(client, today)
+        fixed_line = {
+            "kind": "grace",
+            "unpaid_count": len(unpaid_fixed_periods(client, today)),
+            "last_paid_end": last_paid_end,
+            "last_paid_end_display": (
+                last_paid_end.strftime("%d/%m/%Y") if last_paid_end else None
+            ),
+            "grace_days_remaining": fixed_grace_days_remaining(client, today),
+            "grace_until_display": (
+                grace_deadline.strftime("%d/%m/%Y") if grace_deadline else None
+            ),
+        }
+    elif fixed_status == "SUSPENDED" and client.fecha_corte_dia:
         expired_fixed = [
             m for m in memberships
             if m.plan.billing_type == Plan.BillingType.FIXED and m.fecha_fin < today
@@ -279,7 +304,8 @@ def get_profile_subscription_summary(client):
         "flexible_line": flexible_line,
         "fixed_groups_detail": fixed_groups,
         "next_charge_hint": next_charge_hint,
-        "show_unpaid_detail": fixed_status == "SUSPENDED",
+        "show_unpaid_detail": fixed_status == "SUSPENDED" or in_grace,
+        "in_grace": in_grace,
     }
 
 
@@ -322,6 +348,33 @@ def get_membership_feed_lines(client):
                 "status": "suspended",
                 "title": "Suscripción mensual",
                 "primary": " · ".join(parts),
+                "secondary": secondary,
+            }
+        )
+    elif kind == "grace":
+        remaining = fixed.get("grace_days_remaining") or 0
+        day_word = "día" if remaining == 1 else "días"
+        primary = "En gracia — {} {} restante{}".format(
+            remaining,
+            day_word,
+            "" if remaining == 1 else "s",
+        )
+        secondary = None
+        if fixed.get("grace_until_display"):
+            secondary = "Acceso biométrico hasta {}".format(fixed["grace_until_display"])
+        unpaid = fixed.get("unpaid_count") or 0
+        if unpaid > 0:
+            period_word = "periodo" if unpaid == 1 else "periodos"
+            imp_word = "impago" if unpaid == 1 else "impagos"
+            unpaid_note = "{} {} {}".format(unpaid, period_word, imp_word)
+            secondary = (
+                "{} · {}".format(secondary, unpaid_note) if secondary else unpaid_note
+            )
+        lines.append(
+            {
+                "status": "grace",
+                "title": "Suscripción mensual",
+                "primary": primary,
                 "secondary": secondary,
             }
         )
@@ -1004,6 +1057,25 @@ def update_late_fee_amount_usd(amount_raw):
     settings_obj = BillingSettings.get_settings()
     settings_obj.multa_monto_usd = amount
     settings_obj.save(update_fields=["multa_monto_usd", "updated_at"])
+    return settings_obj
+
+
+def update_fixed_grace_days(days_raw):
+    days_str = (days_raw or "").strip()
+    if not days_str:
+        raise ValidationError("Los días de gracia no pueden estar vacíos.")
+    try:
+        days = int(days_str)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("Los días de gracia deben ser un número entero.") from exc
+    if days < 0:
+        raise ValidationError("Los días de gracia no pueden ser negativos.")
+    if days > 30:
+        raise ValidationError("Los días de gracia no pueden superar 30.")
+
+    settings_obj = BillingSettings.get_settings()
+    settings_obj.fixed_grace_days = days
+    settings_obj.save(update_fields=["fixed_grace_days", "updated_at"])
     return settings_obj
 
 

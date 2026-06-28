@@ -151,6 +151,11 @@ html, body {
     box-shadow: 0 0 0 9999px rgba(16, 185, 129, 0.8);
 }
 
+.face-guide-access.granted_grace .access-guide-oval {
+    border-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0 9999px rgba(234, 179, 8, 0.84);
+}
+
 .face-guide-access.denied_unknown .access-guide-oval,
 .face-guide-access.denied_suspended .access-guide-oval,
 .face-guide-access.denied_other .access-guide-oval {
@@ -216,6 +221,14 @@ html, body {
 .access-bottom-banner.granted_staff .access-banner-title,
 .access-bottom-banner.granted_guest .access-banner-title {
     color: #047857;
+}
+
+.access-bottom-banner.granted_grace .access-banner-title {
+    color: #a16207;
+}
+
+.access-bottom-banner.granted_grace .access-banner-subtitle {
+    color: #854d0e;
 }
 
 .access-bottom-banner.denied_unknown .access-banner-title,
@@ -360,6 +373,10 @@ html, body {
 
 .access-flash.granted {
     background-color: rgba(16, 185, 129, 0.85); /* Verde esmeralda */
+}
+
+.access-flash.granted_grace {
+    background-color: rgba(234, 179, 8, 0.88); /* Amarillo — período de gracia */
 }
 
 .access-flash.denied {

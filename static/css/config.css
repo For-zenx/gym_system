@@ -76,14 +76,15 @@ body.config-body {
 .config-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 1rem;
-    align-items: stretch;
+    gap: 1.25rem;
+    align-items: start;
 }
 
 .config-hub-card {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: auto;
+    min-height: 100%;
     text-decoration: none;
     color: inherit;
 }

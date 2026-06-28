@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Configuración - Perfect Line II{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/base.css' %}?v=2.5">
-    <link rel="stylesheet" href="{% static 'css/config.css' %}?v=1.6">
+    <link rel="stylesheet" href="{% static 'css/config.css' %}?v=1.7">
     {% block extra_css %}{% endblock %}
 </head>
 <body class="config-body">
@@ -37,6 +37,9 @@
             {% endif %}
             {% if 'settings.billing' in user_permissions %}
             <a href="{% url 'users:billing_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'billing_settings' %}active{% endif %}">Multa</a>
+            {% endif %}
+            {% if 'settings.grace' in user_permissions %}
+            <a href="{% url 'users:grace_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'grace_settings' %}active{% endif %}">Días de gracia</a>
             {% endif %}
             {% if 'settings.reports' in user_permissions %}
             <a href="{% url 'users:report_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'report_settings' %}active{% endif %}">Reportes</a>

@@ -5,7 +5,7 @@
 {% block page_title %}Perfil del Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.5">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.6">
 {% endblock %}
 
 {% block content %}
@@ -19,7 +19,7 @@
     </div>
     {% endif %}
 
-    <div class="profile-header {% if subscription_summary.has_access %}status-active{% else %}status-expired{% endif %}">
+    <div class="profile-header {% if subscription_summary.in_grace %}status-grace{% elif subscription_summary.has_access %}status-active{% else %}status-expired{% endif %}">
 
         <div class="profile-avatar-container">
             {% if client.foto_frente %}
@@ -72,6 +72,19 @@
                         Al día hasta <strong>{{ subscription_summary.fixed_line.covered_until_display }}</strong>
                         {% if subscription_summary.fixed_line.prepaid_count > 0 %}
                         <span class="profile-caja-note">({{ subscription_summary.fixed_line.prepaid_count }} mes{{ subscription_summary.fixed_line.prepaid_count|pluralize:" es" }} pagado{{ subscription_summary.fixed_line.prepaid_count|pluralize }} por adelantado)</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                {% elif subscription_summary.fixed_line.kind == "grace" %}
+                <div class="profile-caja-line profile-caja-line-grace">
+                    <dt>Suscripción mensual</dt>
+                    <dd>
+                        En gracia — <strong>{{ subscription_summary.fixed_line.grace_days_remaining }}</strong> día{{ subscription_summary.fixed_line.grace_days_remaining|pluralize }} de acceso restante{{ subscription_summary.fixed_line.grace_days_remaining|pluralize }}
+                        {% if subscription_summary.fixed_line.grace_until_display %}
+                        <span class="profile-caja-note">Acceso biométrico hasta {{ subscription_summary.fixed_line.grace_until_display }}</span>
+                        {% endif %}
+                        {% if subscription_summary.fixed_line.unpaid_count > 0 %}
+                        <span class="profile-caja-note">{{ subscription_summary.fixed_line.unpaid_count }} periodo{{ subscription_summary.fixed_line.unpaid_count|pluralize }} impago{{ subscription_summary.fixed_line.unpaid_count|pluralize }} — debe pagar en caja</span>
                         {% endif %}
                     </dd>
                 </div>

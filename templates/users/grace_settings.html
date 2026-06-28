@@ -1,0 +1,45 @@
+{% extends "users/config_base.html" %}
+
+{% block title %}Días de gracia - Configuración{% endblock %}
+{% block config_heading %}Días de gracia{% endblock %}
+
+{% block config_content %}
+<p class="config-intro">
+    Días de acceso biométrico tras vencer el último periodo mensual pagado en planes fijos.
+    Con 0 días el acceso se corta al día siguiente del vencimiento. No aplica a pases flexibles.
+</p>
+
+<form method="post" class="card config-form-card">
+    {% csrf_token %}
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Plan fijo mensual</h3>
+            <p>La morosidad en caja no cambia: el afiliado puede seguir entrando por biometría durante este plazo.</p>
+        </div>
+        <div class="config-form-grid" style="grid-template-columns: minmax(0, 280px);">
+            <div class="config-form-group">
+                <label for="fixed_grace_days">Días de gracia</label>
+                <input
+                    type="text"
+                    id="fixed_grace_days"
+                    name="fixed_grace_days"
+                    value="{{ fixed_grace_days }}"
+                    required
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                >
+            </div>
+        </div>
+        {% if updated_at %}
+        <p class="config-muted" style="margin: 0.75rem 0 0;">Última actualización: {{ updated_at|date:"d/m/Y H:i" }}</p>
+        {% endif %}
+    </div>
+
+    <div class="config-form-actions">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'users:config_home' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

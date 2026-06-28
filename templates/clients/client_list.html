@@ -85,6 +85,8 @@
                 <td>
                     {% if client.has_access_today %}
                         <span class="badge badge-success">Activo</span>
+                    {% elif client.is_in_fixed_grace_period %}
+                        <span class="badge badge-warning">En gracia</span>
                     {% elif client.fixed_subscription_status == 'SUSPENDED' %}
                         <span class="badge badge-danger">Suspendido</span>
                     {% elif client.memberships.all %}

@@ -1,11 +1,16 @@
 import datetime
 import logging
 
+from django.utils import timezone
+
 from apps.billing.cycle import (
     days_until_next_cut_date,
     is_subscription_suspended,
     next_cut_date,
     unpaid_fixed_periods,
+    is_in_fixed_grace_period,
+    fixed_grace_days_remaining,
+    fixed_grace_deadline,
 )
 from apps.billing.services import get_profile_subscription_summary
 from apps.clients.services import get_active_guest_pass
@@ -14,6 +19,24 @@ from .hardware import open_turnstile
 from .models import AccessLog
 
 logger = logging.getLogger(__name__)
+
+
+def _membership_hours_ok(membership, current_time):
+    if membership.plan.hora_inicio and membership.plan.hora_fin:
+        return membership.plan.hora_inicio <= current_time <= membership.plan.hora_fin
+    return True
+
+
+def _grace_access_message(client, today=None):
+    remaining = fixed_grace_days_remaining(client, today)
+    if remaining == 0:
+        return "Período de gracia — último día"
+    day_word = "día" if remaining == 1 else "días"
+    return "Período de gracia — {} {} restante{}".format(
+        remaining,
+        day_word,
+        "" if remaining == 1 else "s",
+    )
 
 
 def _evaluate_guest_access(client, today=None):
@@ -58,6 +81,21 @@ def evaluate_access_integrity(client):
     active_memberships = client.active_memberships
 
     if not active_memberships.exists():
+        today = datetime.date.today()
+        if is_in_fixed_grace_period(client, today):
+            from apps.billing.models import Plan
+
+            latest_fixed = (
+                client.memberships.filter(plan__billing_type=Plan.BillingType.FIXED)
+                .select_related("plan")
+                .order_by("-fecha_fin")
+                .first()
+            )
+            current_time = timezone.localtime().time()
+            if latest_fixed and not _membership_hours_ok(latest_fixed, current_time):
+                return False, "Fuera de horario permitido"
+            return True, _grace_access_message(client, today)
+
         if is_subscription_suspended(client):
             motivo = f"Suscripción suspendida (corte: día {client.fecha_corte_dia})"
         elif client.memberships.exists():
@@ -66,8 +104,6 @@ def evaluate_access_integrity(client):
         else:
             motivo = "Sin membresía registrada"
         return False, motivo
-
-    from django.utils import timezone
 
     current_time = timezone.localtime().time()
 
@@ -169,6 +205,8 @@ def build_tablet_access_payload(client, granted, detail, membership_data=None):
         "covered_until_display": None,
         "sponsor_name": None,
         "pass_until_display": None,
+        "grace_days_remaining": None,
+        "grace_until_display": None,
     }
 
     if membership_data:
@@ -185,8 +223,16 @@ def build_tablet_access_payload(client, granted, detail, membership_data=None):
         if client.is_guest:
             payload["variant"] = "granted_guest"
         elif client.access_requires_membership:
-            payload["variant"] = "granted"
-            payload["covered_until_display"] = _tablet_covered_until_display(client)
+            if is_in_fixed_grace_period(client, today):
+                payload["variant"] = "granted_grace"
+                remaining = fixed_grace_days_remaining(client, today)
+                payload["grace_days_remaining"] = remaining
+                grace_end = fixed_grace_deadline(client, today)
+                if grace_end:
+                    payload["grace_until_display"] = grace_end.strftime("%d/%m/%Y")
+            else:
+                payload["variant"] = "granted"
+                payload["covered_until_display"] = _tablet_covered_until_display(client)
         else:
             payload["variant"] = "granted_staff"
         return payload

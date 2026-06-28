@@ -710,6 +710,10 @@ a.sidebar-brand-link:hover span {
     color: #fbbf24;
 }
 
+.feed-membership-line--grace .feed-membership-line-primary {
+    color: #ca8a04;
+}
+
 .feed-membership-line--flexible .feed-membership-line-primary {
     color: #93c5fd;
 }

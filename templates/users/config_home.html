@@ -29,6 +29,12 @@
         <p>Configurar el monto sugerido en USD cuando se reactiva una suscripción mensual suspendida.</p>
     </a>
     {% endif %}
+    {% if 'settings.grace' in user_permissions %}
+    <a href="{% url 'users:grace_settings' %}" class="card config-hub-card">
+        <h3>Días de gracia</h3>
+        <p>Acceso biométrico temporal tras vencer un plan fijo mensual, antes de cortar el ingreso.</p>
+    </a>
+    {% endif %}
 
     {% if 'settings.reports' in user_permissions %}
     <a href="{% url 'users:report_settings' %}" class="card config-hub-card">

@@ -7,6 +7,7 @@ CONFIG_HOME_PERMISSIONS = (
     "users.view",
     "roles.manage",
     "settings.billing",
+    "settings.grace",
     "settings.reports",
 )
 
@@ -19,6 +20,7 @@ CONFIG_HOME_PERMISSIONS = (
         (True, ["users.view"]),
         (True, ["roles.manage"]),
         (True, ["settings.billing"]),
+        (True, ["settings.grace"]),
         (True, ["settings.reports"]),
     ],
 )
@@ -61,6 +63,25 @@ def test_billing_settings__access(
     url = reverse("users:billing_settings")
     response = client.get(url)
     assert_access(response, is_logged_in, permissions, "settings.billing", url, get_login_url)
+
+
+@pytest.mark.parametrize(
+    ("is_logged_in", "permissions"),
+    ACCESS_PARAMS + [(True, ["settings.grace"])],
+)
+@pytest.mark.django_db
+def test_grace_settings__access(
+    client,
+    create_staff_user,
+    get_login_url,
+    is_logged_in,
+    permissions,
+):
+    login_if_needed(client, create_staff_user, is_logged_in, permissions)
+
+    url = reverse("users:grace_settings")
+    response = client.get(url)
+    assert_access(response, is_logged_in, permissions, "settings.grace", url, get_login_url)
 
 
 @pytest.mark.parametrize(

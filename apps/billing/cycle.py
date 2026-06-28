@@ -109,3 +109,54 @@ def days_until_next_cut_date(client, today=None):
     if today is None:
         today = date.today()
     return (next_cut - today).days
+
+
+def get_fixed_grace_days():
+    from apps.billing.models import BillingSettings
+
+    return BillingSettings.get_settings().fixed_grace_days
+
+
+def get_latest_fixed_membership_end(client):
+    from apps.billing.models import Plan
+
+    latest = (
+        client.memberships.filter(plan__billing_type=Plan.BillingType.FIXED)
+        .order_by("-fecha_fin")
+        .first()
+    )
+    return latest.fecha_fin if latest else None
+
+
+def fixed_grace_deadline(client, today=None):
+    if not client.fecha_corte_dia:
+        return None
+    grace_days = get_fixed_grace_days()
+    if grace_days <= 0:
+        return None
+    last_end = get_latest_fixed_membership_end(client)
+    if last_end is None:
+        return None
+    if today is None:
+        today = date.today()
+    if not is_subscription_suspended(client, today):
+        return None
+    return last_end + timedelta(days=grace_days)
+
+
+def is_in_fixed_grace_period(client, today=None):
+    if today is None:
+        today = date.today()
+    deadline = fixed_grace_deadline(client, today)
+    if deadline is None:
+        return False
+    return today <= deadline
+
+
+def fixed_grace_days_remaining(client, today=None):
+    if today is None:
+        today = date.today()
+    deadline = fixed_grace_deadline(client, today)
+    if deadline is None or today > deadline:
+        return 0
+    return (deadline - today).days

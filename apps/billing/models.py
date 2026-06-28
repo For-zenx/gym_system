@@ -111,6 +111,11 @@ class BillingSettings(models.Model):
         decimal_places=2,
         default=Decimal("0.00"),
     )
+    fixed_grace_days = models.PositiveSmallIntegerField(
+        "Días de gracia (plan fijo)",
+        default=0,
+        help_text="Días de acceso biométrico tras vencer el último periodo fijo pagado.",
+    )
     updated_at = models.DateTimeField("Actualizado", auto_now=True)
 
     class Meta:
@@ -128,12 +133,18 @@ class BillingSettings(models.Model):
     def get_settings(cls):
         obj, _ = cls.objects.get_or_create(
             pk=1,
-            defaults={"multa_monto_usd": Decimal("0.00")},
+            defaults={
+                "multa_monto_usd": Decimal("0.00"),
+                "fixed_grace_days": 0,
+            },
         )
         return obj
 
     def __str__(self):
-        return f"Multa sugerida: ${self.multa_monto_usd} USD"
+        return "Multa ${} USD · Gracia {} días".format(
+            self.multa_monto_usd,
+            self.fixed_grace_days,
+        )
 
 
 class ReportEmailSettings(models.Model):

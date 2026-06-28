@@ -14,7 +14,7 @@ from .mixins import PermissionRequiredMixin
 from .models import StaffRole
 from .permissions import has_permission
 from apps.billing.models import BillingSettings, ReportEmailSettings
-from apps.billing.services import update_late_fee_amount_usd, update_report_recipient_email
+from apps.billing.services import update_late_fee_amount_usd, update_fixed_grace_days, update_report_recipient_email
 from .services import (
     create_staff_role,
     create_staff_user,
@@ -94,7 +94,7 @@ class StaffProfileView(LoginRequiredMixin, View):
 
 
 class ConfigHomeView(AnyPermissionRequiredMixin, TemplateView):
-    required_any_permissions = ("users.view", "roles.manage", "settings.billing", "settings.reports")
+    required_any_permissions = ("users.view", "roles.manage", "settings.billing", "settings.grace", "settings.reports")
     template_name = "users/config_home.html"
 
 
@@ -120,6 +120,30 @@ class BillingSettingsView(PermissionRequiredMixin, View):
             for msg in exc.messages:
                 messages.error(request, msg)
         return redirect("users:billing_settings")
+
+
+class GraceSettingsView(PermissionRequiredMixin, View):
+    required_permission = "settings.grace"
+
+    def get(self, request):
+        settings_obj = BillingSettings.get_settings()
+        return render(
+            request,
+            "users/grace_settings.html",
+            {
+                "fixed_grace_days": settings_obj.fixed_grace_days,
+                "updated_at": settings_obj.updated_at,
+            },
+        )
+
+    def post(self, request):
+        try:
+            update_fixed_grace_days(request.POST.get("fixed_grace_days"))
+            messages.success(request, "Días de gracia actualizados correctamente.")
+        except ValidationError as exc:
+            for msg in exc.messages:
+                messages.error(request, msg)
+        return redirect("users:grace_settings")
 
 
 class ReportEmailSettingsView(PermissionRequiredMixin, View):

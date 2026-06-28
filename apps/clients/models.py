@@ -113,6 +113,12 @@ class Client(models.Model):
         return self.active_memberships.exists()
 
     @property
+    def is_in_fixed_grace_period(self):
+        from apps.billing.cycle import is_in_fixed_grace_period as check_fixed_grace
+
+        return check_fixed_grace(self)
+
+    @property
     def has_active_flexible(self):
         from datetime import date
         from apps.billing.models import Plan
