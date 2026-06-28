@@ -27,6 +27,10 @@ body.config-body {
     color: var(--text-main);
 }
 
+.config-body * {
+    box-sizing: border-box;
+}
+
 .config-shell {
     max-width: 1100px;
     margin: 0 auto;
@@ -75,16 +79,21 @@ body.config-body {
 
 .config-card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 1.25rem;
-    align-items: start;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    row-gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+    .config-card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 .config-hub-card {
     display: flex;
     flex-direction: column;
-    height: auto;
-    min-height: 100%;
+    height: 100%;
     text-decoration: none;
     color: inherit;
 }
