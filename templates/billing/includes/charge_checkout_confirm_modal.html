@@ -54,6 +54,12 @@
             </div>
         </section>
 
+        <section class="checkout-confirm-section" id="checkout-confirm-payment-section" hidden>
+            <h3 class="checkout-confirm-section-title">Forma de pago</h3>
+            <p id="checkout-confirm-payment-label"></p>
+            <ul id="checkout-confirm-payment-splits" class="checkout-confirm-lines" hidden></ul>
+        </section>
+
         <div class="modal-actions checkout-confirm-actions">
             <button type="button" class="btn btn-secondary" id="checkout-confirm-cancel-btn">Cancelar</button>
             <button type="button" class="btn btn-primary" id="checkout-confirm-submit-btn">{{ confirm_submit_label|default:"Confirmar y cobrar" }}</button>

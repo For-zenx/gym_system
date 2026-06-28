@@ -23,6 +23,9 @@
         <div style="font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">Factura generada</div>
         <div style="font-size: 2rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">{{ invoice.nro_control }}</div>
         <div style="color: var(--success); font-weight: 600;">Total: Bs {{ invoice.monto_total }}</div>
+        {% if invoice.payment_method %}
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.35rem;">Forma de pago: {{ invoice.payment_method_display }}</div>
+        {% endif %}
         {% if invoice.multa_ves %}
         <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.35rem;">Incluye multa: Bs {{ invoice.multa_ves }}</div>
         {% endif %}

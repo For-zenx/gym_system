@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.2">
-<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=2.8">
+<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=3.0">
 {% endblock %}
 
 {% block content %}
@@ -67,6 +67,8 @@
                     {% include 'billing/includes/charge_checkout_products_only_notice.html' %}
                 </div>
 
+                {% include 'billing/includes/charge_checkout_payment_method.html' %}
+
                 {% include 'billing/includes/charge_checkout_summary.html' %}
             </form>
         </div>
@@ -89,7 +91,8 @@
 <script src="{% static 'js/cut_date_motivo.js' %}?v=1.0"></script>
 <script src="{% static 'js/checkout_validation.js' %}?v=1.0"></script>
 <script src="{% static 'js/checkout_confirm.js' %}?v=1.0"></script>
-<script src="{% static 'js/checkout_products.js' %}?v=1.8"></script>
+<script src="{% static 'js/checkout_products.js' %}?v=1.9"></script>
+<script src="{% static 'js/checkout_payment_method.js' %}?v=1.1"></script>
 <script src="{% static 'js/billing_payment.js' %}?v=2.0"></script>
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
@@ -169,6 +172,9 @@
 
     const checkoutForm = document.getElementById('checkoutForm');
     if (checkoutForm) {
+        if (typeof initCheckoutPaymentMethod === 'function') {
+            initCheckoutPaymentMethod({ tasaDia: tasaDia });
+        }
         bindCheckoutFormValidation(checkoutForm, tasaDia);
         bindCheckoutConfirmFlow(checkoutForm, document.getElementById('btnConfirm'), tasaDia);
         bindDismissibleModalById('checkoutErrorsModal', { onClose: closeCheckoutErrorsModal });

@@ -36,6 +36,11 @@
                 errors.push(message);
             });
         }
+        if (typeof global.collectCheckoutPaymentMethodErrors === 'function') {
+            global.collectCheckoutPaymentMethodErrors().forEach(function (message) {
+                errors.push(message);
+            });
+        }
         return errors;
     }
 

@@ -20,6 +20,7 @@ from .services import (
     parse_late_fee_from_post,
     parse_payment_cut_from_post,
     parse_payment_cut_day_from_post,
+    parse_payment_method_from_post,
     parse_product_lines_from_post,
     preview_membership_period,
     resolve_cut_date_motivo,
@@ -181,6 +182,7 @@ def _process_checkout_charge(request, client, origin):
     payment_cut_day, payment_cut_motivo = parse_payment_cut_from_post(request.POST)
 
     try:
+        payment_method, payment_splits = parse_payment_method_from_post(request.POST)
         result = register_checkout(
             client,
             plan=plan,
@@ -190,6 +192,8 @@ def _process_checkout_charge(request, client, origin):
             acting_user=request.user,
             payment_cut_day=payment_cut_day,
             payment_cut_motivo=payment_cut_motivo,
+            payment_method=payment_method,
+            payment_splits=payment_splits,
         )
         for warning in result.warnings:
             if warning == "flexible_on_suspended_subscription":
@@ -276,6 +280,9 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
         context["can_checkout"] = bool(context.get("planes")) or (
             sale_items.exists() and can_sell_products
         )
+        context["payment_method_choices"] = [
+            choice for choice in Invoice.PaymentMethod if choice != Invoice.PaymentMethod.MIXED
+        ]
         import json
 
         context["sale_items_json"] = json.dumps(

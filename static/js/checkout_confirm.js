@@ -214,6 +214,37 @@
             grandTotalEl.textContent = summary.totals.grand;
         }
 
+        const paymentSection = document.getElementById('checkout-confirm-payment-section');
+        const paymentLabelEl = document.getElementById('checkout-confirm-payment-label');
+        const paymentSplitsList = document.getElementById('checkout-confirm-payment-splits');
+        const paymentSummary =
+            typeof global.getCheckoutPaymentMethodSummary === 'function'
+                ? global.getCheckoutPaymentMethodSummary()
+                : null;
+        if (paymentSection) {
+            if (paymentSummary) {
+                setSectionVisible(paymentSection, true);
+                if (paymentLabelEl) {
+                    paymentLabelEl.textContent = paymentSummary.label;
+                }
+                if (paymentSplitsList) {
+                    paymentSplitsList.innerHTML = '';
+                    if (paymentSummary.splits.length) {
+                        paymentSummary.splits.forEach(function (entry) {
+                            const li = document.createElement('li');
+                            li.textContent = entry.label + ' · ' + entry.amount;
+                            paymentSplitsList.appendChild(li);
+                        });
+                        paymentSplitsList.hidden = false;
+                    } else {
+                        paymentSplitsList.hidden = true;
+                    }
+                }
+            } else {
+                setSectionVisible(paymentSection, false);
+            }
+        }
+
         modal.classList.add('show');
         modal.setAttribute('aria-hidden', 'false');
     }

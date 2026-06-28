@@ -418,6 +418,13 @@ class ClientServicePeriod(models.Model):
 
 
 class Invoice(models.Model):
+    class PaymentMethod(models.TextChoices):
+        CASH_VES = "CASH_VES", "Efectivo Bs"
+        CASH_USD = "CASH_USD", "Efectivo $"
+        DEBIT = "DEBIT", "Débito"
+        MOBILE = "MOBILE", "Pago móvil"
+        MIXED = "MIXED", "Mixto"
+
     client = models.ForeignKey(
         Client,
         on_delete=models.SET_NULL,
@@ -444,6 +451,18 @@ class Invoice(models.Model):
         default=Decimal("0.00"),
     )
     monto_total = models.DecimalField("Monto Total (VES)", max_digits=12, decimal_places=2)
+    payment_method = models.CharField(
+        "Forma de pago",
+        max_length=16,
+        choices=PaymentMethod.choices,
+        null=True,
+        blank=True,
+    )
+    payment_splits = SQLiteJSONField(
+        "Desglose de pago mixto",
+        default=list,
+        blank=True,
+    )
     nro_control = models.CharField("Nro. Control Fiscal", max_length=50)
     fecha_emision = models.DateTimeField("Fecha de Emisión", auto_now_add=True)
     esta_impresa = models.BooleanField("¿Está Impresa?", default=False)
@@ -540,6 +559,34 @@ class Invoice(models.Model):
         if not self.plan_snapshot and not self.membership_id:
             return "Productos y servicios"
         return "—"
+
+    @property
+    def payment_method_display(self):
+        if not self.payment_method:
+            return "No registrado"
+        return self.get_payment_method_display()
+
+    def get_payment_split_display_items(self):
+        if self.payment_method != self.PaymentMethod.MIXED:
+            return []
+        labels = dict(self.PaymentMethod.choices)
+        items = []
+        for entry in self.payment_splits or []:
+            method = entry.get("method", "")
+            label = labels.get(method, method)
+            amount_ves = entry.get("amount_ves")
+            if method == self.PaymentMethod.CASH_USD and entry.get("amount_usd"):
+                display = "$ {} (Bs {})".format(entry.get("amount_usd"), amount_ves)
+            else:
+                display = "Bs {}".format(amount_ves)
+            items.append(
+                {
+                    "label": label,
+                    "amount_ves": amount_ves,
+                    "display": display,
+                }
+            )
+        return items
 
     @property
     def monto_cuota_ves(self):

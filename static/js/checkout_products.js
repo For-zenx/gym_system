@@ -220,6 +220,9 @@
             if (confirmBtn) {
                 confirmBtn.disabled = false;
             }
+            if (window.checkoutRefreshPaymentMethodSummary) {
+                window.checkoutRefreshPaymentMethodSummary();
+            }
         }
 
         window.collectCheckoutProductErrors = function () {

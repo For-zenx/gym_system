@@ -5,7 +5,7 @@
 {% block page_title %}Perfil del Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.6">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.7">
 {% endblock %}
 
 {% block content %}
@@ -237,6 +237,9 @@
                         <div class="invoice-info">
                             <strong>{{ invoice.nro_control }}</strong>
                             <span>{{ invoice.fecha_emision|date:"d/m/Y" }}</span>
+                            {% if invoice.payment_method %}
+                            <span class="invoice-payment-tag">{{ invoice.payment_method_display }}</span>
+                            {% endif %}
                         </div>
                         <div class="invoice-item-actions">
                             <span class="invoice-amount">Bs {{ invoice.monto_total }}</span>

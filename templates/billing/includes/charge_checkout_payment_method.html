@@ -1,0 +1,51 @@
+<section class="checkout-payment-method">
+    <h3 class="checkout-section-title">Forma de pago</h3>
+
+    <div class="checkout-payment-method-options" role="radiogroup" aria-label="Forma de pago">
+        {% for choice in payment_method_choices %}
+        <label class="checkout-payment-method-option">
+            <input type="radio" name="payment_method" value="{{ choice.value }}" data-payment-method="{{ choice.value }}">
+            <span>{{ choice.label }}</span>
+        </label>
+        {% endfor %}
+        <label class="checkout-payment-method-option">
+            <input type="radio" name="payment_method" value="MIXED" data-payment-method="MIXED">
+            <span>Mixto</span>
+        </label>
+    </div>
+
+    <div id="checkout-payment-mixed-panel" class="checkout-payment-mixed-panel" hidden>
+        <p class="checkout-payment-mixed-intro">
+            Indique cuánto pagó el cliente con cada forma. Los montos en bolívares y en dólares se suman en bolívares
+            (el efectivo en $ usa la tasa del día: {{ latest_rate.tasa_ves|default:"—" }} Bs/$).
+            La suma debe coincidir con el total del cobro.
+        </p>
+        <div class="checkout-payment-mixed-grid">
+            <label class="checkout-payment-mixed-row">
+                <span>Efectivo Bs</span>
+                <input type="text" name="payment_split_CASH_VES" id="payment_split_CASH_VES" inputmode="decimal" autocomplete="off" placeholder="0,00">
+            </label>
+            <label class="checkout-payment-mixed-row checkout-payment-mixed-row--usd">
+                <span>Efectivo $</span>
+                <input type="text" name="payment_split_CASH_USD" id="payment_split_CASH_USD" inputmode="decimal" autocomplete="off" placeholder="0.00">
+                <span class="checkout-payment-usd-equiv" id="payment_split_CASH_USD_ves" aria-live="polite"></span>
+            </label>
+            <label class="checkout-payment-mixed-row">
+                <span>Débito (Bs)</span>
+                <input type="text" name="payment_split_DEBIT" id="payment_split_DEBIT" inputmode="decimal" autocomplete="off" placeholder="0,00">
+            </label>
+            <label class="checkout-payment-mixed-row">
+                <span>Pago móvil (Bs)</span>
+                <input type="text" name="payment_split_MOBILE" id="payment_split_MOBILE" inputmode="decimal" autocomplete="off" placeholder="0,00">
+            </label>
+        </div>
+        <div class="checkout-payment-mixed-summary">
+            <span>Suma del desglose: <strong id="checkout-payment-mixed-assigned">Bs 0,00</strong></span>
+            <span>Total del cobro: <strong id="checkout-payment-mixed-target">Bs 0,00</strong></span>
+            <span id="checkout-payment-mixed-diff-wrap" hidden><strong id="checkout-payment-mixed-diff"></strong></span>
+        </div>
+        <p id="checkout-payment-mixed-hint" class="checkout-payment-mixed-hint" hidden>
+            Seleccione arriba una membresía o productos para calcular el total del cobro.
+        </p>
+    </div>
+</section>

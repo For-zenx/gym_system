@@ -116,6 +116,42 @@
     white-space: nowrap;
 }
 
+.invoice-payment-method-block {
+    margin-bottom: 1.25rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--bg-main);
+}
+
+.invoice-payment-method-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.invoice-payment-method-value {
+    display: block;
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+.invoice-payment-method-splits {
+    margin: 0.65rem 0 0;
+    padding-left: 1.1rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.invoice-payment-method-note {
+    margin: 0.65rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 @media (max-width: 900px) {
     .invoice-review-layout {
         grid-template-columns: 1fr;

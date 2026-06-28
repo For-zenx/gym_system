@@ -27,6 +27,7 @@
                     <th>Nro. Control</th>
                     <th>Afiliado</th>
                     <th>Concepto</th>
+                    <th>Forma de pago</th>
                     <th style="text-align: right;">Monto (VES)</th>
                     <th>Estado</th>
                 </tr>
@@ -42,6 +43,7 @@
                         {% if not invoice.client %}<br><span class="membership-deleted" style="font-size: 0.75rem;">Histórico</span>{% endif %}
                     </td>
                     <td style="font-size: 0.9rem; color: var(--text-muted);">{{ invoice.concept_display }}</td>
+                    <td style="font-size: 0.85rem; color: var(--text-muted);">{{ invoice.payment_method_display }}</td>
                     <td style="text-align: right; font-weight: 700; color: var(--success);">Bs {{ invoice.monto_total|floatformat:2 }}</td>
                     <td>
                         {% if invoice.esta_impresa %}
@@ -53,7 +55,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                         {% if query %}No se encontraron facturas para "{{ query }}"{% else %}No hay facturas registradas aún{% endif %}
                     </td>
                 </tr>

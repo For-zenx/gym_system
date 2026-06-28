@@ -234,6 +234,9 @@
                     multaUsd
                 );
             }
+            if (window.checkoutRefreshPaymentMethodSummary) {
+                window.checkoutRefreshPaymentMethodSummary();
+            }
         }
 
         function updatePrice() {

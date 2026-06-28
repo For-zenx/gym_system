@@ -498,6 +498,144 @@ def parse_payment_cut_from_post(post):
     return cut_day, motivo
 
 
+def _payment_method_choices():
+    return {choice.value for choice in Invoice.PaymentMethod}
+
+
+def _parse_ves_amount(amount_raw):
+    amount_str = (amount_raw or "").strip()
+    if not amount_str:
+        raise ValidationError("El monto no puede estar vacío.")
+    normalized = amount_str.replace("Bs", "").strip()
+    if "," in normalized and "." in normalized:
+        normalized = normalized.replace(".", "").replace(",", ".")
+    else:
+        normalized = normalized.replace(",", ".")
+    try:
+        amount = Decimal(normalized)
+    except Exception as exc:
+        raise ValidationError("El monto no es un número válido.") from exc
+    if amount < 0:
+        raise ValidationError("El monto no puede ser negativo.")
+    return amount.quantize(Decimal("0.01"))
+
+
+def _parse_usd_amount(amount_raw):
+    amount_str = (amount_raw or "").strip()
+    if not amount_str:
+        raise ValidationError("El monto en dólares no puede estar vacío.")
+    normalized = amount_str.replace("$", "").strip()
+    if "," in normalized and "." in normalized:
+        last_comma = normalized.rfind(",")
+        last_dot = normalized.rfind(".")
+        if last_comma > last_dot:
+            normalized = normalized.replace(".", "").replace(",", ".")
+        else:
+            normalized = normalized.replace(",", "")
+    elif "," in normalized and "." not in normalized:
+        normalized = normalized.replace(",", ".")
+    try:
+        amount = Decimal(normalized)
+    except Exception as exc:
+        raise ValidationError("El monto en dólares no es un número válido.") from exc
+    if amount < 0:
+        raise ValidationError("El monto en dólares no puede ser negativo.")
+    return amount.quantize(Decimal("0.01"))
+
+
+def parse_payment_splits_from_post(post_data):
+    tasa = ExchangeRate.get_latest()
+    if not tasa:
+        raise ValidationError("No hay una tasa de cambio registrada en el sistema.")
+
+    splits = []
+    ves_methods = (
+        Invoice.PaymentMethod.CASH_VES,
+        Invoice.PaymentMethod.DEBIT,
+        Invoice.PaymentMethod.MOBILE,
+    )
+    for method_value in ves_methods:
+        key = "payment_split_{}".format(method_value)
+        raw = (post_data.get(key) or "").strip()
+        if not raw:
+            continue
+        amount_ves = _parse_ves_amount(raw)
+        if amount_ves > 0:
+            splits.append(
+                {
+                    "method": method_value,
+                    "amount_ves": str(amount_ves),
+                }
+            )
+
+    usd_raw = (post_data.get("payment_split_CASH_USD") or "").strip()
+    if usd_raw:
+        amount_usd = _parse_usd_amount(usd_raw)
+        if amount_usd > 0:
+            amount_ves = (amount_usd * tasa.tasa_ves).quantize(Decimal("0.01"))
+            splits.append(
+                {
+                    "method": Invoice.PaymentMethod.CASH_USD,
+                    "amount_usd": str(amount_usd),
+                    "amount_ves": str(amount_ves),
+                }
+            )
+    return splits
+
+
+def validate_payment_for_total(payment_method, payment_splits, expected_total):
+    valid_methods = _payment_method_choices()
+    if not payment_method:
+        raise ValidationError("Seleccione la forma de pago.")
+    if payment_method not in valid_methods:
+        raise ValidationError("La forma de pago seleccionada no es válida.")
+
+    expected_total = Decimal(expected_total).quantize(Decimal("0.01"))
+
+    if payment_method == Invoice.PaymentMethod.MIXED:
+        if not payment_splits:
+            raise ValidationError("El pago mixto requiere indicar montos por forma de pago.")
+        if len(payment_splits) < 2:
+            raise ValidationError("El pago mixto requiere al menos dos formas de pago con monto.")
+        seen_methods = set()
+        split_total = Decimal("0.00")
+        for entry in payment_splits:
+            method = entry.get("method")
+            if method not in valid_methods or method == Invoice.PaymentMethod.MIXED:
+                raise ValidationError("El desglose de pago mixto contiene una forma inválida.")
+            if method in seen_methods:
+                raise ValidationError("No repita la misma forma de pago en el desglose mixto.")
+            seen_methods.add(method)
+            amount = Decimal(str(entry.get("amount_ves", "0"))).quantize(Decimal("0.01"))
+            if amount <= 0:
+                raise ValidationError("Cada forma de pago del mixto debe tener un monto mayor a cero.")
+            split_total += amount
+        if split_total != expected_total:
+            raise ValidationError(
+                "El desglose mixto (Bs {}) no coincide con el total del cobro (Bs {}).".format(
+                    split_total,
+                    expected_total,
+                )
+            )
+        return
+
+    if payment_splits:
+        raise ValidationError("Solo el pago mixto admite desglose por forma de pago.")
+
+
+def parse_payment_method_from_post(post_data, expected_total=None):
+    payment_method = (post_data.get("payment_method") or "").strip()
+    if payment_method == Invoice.PaymentMethod.MIXED:
+        payment_splits = parse_payment_splits_from_post(post_data)
+    else:
+        payment_splits = []
+
+    if expected_total is not None:
+        validate_payment_for_total(payment_method, payment_splits, expected_total)
+
+    return payment_method, payment_splits
+
+
 def apply_cut_day_from_payment(client, cut_day, user=None, motivo=""):
     if not isinstance(cut_day, int) or cut_day < 1 or cut_day > 31:
         raise ValidationError("El día de corte debe estar entre 1 y 31.")
@@ -731,6 +869,8 @@ def register_checkout(
     acting_user=None,
     payment_cut_day=None,
     payment_cut_motivo="",
+    payment_method=None,
+    payment_splits=None,
 ):
     product_lines = product_lines or []
     if not plan and not product_lines:
@@ -889,6 +1029,8 @@ def register_checkout(
             )
 
         monto_total = sum(line["amount_ves"] for line in pending_lines)
+        payment_splits = payment_splits or []
+        validate_payment_for_total(payment_method, payment_splits, monto_total)
 
         invoice = Invoice(
             client=client,
@@ -897,6 +1039,8 @@ def register_checkout(
             multa_usd=multa_usd,
             multa_ves=multa_ves,
             monto_total=monto_total,
+            payment_method=payment_method,
+            payment_splits=payment_splits,
             nro_control=nro_control or "PENDING",
         )
         invoice.set_client_snapshots(client)
@@ -987,6 +1131,8 @@ def register_membership_renewal(
     acting_user=None,
     payment_cut_day=None,
     payment_cut_motivo="",
+    payment_method=None,
+    payment_splits=None,
 ):
     """DEPRECATED: usar register_checkout — conservado para llamadas legacy."""
     return register_checkout(
@@ -999,6 +1145,8 @@ def register_membership_renewal(
         acting_user=acting_user,
         payment_cut_day=payment_cut_day,
         payment_cut_motivo=payment_cut_motivo,
+        payment_method=payment_method,
+        payment_splits=payment_splits,
     )
 
 
@@ -1099,24 +1247,6 @@ def delete_invoice(invoice):
     return nro_control
 
 
-def _parse_ves_amount(amount_raw):
-    amount_str = (amount_raw or "").strip()
-    if not amount_str:
-        raise ValidationError("El monto no puede estar vacío.")
-    normalized = amount_str.replace("Bs", "").strip()
-    if "," in normalized and "." in normalized:
-        normalized = normalized.replace(".", "").replace(",", ".")
-    else:
-        normalized = normalized.replace(",", ".")
-    try:
-        amount = Decimal(normalized)
-    except Exception as exc:
-        raise ValidationError("El monto no es un número válido.") from exc
-    if amount < 0:
-        raise ValidationError("El monto no puede ser negativo.")
-    return amount.quantize(Decimal("0.01"))
-
-
 def parse_invoice_amount_edits_from_post(post_data, invoice):
     from .models import InvoiceLine
 
@@ -1205,10 +1335,22 @@ def apply_invoice_amount_edits(invoice, edits):
                 invoice.multa_usd = (multa_ves / tasa.tasa_ves).quantize(Decimal("0.01"))
         else:
             invoice.multa_usd = Decimal("0.00")
+        if invoice.payment_method == Invoice.PaymentMethod.MIXED:
+            validate_payment_for_total(
+                invoice.payment_method,
+                invoice.payment_splits,
+                invoice.monto_total,
+            )
         invoice.save(update_fields=["monto_total", "multa_ves", "multa_usd"])
         return invoice
 
     if "legacy_total" in edits:
         invoice.monto_total = edits["legacy_total"]
+        if invoice.payment_method == Invoice.PaymentMethod.MIXED:
+            validate_payment_for_total(
+                invoice.payment_method,
+                invoice.payment_splits,
+                invoice.monto_total,
+            )
         invoice.save(update_fields=["monto_total"])
     return invoice

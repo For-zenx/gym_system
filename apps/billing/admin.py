@@ -74,12 +74,13 @@ class InvoiceAdmin(admin.ModelAdmin):
         'receptor_nombre',
         'client',
         'plan_snapshot',
+        'payment_method',
         'multa_ves',
         'monto_total',
         'esta_impresa',
         'fecha_emision',
     )
-    list_filter = ('esta_impresa', 'fecha_emision')
+    list_filter = ('esta_impresa', 'payment_method', 'fecha_emision')
     search_fields = (
         'nro_control',
         'client__nombre',

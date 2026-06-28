@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.3">
-<link rel="stylesheet" href="{% static 'css/invoice_detail.css' %}?v=1.3">
+<link rel="stylesheet" href="{% static 'css/invoice_detail.css' %}?v=1.4">
 {% endblock %}
 
 {% block content %}
@@ -48,6 +48,18 @@
 
         <div class="invoice-breakdown-panel card" style="padding: 1.25rem 1.5rem;">
             <h4>Desglose del cobro</h4>
+
+            <div class="invoice-payment-method-block">
+                <span class="invoice-payment-method-label">Forma de pago (registro interno)</span>
+                <strong class="invoice-payment-method-value">{{ invoice.payment_method_display }}</strong>
+                {% if invoice.payment_method == 'MIXED' %}
+                <ul class="invoice-payment-method-splits">
+                    {% for split in invoice.get_payment_split_display_items %}
+                    <li>{{ split.label }} · {{ split.display }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
 
             {% if can_edit_invoice %}
             <p class="invoice-edit-hint">

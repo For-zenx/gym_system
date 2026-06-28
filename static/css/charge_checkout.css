@@ -778,3 +778,114 @@
 .checkout-confirm-actions .btn {
     min-width: 140px;
 }
+
+.checkout-payment-method {
+    margin: 1.5rem 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.checkout-payment-method-intro {
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.checkout-payment-method-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.checkout-payment-method-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.checkout-payment-method-option:has(input:checked) {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.checkout-payment-method-option input {
+    margin: 0;
+}
+
+.checkout-payment-mixed-panel {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--bg-main);
+}
+
+.checkout-payment-mixed-intro {
+    margin: 0 0 0.85rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.checkout-payment-mixed-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.checkout-payment-mixed-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.checkout-payment-mixed-row input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-family: inherit;
+}
+
+.checkout-payment-mixed-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    margin-top: 0.85rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.checkout-payment-mixed-summary strong {
+    color: var(--text-main);
+}
+
+.checkout-payment-mixed-hint {
+    margin: 0.75rem 0 0;
+    font-size: 0.85rem;
+    color: #f59e0b;
+}
+
+.checkout-payment-usd-equiv {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    min-height: 1.1rem;
+}
+
+@media (max-width: 640px) {
+    .checkout-payment-mixed-grid {
+        grid-template-columns: 1fr;
+    }
+}
