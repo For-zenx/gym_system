@@ -1,0 +1,355 @@
+.classes-page {
+    width: 100%;
+}
+
+.classes-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 2rem;
+}
+
+.classes-detail-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.classes-detail-actions form {
+    margin: 0;
+}
+
+.classes-title-cell {
+    font-weight: 600;
+}
+
+.classes-muted,
+.classes-form-hint {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.classes-form-hint {
+    display: block;
+    margin-top: 0.35rem;
+}
+
+.classes-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+}
+
+.classes-action-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+.classes-pagination {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.classes-form-page {
+    max-width: 760px;
+    margin: 1rem auto 3rem auto;
+}
+
+.classes-form-back {
+    display: inline-block;
+    margin-bottom: 1rem;
+}
+
+.classes-form-card {
+    padding: 2.5rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-lg), 0 0 20px rgba(16, 185, 129, 0.03);
+}
+
+.classes-form-title {
+    margin: 0 0 1.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 1.5rem;
+    color: var(--text-main);
+}
+
+.classes-form-alert {
+    margin-bottom: 1.25rem;
+}
+
+.classes-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.classes-form-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.classes-form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.classes-form-row .classes-form-group {
+    margin-bottom: 0;
+}
+
+.classes-form-row--trainer {
+    margin-bottom: 0;
+}
+
+.classes-form-fieldset {
+    margin: 0 0 1.5rem;
+    padding: 0;
+    border: none;
+}
+
+.classes-form-fieldset legend {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    padding: 0;
+}
+
+.classes-form-row--schedule,
+.classes-form-row--pricing {
+    margin-bottom: 1.5rem;
+}
+
+.classes-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.classes-panel-header .classes-panel-title {
+    margin: 0;
+}
+
+.classes-roster-table {
+    margin-top: 0;
+}
+
+.classes-member-search-results {
+    margin-top: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.6rem;
+    overflow: hidden;
+    background: var(--bg-main);
+    max-height: 14rem;
+    overflow-y: auto;
+}
+
+.classes-member-search-item {
+    width: 100%;
+    display: block;
+    text-align: left;
+    padding: 0.75rem 0.9rem;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-main);
+    font: inherit;
+    cursor: pointer;
+}
+
+.classes-member-search-item:last-child {
+    border-bottom: none;
+}
+
+.classes-member-search-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.classes-member-search-item strong {
+    display: block;
+    margin-bottom: 0.2rem;
+}
+
+.classes-member-search-empty {
+    padding: 0.75rem 0.9rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.classes-member-selected {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.6rem;
+    background: var(--bg-main);
+}
+
+.classes-member-change-btn {
+    align-self: flex-start;
+    margin-top: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+.classes-add-member-form .modal-actions {
+    margin-top: 0.5rem;
+}
+
+.classes-form-page .form-control {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.8rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-main);
+    color: var(--text-main);
+}
+
+.classes-form-page .form-control:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.classes-form-page textarea.form-control {
+    min-height: 6rem;
+    resize: vertical;
+}
+
+.classes-form-error {
+    color: var(--danger);
+    font-size: 0.85rem;
+}
+
+.classes-form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 600px) {
+    .classes-form-card {
+        padding: 1.5rem;
+    }
+}
+
+.classes-detail-card {
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+}
+
+.classes-detail-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.classes-detail-title {
+    margin: 0 0 0.35rem 0;
+}
+
+.classes-detail-meta,
+.classes-detail-cupo,
+.classes-detail-attendance,
+.classes-detail-notes {
+    color: var(--text-muted);
+    margin: 0.5rem 0 0 0;
+}
+
+.classes-detail-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.classes-panel {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.classes-panel-title {
+    margin: 0 0 1rem 0;
+}
+
+.classes-add-form,
+.classes-attendance-form {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.classes-add-form label,
+.classes-attendance-form label {
+    flex: 1;
+    min-width: 200px;
+    font-weight: 600;
+}
+
+.classes-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+}
+
+.classes-row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.classes-row-actions form {
+    margin: 0;
+}
+
+.classes-client-link {
+    color: var(--text-main);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.classes-checkout-summary {
+    padding: 1.25rem 1.5rem;
+}
+
+.classes-checkout-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+    font-size: 1.1rem;
+}
+
+.classes-checkout-page .charge-checkout-submit-wrap {
+    margin-top: 1.5rem;
+}

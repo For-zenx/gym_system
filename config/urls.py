@@ -42,6 +42,7 @@ urlpatterns = [
     path('invitados/', include('apps.clients.guest_urls')),
     path('billing/', include('apps.billing.urls')),
     path('casilleros/', include('apps.lockers.urls')),
+    path('clases/', include('apps.classes.urls')),
     path('historial/', include('apps.access.urls')),
     path('estadisticas/', include('apps.stats.urls')),
     path('configuracion/', include('apps.users.urls')),

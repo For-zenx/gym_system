@@ -543,6 +543,12 @@ class Invoice(models.Model):
             kinds = set(self.lines.values_list("line_kind", flat=True))
             has_mem = InvoiceLine.LineKind.MEMBERSHIP in kinds
             has_prod = InvoiceLine.LineKind.PRODUCT in kinds
+            has_class = InvoiceLine.LineKind.CLASS in kinds
+            if has_class and not has_mem and not has_prod:
+                class_line = self.lines.filter(line_kind=InvoiceLine.LineKind.CLASS).first()
+                if class_line:
+                    return class_line.description
+                return "Clase"
             if has_prod and not has_mem:
                 return "Productos y servicios"
             if has_mem and has_prod:
@@ -608,6 +614,7 @@ class InvoiceLine(models.Model):
         MEMBERSHIP = "MEMBERSHIP", "Membresía"
         PRODUCT = "PRODUCT", "Producto o servicio"
         LATE_FEE = "LATE_FEE", "Multa"
+        CLASS = "CLASS", "Clase"
 
     invoice = models.ForeignKey(
         Invoice,
@@ -640,6 +647,14 @@ class InvoiceLine(models.Model):
         blank=True,
         related_name="invoice_lines",
         verbose_name="Membresía",
+    )
+    class_registration = models.ForeignKey(
+        "classes.ClassRegistration",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoice_lines",
+        verbose_name="Inscripción a clase",
     )
     metadata = SQLiteJSONField("Metadatos", default=dict, blank=True)
 

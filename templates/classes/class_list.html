@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Clases - Perfect Line II{% endblock %}
+{% block page_title %}Clases{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/classes.css' %}?v=1.2">
+{% endblock %}
+
+{% block content %}
+<div class="classes-page">
+    <div class="classes-actions">
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">&larr; Volver</a>
+        {% if 'classes.manage' in user_permissions %}
+        <a href="{% url 'classes:session_create' %}" class="btn btn-primary">+ Nueva sesión</a>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}" style="margin-bottom: 1rem;">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Clase</th>
+                    <th>Horario</th>
+                    <th>Entrenador</th>
+                    <th>Precio</th>
+                    <th>Cupo</th>
+                    <th>Estado</th>
+                    <th style="text-align: right;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in sessions %}
+                <tr>
+                    <td>{{ session.session_date|date:"d/m/Y" }}</td>
+                    <td class="classes-title-cell">{{ session.title }}</td>
+                    <td>
+                        {{ session.start_time|time:"H:i" }}
+                        {% if session.end_time %}–{{ session.end_time|time:"H:i" }}{% endif %}
+                    </td>
+                    <td>{{ session.instructor_display }}</td>
+                    <td>
+                        {% if session.is_free %}
+                        <span class="classes-muted">Gratis</span>
+                        {% else %}
+                        ${{ session.price_usd }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if session.is_paid %}
+                        {{ session.seats_taken }}{% if session.capacity %} / {{ session.capacity }}{% else %} / ∞{% endif %}
+                        {% else %}
+                        <span class="classes-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if session.status == 'SCHEDULED' %}
+                        <span class="badge badge-warning">Programada</span>
+                        {% elif session.status == 'COMPLETED' %}
+                        <span class="badge badge-success">Realizada</span>
+                        {% else %}
+                        <span class="badge badge-danger">Cancelada</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <a href="{% url 'classes:session_detail' session.pk %}" class="btn btn-secondary classes-action-btn">Ver</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="classes-empty">No hay sesiones registradas.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <div class="classes-pagination">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary">Anterior</a>
+        {% endif %}
+        <span class="classes-muted">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary">Siguiente</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

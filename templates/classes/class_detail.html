@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ session.title }} - Clases{% endblock %}
+{% block page_title %}{{ session.title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/classes.css' %}?v=1.2">
+{% endblock %}
+
+{% block content %}
+<div class="classes-page classes-detail-page">
+    <div class="classes-actions">
+        <a href="{% url 'classes:session_list' %}" class="btn btn-secondary">&larr; Volver a clases</a>
+        <div class="classes-detail-actions">
+            {% if 'classes.manage' in user_permissions and session.status != 'CANCELLED' %}
+            <a href="{% url 'classes:session_update' session.pk %}" class="btn btn-secondary">Editar</a>
+            {% endif %}
+            {% if 'classes.manage' in user_permissions and session.status == 'SCHEDULED' %}
+            <form method="post" action="{% url 'classes:session_cancel' session.pk %}" onsubmit="return confirm('¿Cancelar esta sesión? Las inscripciones pendientes se cancelarán.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary">Cancelar sesión</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}" style="margin-bottom: 1rem;">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="classes-detail-card card">
+        <div class="classes-detail-header">
+            <div>
+                <h2 class="classes-detail-title">{{ session.title }}</h2>
+                <p class="classes-detail-meta">
+                    {{ session.session_date|date:"d/m/Y" }}
+                    · {{ session.start_time|time:"H:i" }}{% if session.end_time %}–{{ session.end_time|time:"H:i" }}{% endif %}
+                    · {{ session.instructor_display }}
+                </p>
+            </div>
+            <div class="classes-detail-badges">
+                {% if session.status == 'SCHEDULED' %}
+                <span class="badge badge-warning">Programada</span>
+                {% elif session.status == 'COMPLETED' %}
+                <span class="badge badge-success">Realizada</span>
+                {% else %}
+                <span class="badge badge-danger">Cancelada</span>
+                {% endif %}
+                {% if session.is_free %}
+                <span class="badge">Gratis</span>
+                {% else %}
+                <span class="badge badge-warning">${{ session.price_usd }} / persona</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if session.is_paid %}
+        <p class="classes-detail-cupo">
+            Cupo: <strong>{{ session.seats_taken }}</strong>{% if session.capacity %} / {{ session.capacity }}{% else %} (ilimitado){% endif %}
+            {% if session.is_full %}<span class="badge badge-danger">Lleno</span>{% endif %}
+        </p>
+        {% endif %}
+
+        {% if session.attendance_reported is not None %}
+        <p class="classes-detail-attendance">Asistencia reportada: <strong>{{ session.attendance_reported }}</strong></p>
+        {% endif %}
+
+        {% if session.notes %}
+        <p class="classes-detail-notes">{{ session.notes }}</p>
+        {% endif %}
+    </div>
+
+    {% if session.is_free and 'classes.manage' in user_permissions and session.status != 'CANCELLED' %}
+    <div class="classes-panel card">
+        <h3 class="classes-panel-title">Asistencia</h3>
+        <form method="post" action="{% url 'classes:session_attendance' session.pk %}" class="classes-attendance-form">
+            {% csrf_token %}
+            <label>
+                Asistentes
+                <input type="number" name="attendance_reported" min="0" value="{{ session.attendance_reported|default:'' }}" class="form-control" required>
+            </label>
+            <label class="classes-checkbox-label">
+                <input type="checkbox" name="mark_completed" {% if session.status == 'COMPLETED' %}checked{% endif %}>
+                Realizada
+            </label>
+            <button type="submit" class="btn btn-primary">Guardar</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if session.is_paid %}
+    <div class="classes-panel card">
+        <div class="classes-panel-header">
+            <h3 class="classes-panel-title">Inscripciones</h3>
+            {% if 'classes.register' in user_permissions and can_register %}
+            <button type="button" class="btn btn-primary" id="class-open-add-member-btn">+ Agregar</button>
+            {% endif %}
+        </div>
+
+        <div class="table-container classes-roster-table">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Afiliado</th>
+                        <th>Código</th>
+                        <th>Estado</th>
+                        <th style="text-align: right;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reg in roster %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'clients:profile' reg.client.codigo_afiliado %}" class="classes-client-link">{{ reg.client.nombre }}</a>
+                        </td>
+                        <td>{{ reg.client.codigo_afiliado }}</td>
+                        <td>
+                            {% if reg.status == 'PENDING_PAYMENT' %}
+                            <span class="badge badge-warning">Por cobrar</span>
+                            {% elif reg.status == 'CONFIRMED' %}
+                            <span class="badge badge-success">Pagado</span>
+                            {% else %}
+                            <span class="badge">{{ reg.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            <div class="classes-row-actions">
+                                {% if reg.status == 'PENDING_PAYMENT' and 'billing.charge' in user_permissions %}
+                                <a href="{% url 'classes:class_checkout' reg.pk %}" class="btn btn-primary classes-action-btn">Cobrar</a>
+                                {% endif %}
+                                {% if reg.status == 'PENDING_PAYMENT' and 'classes.register' in user_permissions %}
+                                <form method="post" action="{% url 'classes:registration_cancel' reg.pk %}" onsubmit="return confirm('¿Quitar esta inscripción?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-secondary classes-action-btn">Quitar</button>
+                                </form>
+                                {% endif %}
+                                {% if reg.status == 'CONFIRMED' and reg.invoice_line %}
+                                <a href="{% url 'billing:invoice_detail' reg.invoice_line.invoice_id %}" class="btn btn-secondary classes-action-btn">Factura</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="classes-empty">Sin inscripciones.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if member_search_url and can_register %}
+<div class="modal-overlay" id="classAddMemberModal">
+    <div class="modal-content modal-content-narrow">
+        {% include "includes/modal_header.html" with modal_title="Agregar afiliado" %}
+        <form method="post"
+              action="{% url 'classes:registration_add' session.pk %}"
+              id="class-add-member-form"
+              class="classes-add-member-form">
+            {% csrf_token %}
+            <input type="hidden" name="client_id" id="class-add-member-client-id" value="">
+
+            <div class="form-group classes-member-search-block" id="class-member-search-block">
+                <label for="class-member-search">Afiliado</label>
+                <input type="text"
+                       id="class-member-search"
+                       class="form-control"
+                       placeholder="Nombre, cédula o código…"
+                       autocomplete="off">
+                <div id="class-member-search-results" class="classes-member-search-results" hidden></div>
+            </div>
+
+            <div id="class-member-selected" class="classes-member-selected" hidden>
+                <strong id="class-member-selected-name"></strong>
+                <span id="class-member-selected-meta" class="classes-muted"></span>
+                <button type="button" class="btn btn-secondary classes-member-change-btn" id="class-member-change-btn">Cambiar</button>
+            </div>
+
+            <p id="class-member-search-error" class="classes-form-error" hidden></p>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="class-add-member-submit" disabled>Agregar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if member_search_url and can_register %}
+<script>
+    window.classMemberSearchConfig = {
+        searchUrl: "{{ member_search_url }}",
+    };
+</script>
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
+<script src="{% static 'js/class_add_member.js' %}?v=1.0"></script>
+{% endif %}
+{% endblock %}

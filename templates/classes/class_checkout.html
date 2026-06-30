@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Cobro de clase - {{ client.nombre }}{% endblock %}
+{% block page_title %}Cobro de clase{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=3.0">
+<link rel="stylesheet" href="{% static 'css/classes.css' %}?v=1.2">
+{% endblock %}
+
+{% block content %}
+<div class="charge-checkout-page classes-checkout-page">
+    <div class="charge-checkout-top">
+        <a href="{{ back_url }}" class="btn btn-secondary">&larr; Volver a la sesión</a>
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}" style="margin-bottom: 1rem;">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="charge-checkout-stack">
+        <div class="charge-checkout-client-card">
+            <p class="charge-checkout-client-label">Afiliado</p>
+            <p class="charge-checkout-client-name">{{ client.nombre }}</p>
+            <p class="charge-checkout-client-meta">{{ client.codigo_afiliado }} · {{ client.cedula }}</p>
+        </div>
+
+        <div class="charge-checkout-charge-card">
+            <form method="post" id="class-checkout-form">
+                {% csrf_token %}
+
+                <section class="checkout-summary">
+                    <h3 class="checkout-section-title">Clase</h3>
+                    <div class="checkout-summary-row">
+                        <span>{{ session.title }} · {{ session.session_date|date:"d/m/Y" }} {{ session.start_time|time:"H:i" }}</span>
+                        <strong class="checkout-summary-amounts">
+                            <span class="checkout-subtotal-usd">${{ session.price_usd }}</span>
+                        </strong>
+                    </div>
+                    <div class="checkout-summary-row checkout-summary-total">
+                        <span>Total</span>
+                        <strong class="checkout-summary-amounts">
+                            <span class="checkout-subtotal-usd">${{ session.price_usd }}</span>
+                            <span id="checkout-grand-total" data-total-ves="{{ amount_ves }}">Bs {{ amount_ves }}</span>
+                        </strong>
+                    </div>
+                </section>
+
+                {% include "billing/includes/charge_checkout_payment_method.html" %}
+
+                <button type="submit" class="btn btn-primary charge-checkout-submit" id="class-checkout-submit" disabled>
+                    Confirmar cobro
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% include "billing/includes/charge_checkout_errors_modal.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
+<script src="{% static 'js/billing_numbers.js' %}?v=1.0"></script>
+<script src="{% static 'js/checkout_validation.js' %}?v=1.0"></script>
+<script src="{% static 'js/checkout_payment_method.js' %}?v=1.2"></script>
+<script src="{% static 'js/class_checkout.js' %}?v=1.2"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
+        const tasaDia = parseUsdAmount(tasaDiaStr);
+        initClassCheckout({ tasaDia: tasaDia });
+    });
+</script>
+{% endblock %}

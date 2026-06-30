@@ -189,6 +189,22 @@
                     </ul>
                 </div>
                 {% endif %}
+                {% if class_registrations %}
+                <div class="profile-history-section">
+                    <p class="profile-history-heading">Clases</p>
+                    <ul class="profile-period-groups">
+                        {% for reg in class_registrations %}
+                        <li class="profile-period-group">
+                            <span class="profile-period-plan">{{ reg.session.title }}</span>
+                            <span class="profile-period-range">{{ reg.session.session_date|date:"d/m/Y" }} · {{ reg.session.start_time|time:"H:i" }}</span>
+                            <span class="profile-period-meta">
+                                {% if reg.status == 'PENDING_PAYMENT' %}Por cobrar{% elif reg.status == 'CONFIRMED' %}Pagado{% else %}{{ reg.get_status_display }}{% endif %}
+                            </span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
                 {% if locker_rentals %}
                 <div class="profile-history-section">
                     <p class="profile-history-heading">Casilleros</p>

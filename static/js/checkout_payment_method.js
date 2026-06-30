@@ -57,6 +57,12 @@
 
     function getCheckoutGrandTotalVes() {
         const totalEl = document.getElementById('checkout-grand-total');
+        if (totalEl && totalEl.dataset.totalVes) {
+            const fromData = parseFloat(totalEl.dataset.totalVes);
+            if (!isNaN(fromData) && fromData > 0) {
+                return fromData;
+            }
+        }
         if (totalEl) {
             const parsed = parseVesText(totalEl.textContent);
             if (parsed > 0) {

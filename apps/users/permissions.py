@@ -83,6 +83,14 @@ PERMISSION_GROUPS = {
             ("lockers.manage", "Gestionar casilleros"),
         ],
     },
+    "classes": {
+        "label": "Clases",
+        "permissions": [
+            ("classes.view", "Ver clases"),
+            ("classes.manage", "Gestionar sesiones de clase"),
+            ("classes.register", "Inscribir afiliados en clases"),
+        ],
+    },
     "access": {
         "label": "Accesos",
         "permissions": [
@@ -152,6 +160,8 @@ CASHIER_PERMISSION_CODES = [
     "plans.view",
     "products.view",
     "lockers.view",
+    "classes.view",
+    "classes.register",
     "access.view_logs",
     "access.open_turnstile",
     "reports.view",

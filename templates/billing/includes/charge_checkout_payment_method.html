@@ -15,11 +15,6 @@
     </div>
 
     <div id="checkout-payment-mixed-panel" class="checkout-payment-mixed-panel" hidden>
-        <p class="checkout-payment-mixed-intro">
-            Indique cuánto pagó el cliente con cada forma. Los montos en bolívares y en dólares se suman en bolívares
-            (el efectivo en $ usa la tasa del día: {{ latest_rate.tasa_ves|default:"—" }} Bs/$).
-            La suma debe coincidir con el total del cobro.
-        </p>
         <div class="checkout-payment-mixed-grid">
             <label class="checkout-payment-mixed-row">
                 <span>Efectivo Bs</span>
@@ -45,7 +40,7 @@
             <span id="checkout-payment-mixed-diff-wrap" hidden><strong id="checkout-payment-mixed-diff"></strong></span>
         </div>
         <p id="checkout-payment-mixed-hint" class="checkout-payment-mixed-hint" hidden>
-            Seleccione arriba una membresía o productos para calcular el total del cobro.
+            {% if mixed_payment_hint %}{{ mixed_payment_hint }}{% else %}Seleccione arriba una membresía o productos para calcular el total del cobro.{% endif %}
         </p>
     </div>
 </section>

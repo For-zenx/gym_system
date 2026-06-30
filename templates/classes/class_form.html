@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ form_title }} - Perfect Line II{% endblock %}
+{% block page_title %}{{ form_title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/classes.css' %}?v=1.2">
+{% endblock %}
+
+{% block content %}
+<div class="classes-form-page">
+    <a href="{% if object %}{% url 'classes:session_detail' object.pk %}{% else %}{% url 'classes:session_list' %}{% endif %}" class="btn btn-secondary classes-form-back">&larr; Volver</a>
+
+    <div class="classes-form-card">
+        <h3 class="classes-form-title">{{ form_title }}</h3>
+
+        <form method="post" id="class-session-form">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger classes-form-alert">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="classes-form-group">
+                <label for="{{ form.title.id_for_label }}">Clase</label>
+                {{ form.title }}
+                {% if form.title.errors %}<small class="classes-form-error">{{ form.title.errors|striptags }}</small>{% endif %}
+            </div>
+
+            <div class="classes-form-row classes-form-row--schedule">
+                <div class="classes-form-group">
+                    <label for="{{ form.session_date.id_for_label }}">Fecha</label>
+                    {{ form.session_date }}
+                    {% if form.session_date.errors %}<small class="classes-form-error">{{ form.session_date.errors|striptags }}</small>{% endif %}
+                </div>
+                <div class="classes-form-group">
+                    <label for="{{ form.start_time.id_for_label }}">Inicio</label>
+                    {{ form.start_time }}
+                    {% if form.start_time.errors %}<small class="classes-form-error">{{ form.start_time.errors|striptags }}</small>{% endif %}
+                </div>
+                <div class="classes-form-group">
+                    <label for="{{ form.end_time.id_for_label }}">Fin</label>
+                    {{ form.end_time }}
+                    {% if form.end_time.errors %}<small class="classes-form-error">{{ form.end_time.errors|striptags }}</small>{% endif %}
+                </div>
+            </div>
+
+            <fieldset class="classes-form-fieldset">
+                <legend>Entrenador</legend>
+                <div class="classes-form-row classes-form-row--trainer">
+                    <div class="classes-form-group">
+                        {{ form.instructor }}
+                        {% if form.instructor.errors %}<small class="classes-form-error">{{ form.instructor.errors|striptags }}</small>{% endif %}
+                    </div>
+                    <div class="classes-form-group">
+                        {{ form.instructor_name }}
+                        {% if form.instructor_name.errors %}<small class="classes-form-error">{{ form.instructor_name.errors|striptags }}</small>{% endif %}
+                    </div>
+                </div>
+            </fieldset>
+
+            <div class="classes-form-row classes-form-row--pricing">
+                <div class="classes-form-group">
+                    <label for="{{ form.price_usd.id_for_label }}">Precio (USD)</label>
+                    {{ form.price_usd }}
+                    {% if form.price_usd.errors %}<small class="classes-form-error">{{ form.price_usd.errors|striptags }}</small>{% endif %}
+                </div>
+                <div class="classes-form-group">
+                    <label for="{{ form.capacity.id_for_label }}">Cupo</label>
+                    {{ form.capacity }}
+                    {% if form.capacity.errors %}<small class="classes-form-error">{{ form.capacity.errors|striptags }}</small>{% endif %}
+                </div>
+                {% if form.status %}
+                <div class="classes-form-group">
+                    <label for="{{ form.status.id_for_label }}">Estado</label>
+                    {{ form.status }}
+                    {% if form.status.errors %}<small class="classes-form-error">{{ form.status.errors|striptags }}</small>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="classes-form-group">
+                <label for="{{ form.notes.id_for_label }}">Notas</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}<small class="classes-form-error">{{ form.notes.errors|striptags }}</small>{% endif %}
+            </div>
+
+            <div class="classes-form-actions">
+                <a href="{% if object %}{% url 'classes:session_detail' object.pk %}{% else %}{% url 'classes:session_list' %}{% endif %}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/class_session_form.js' %}?v=1.0"></script>
+{% endblock %}

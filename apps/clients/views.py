@@ -211,6 +211,10 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
             get_chargeable_plans(self.object, active_plans)
         )
         context['cut_date_change_reasons'] = CUT_DATE_CHANGE_REASONS
+        if has_permission(self.request.user, "classes.view"):
+            from apps.classes.services import get_client_class_registrations
+
+            context["class_registrations"] = get_client_class_registrations(self.object)
         can_view_phone = has_permission(self.request.user, "clients.view_phone")
         context.update(
             client_form_context(client=self.object, can_view_phone=can_view_phone)

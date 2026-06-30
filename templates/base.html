@@ -61,6 +61,9 @@
                 {% if 'lockers.view' in user_permissions %}
                 <a href="{% url 'lockers:locker_list' %}" class="nav-item {% if '/casilleros/' in request.path %}active{% endif %}">Casilleros</a>
                 {% endif %}
+                {% if 'classes.view' in user_permissions %}
+                <a href="{% url 'classes:session_list' %}" class="nav-item {% if '/clases/' in request.path %}active{% endif %}">Clases</a>
+                {% endif %}
             </nav>
             <div class="sidebar-footer">
                 {% if 'users.view' in user_permissions or 'roles.manage' in user_permissions or 'settings.billing' in user_permissions or 'settings.reports' in user_permissions %}
