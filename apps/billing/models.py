@@ -466,6 +466,16 @@ class Invoice(models.Model):
     nro_control = models.CharField("Nro. Control Fiscal", max_length=50)
     fecha_emision = models.DateTimeField("Fecha de Emisión", auto_now_add=True)
     esta_impresa = models.BooleanField("¿Está Impresa?", default=False)
+    esta_anulada = models.BooleanField("¿Está Anulada?", default=False)
+    anulada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Anulada por",
+    )
+    motivo_anulacion = models.TextField("Motivo de anulación", blank=True)
+    fecha_anulacion = models.DateTimeField("Fecha de anulación", null=True, blank=True)
 
     class Meta:
         verbose_name = "Factura"
@@ -525,6 +535,8 @@ class Invoice(models.Model):
             original = Invoice.objects.get(pk=self.pk)
             if original.esta_impresa:
                 raise ValidationError("No se puede editar una factura que ya ha sido impresa.")
+            if original.esta_anulada:
+                raise ValidationError("No se puede editar una factura que ya ha sido anulada.")
 
     def has_detail_lines(self):
         return self.lines.exists()

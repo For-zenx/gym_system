@@ -35,6 +35,7 @@ from .services import (
     apply_invoice_amount_edits,
     build_amount_overrides_from_post,
     post_amount_edits_differ_from_stored,
+    void_invoice,
 )
 from apps.users.permissions import has_permission
 
@@ -739,6 +740,36 @@ class InvoiceDeleteView(PermissionRequiredMixin, View):
         if next_url:
             return redirect(next_url)
         return redirect("billing:invoice_list")
+
+
+class VoidInvoiceView(PermissionRequiredMixin, View):
+    required_permission = "billing.void_invoice"
+
+    def post(self, request, pk):
+        invoice = get_object_or_404(Invoice, pk=pk)
+        reason = request.POST.get("motivo_anulacion", "").strip()
+        motivo_preset = request.POST.get("motivo_preset", "").strip()
+
+        if motivo_preset == "__other__":
+            final_reason = reason
+        else:
+            final_reason = motivo_preset
+
+        if not final_reason:
+            messages.error(request, "Debe indicar un motivo para anular la factura.")
+            return redirect("billing:invoice_detail", pk=pk)
+
+        try:
+            void_invoice(invoice, request.user, final_reason)
+            messages.success(
+                request, f"Factura {invoice.nro_control} anulada correctamente."
+            )
+        except ValidationError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f"Error al anular la factura: {str(e)}")
+
+        return redirect("billing:invoice_detail", pk=pk)
 
 
 class ReportView(PermissionRequiredMixin, View):

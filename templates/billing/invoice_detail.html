@@ -30,16 +30,30 @@
         {% endif %}
 
         <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            {% if invoice.esta_anulada %}
+                <span class="badge badge-danger" style="padding: 0.625rem 1.25rem; font-size: 0.875rem; border-radius: 0.5rem; font-weight: 700;">ANULADA</span>
+            {% elif invoice.esta_impresa %}
+                <button type="button" class="btn btn-secondary" disabled style="cursor: not-allowed; opacity: 0.7;">
+                    <svg style="width:18px;height:18px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Factura Impresa
+                </button>
+            {% else %}
+                {% if 'billing.print_invoice' in user_permissions %}
+                <button type="submit" form="invoice-review-form" class="btn btn-primary">
+                    <svg style="width:18px;height:18px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    Imprimir factura
+                </button>
+                {% else %}
+                <span class="badge badge-success" style="padding: 0.625rem 1.25rem; font-size: 0.875rem; border-radius: 0.5rem;">Por imprimir</span>
+                {% endif %}
+            {% endif %}
+
+            {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada %}
+            <button type="button" class="btn btn-danger" onclick="openVoidInvoiceModal()">Anular factura</button>
+            {% endif %}
+
             {% if 'billing.delete_invoice' in user_permissions %}
             <button type="button" class="btn btn-danger-outline" onclick="openDeleteInvoiceModal()">Eliminar factura</button>
-            {% endif %}
-            {% if invoice.esta_impresa %}
-            <span class="badge badge-print" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Impresa</span>
-            <button class="btn btn-secondary" disabled style="cursor: not-allowed; opacity: 0.6;">
-                Factura ya impresa
-            </button>
-            {% else %}
-            <span class="badge badge-success" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Por imprimir</span>
             {% endif %}
         </div>
     </div>
@@ -47,6 +61,18 @@
     <div class="invoice-review-layout">
 
         <div class="invoice-breakdown-panel card" style="padding: 1.25rem 1.5rem;">
+            {% if invoice.esta_anulada %}
+            <div class="invoice-void-info" style="border-left: 4px solid var(--danger); margin-bottom: 1.5rem; padding-left: 1rem;">
+                <h4 style="color: var(--danger); margin-top: 0;">Factura Anulada</h4>
+                <p style="margin: 0.5rem 0;">
+                    <strong>Motivo:</strong> {{ invoice.motivo_anulacion }}
+                </p>
+                <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted);">
+                    Anulada por {{ invoice.anulada_por.get_full_name|default:invoice.anulada_por.username }} el {{ invoice.fecha_anulacion|date:"d/m/Y H:i" }}
+                </p>
+            </div>
+            {% endif %}
+
             <h4>Desglose del cobro</h4>
 
             <div class="invoice-payment-method-block">
@@ -162,11 +188,6 @@
                 </table>
                 <p class="config-muted" style="margin: 0 0 1rem; font-size: 0.85rem;">Factura histórica sin líneas detalladas.</p>
                 {% endif %}
-
-                <button type="submit" class="btn btn-primary">
-                    <svg style="width:18px;height:18px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                    Imprimir factura
-                </button>
             </form>
 
             {% elif invoice.esta_impresa %}
@@ -254,6 +275,40 @@
     </div>
     {% endif %}
 
+    {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada %}
+    <div class="modal-overlay" id="voidInvoiceModal">
+        <div class="modal-content">
+            {% include "includes/modal_header.html" with modal_title="Anular factura" %}
+            <p style="margin-top: 0; color: var(--text-muted); line-height: 1.5;">
+                ¿Está seguro de que desea anular la factura <strong>{{ invoice.nro_control }}</strong>?
+                Esta acción es irreversible y la factura será excluida de los reportes de ingresos.
+            </p>
+            <form method="POST" action="{% url 'billing:invoice_void' invoice.id %}">
+                {% csrf_token %}
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="motivo_preset">Motivo de anulación</label>
+                    <select name="motivo_preset" id="motivo_preset" class="form-control" required onchange="toggleOtherReason(this.value)">
+                        <option value="">Seleccione un motivo...</option>
+                        <option value="Error en montos">Error en montos</option>
+                        <option value="Error en datos del cliente">Error en datos del cliente</option>
+                        <option value="Devolución">Devolución</option>
+                        <option value="Factura duplicada">Factura duplicada</option>
+                        <option value="__other__">Otro motivo...</option>
+                    </select>
+                </div>
+                <div class="form-group" id="other_reason_wrap" style="display: none; margin-top: 1rem;">
+                    <label for="motivo_anulacion">Especifique el motivo</label>
+                    <textarea name="motivo_anulacion" id="motivo_anulacion" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeVoidInvoiceModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Confirmar anulación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}
 
@@ -271,6 +326,30 @@
     }
 
     bindDismissibleModalById('deleteInvoiceModal', { onClose: closeDeleteInvoiceModal });
+    {% endif %}
+
+    {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada %}
+    function openVoidInvoiceModal() {
+        document.getElementById('voidInvoiceModal').classList.add('show');
+    }
+
+    function closeVoidInvoiceModal() {
+        document.getElementById('voidInvoiceModal').classList.remove('show');
+    }
+
+    function toggleOtherReason(value) {
+        const wrap = document.getElementById('other_reason_wrap');
+        const textarea = document.getElementById('motivo_anulacion');
+        if (value === '__other__') {
+            wrap.style.display = 'block';
+            textarea.required = true;
+        } else {
+            wrap.style.display = 'none';
+            textarea.required = false;
+        }
+    }
+
+    bindDismissibleModalById('voidInvoiceModal', { onClose: closeVoidInvoiceModal });
     {% endif %}
 </script>
 {% endblock %}

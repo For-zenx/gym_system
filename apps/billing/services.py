@@ -1247,6 +1247,26 @@ def delete_invoice(invoice):
     return nro_control
 
 
+@transaction.atomic
+def void_invoice(invoice, user, reason):
+    if invoice.esta_anulada:
+        raise ValidationError("La factura ya está anulada.")
+
+    invoice.esta_anulada = True
+    invoice.anulada_por = user
+    invoice.motivo_anulacion = reason
+    invoice.fecha_anulacion = timezone.now()
+    invoice.save(
+        update_fields=[
+            "esta_anulada",
+            "anulada_por",
+            "motivo_anulacion",
+            "fecha_anulacion",
+        ]
+    )
+    return invoice
+
+
 def parse_invoice_amount_edits_from_post(post_data, invoice):
     from .models import InvoiceLine
 

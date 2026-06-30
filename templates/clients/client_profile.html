@@ -253,7 +253,9 @@
                         <div class="invoice-info">
                             <strong>{{ invoice.nro_control }}</strong>
                             <span>{{ invoice.fecha_emision|date:"d/m/Y" }}</span>
-                            {% if invoice.payment_method %}
+                            {% if invoice.esta_anulada %}
+                            <span class="badge badge-danger" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">Anulada</span>
+                            {% elif invoice.payment_method %}
                             <span class="invoice-payment-tag">{{ invoice.payment_method_display }}</span>
                             {% endif %}
                         </div>

@@ -53,7 +53,9 @@ def build_report_context(period_days: int) -> dict:
     start, end, start_date, end_date = get_period_bounds(period_days)
 
     invoices = (
-        Invoice.objects.filter(fecha_emision__gte=start, fecha_emision__lte=end)
+        Invoice.objects.filter(
+            fecha_emision__gte=start, fecha_emision__lte=end, esta_anulada=False
+        )
         .prefetch_related("lines")
         .order_by("-fecha_emision")
     )
