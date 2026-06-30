@@ -27,34 +27,34 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Fecha</th>
+                    <th style="width: 110px;">Fecha</th>
                     <th>Clase</th>
-                    <th>Horario</th>
+                    <th style="width: 120px;">Horario</th>
                     <th>Entrenador</th>
-                    <th>Precio</th>
-                    <th>Cupo</th>
-                    <th>Estado</th>
-                    <th style="text-align: right;">Acciones</th>
+                    <th style="width: 100px;">Precio</th>
+                    <th style="width: 100px;">Cupo</th>
+                    <th style="width: 120px;">Estado</th>
+                    <th style="text-align: right; width: 80px;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for session in sessions %}
                 <tr>
-                    <td>{{ session.session_date|date:"d/m/Y" }}</td>
-                    <td class="classes-title-cell">{{ session.title }}</td>
-                    <td>
+                    <td style="white-space: nowrap;">{{ session.session_date|date:"d/m/Y" }}</td>
+                    <td class="classes-title-cell" style="font-weight: 500;">{{ session.title }}</td>
+                    <td style="white-space: nowrap;">
                         {{ session.start_time|time:"H:i" }}
                         {% if session.end_time %}–{{ session.end_time|time:"H:i" }}{% endif %}
                     </td>
                     <td>{{ session.instructor_display }}</td>
-                    <td>
+                    <td style="white-space: nowrap;">
                         {% if session.is_free %}
                         <span class="classes-muted">Gratis</span>
                         {% else %}
-                        ${{ session.price_usd }}
+                        <span style="font-weight: 600; color: var(--success);">${{ session.price_usd }}</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td style="white-space: nowrap;">
                         {% if session.is_paid %}
                         {{ session.seats_taken }}{% if session.capacity %} / {{ session.capacity }}{% else %} / ∞{% endif %}
                         {% else %}
@@ -62,16 +62,18 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if session.status == 'SCHEDULED' %}
-                        <span class="badge badge-warning">Programada</span>
-                        {% elif session.status == 'COMPLETED' %}
-                        <span class="badge badge-success">Realizada</span>
-                        {% else %}
-                        <span class="badge badge-danger">Cancelada</span>
-                        {% endif %}
+                        <div style="white-space: nowrap;">
+                            {% if session.status == 'SCHEDULED' %}
+                            <span class="badge badge-warning">Programada</span>
+                            {% elif session.status == 'COMPLETED' %}
+                            <span class="badge badge-success">Realizada</span>
+                            {% else %}
+                            <span class="badge badge-danger">Cancelada</span>
+                            {% endif %}
+                        </div>
                     </td>
                     <td style="text-align: right;">
-                        <a href="{% url 'classes:session_detail' session.pk %}" class="btn btn-secondary classes-action-btn">Ver</a>
+                        <a href="{% url 'classes:session_detail' session.pk %}" class="btn btn-secondary classes-action-btn" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Ver</a>
                     </td>
                 </tr>
                 {% empty %}

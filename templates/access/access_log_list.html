@@ -37,13 +37,13 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th>Foto</th>
+                <th style="width: 60px;">Foto</th>
                 <th>Nombre</th>
-                <th>Cédula</th>
-                <th>Código</th>
-                <th>Resultado</th>
+                <th style="width: 120px;">Cédula</th>
+                <th style="width: 100px;">Código</th>
+                <th style="width: 120px;">Resultado</th>
                 <th>Motivo / Detalle</th>
-                <th>Fecha y Hora</th>
+                <th style="width: 130px;">Fecha y Hora</th>
             </tr>
         </thead>
         <tbody>
@@ -60,14 +60,16 @@
                     {% endif %}
                 </td>
                 <td style="font-weight: 500;">{{ log.client.nombre }}</td>
-                <td>{{ log.client.cedula }}</td>
-                <td style="color: var(--text-muted);">{{ log.client.codigo_afiliado }}</td>
+                <td style="white-space: nowrap;">{{ log.client.cedula }}</td>
+                <td style="color: var(--text-muted); white-space: nowrap;">{{ log.client.codigo_afiliado }}</td>
                 <td>
-                    {% if log.resultado %}
-                    <span class="badge badge-success">Concedido</span>
-                    {% else %}
-                    <span class="badge badge-danger">Denegado</span>
-                    {% endif %}
+                    <div style="white-space: nowrap;">
+                        {% if log.resultado %}
+                        <span class="badge badge-success">Concedido</span>
+                        {% else %}
+                        <span class="badge badge-danger">Denegado</span>
+                        {% endif %}
+                    </div>
                 </td>
                 <td style="color: var(--text-muted); font-size: 0.875rem;">{{ log.motivo|default:"—" }}</td>
                 <td style="color: var(--text-muted); font-size: 0.875rem; white-space: nowrap;">

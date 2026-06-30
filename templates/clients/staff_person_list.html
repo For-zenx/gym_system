@@ -35,13 +35,13 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th>Foto</th>
+                <th style="width: 60px;">Foto</th>
                 <th>Nombre</th>
-                <th>Cédula</th>
-                <th>Código</th>
-                <th>Tipo</th>
-                <th>Ingreso</th>
-                <th>Biometría</th>
+                <th style="width: 120px;">Cédula</th>
+                <th style="width: 100px;">Código</th>
+                <th style="width: 120px;">Tipo</th>
+                <th style="width: 110px;">Ingreso</th>
+                <th style="width: 110px;">Biometría</th>
             </tr>
         </thead>
         <tbody>
@@ -51,20 +51,22 @@
                     {% if person.foto_frente %}
                         <img src="{{ person.foto_frente.url }}" alt="{{ person.nombre }}" class="avatar-sm">
                     {% else %}
-                        <div class="avatar-sm" style="background-color: var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--text-muted);">Sin foto</div>
+                        <div class="avatar-sm" style="background-color: var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--text-muted);">S/F</div>
                     {% endif %}
                 </td>
                 <td style="font-weight: 500;">{{ person.nombre }}</td>
-                <td>{{ person.cedula }}</td>
-                <td style="color: var(--text-muted);">{{ person.codigo_afiliado }}</td>
-                <td>{{ person.get_person_category_display }}</td>
-                <td>{{ person.fecha_ingreso|date:"d/m/Y" }}</td>
+                <td style="white-space: nowrap;">{{ person.cedula }}</td>
+                <td style="color: var(--text-muted); white-space: nowrap;">{{ person.codigo_afiliado }}</td>
+                <td style="white-space: nowrap;">{{ person.get_person_category_display }}</td>
+                <td style="white-space: nowrap;">{{ person.fecha_ingreso|date:"d/m/Y" }}</td>
                 <td>
-                    {% if person.is_enrolled %}
-                        <span class="badge badge-success">Enrolado</span>
-                    {% else %}
-                        <span class="badge badge-danger">Pendiente</span>
-                    {% endif %}
+                    <div style="white-space: nowrap;">
+                        {% if person.is_enrolled %}
+                            <span class="badge badge-success">Enrolado</span>
+                        {% else %}
+                            <span class="badge badge-danger">Pendiente</span>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% empty %}

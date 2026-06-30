@@ -26,14 +26,14 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th>ID</th>
+                <th style="width: 60px;">ID</th>
                 <th>Nombre del Plan</th>
-                <th>Tipo</th>
-                <th>Duración</th>
-                <th>Horario Permitido</th>
-                <th>Precio (USD)</th>
+                <th style="width: 100px;">Tipo</th>
+                <th style="width: 120px;">Duración</th>
+                <th style="width: 180px;">Horario Permitido</th>
+                <th style="width: 120px;">Precio (USD)</th>
                 {% if 'plans.edit' in user_permissions or 'plans.delete' in user_permissions %}
-                <th style="text-align: right;">Acciones</th>
+                <th style="text-align: right; width: 160px;">Acciones</th>
                 {% endif %}
             </tr>
         </thead>
@@ -43,35 +43,41 @@
                 <td style="color: var(--text-muted);">#{{ plan.id }}</td>
                 <td style="font-weight: 500;">{{ plan.nombre }}</td>
                 <td>
-                    {% if plan.is_fixed %}
-                    <span class="badge badge-success">Fijo</span>
-                    {% else %}
-                    <span class="badge badge-warning">Flexible</span>
-                    {% endif %}
+                    <div style="white-space: nowrap;">
+                        {% if plan.is_fixed %}
+                        <span class="badge badge-success">Fijo</span>
+                        {% else %}
+                        <span class="badge badge-warning">Flexible</span>
+                        {% endif %}
+                    </div>
                 </td>
-                <td>{% if plan.is_fixed %}Por corte{% else %}{{ plan.dias_duracion }} días{% endif %}</td>
+                <td style="white-space: nowrap;">{% if plan.is_fixed %}Por corte{% else %}{{ plan.dias_duracion }} días{% endif %}</td>
                 <td>
-                    {% if plan.hora_inicio and plan.hora_fin %}
-                    <span class="badge badge-warning">{{ plan.hora_inicio|time:"g:i A" }} - {{ plan.hora_fin|time:"g:i A" }}</span>
-                    {% else %}
-                    <span class="badge badge-success">Tiempo Completo</span>
-                    {% endif %}
+                    <div style="white-space: nowrap;">
+                        {% if plan.hora_inicio and plan.hora_fin %}
+                        <span class="badge badge-warning">{{ plan.hora_inicio|time:"g:i A" }} - {{ plan.hora_fin|time:"g:i A" }}</span>
+                        {% else %}
+                        <span class="badge badge-success">Tiempo Completo</span>
+                        {% endif %}
+                    </div>
                 </td>
-                <td style="font-weight: 600; color: var(--success);">${{ plan.precio_usd }}</td>
+                <td style="font-weight: 600; color: var(--success); white-space: nowrap;">${{ plan.precio_usd }}</td>
                 {% if 'plans.edit' in user_permissions or 'plans.delete' in user_permissions %}
-                <td style="text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
-                    {% if 'plans.edit' in user_permissions %}
-                    <a href="{% url 'billing:plan_update' plan.id %}" class="btn btn-secondary"
-                        style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Editar</a>
-                    {% endif %}
-                    {% if 'plans.delete' in user_permissions %}
-                    <form method="POST" action="{% url 'billing:plan_delete' plan.id %}" style="display: inline;"
-                        onsubmit="return confirm('¿Estás seguro de eliminar este plan? Los usuarios actuales mantendrán su plan hasta que venza.');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-danger"
-                            style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Eliminar</button>
-                    </form>
-                    {% endif %}
+                <td style="text-align: right;">
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end; white-space: nowrap;">
+                        {% if 'plans.edit' in user_permissions %}
+                        <a href="{% url 'billing:plan_update' plan.id %}" class="btn btn-secondary"
+                            style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Editar</a>
+                        {% endif %}
+                        {% if 'plans.delete' in user_permissions %}
+                        <form method="POST" action="{% url 'billing:plan_delete' plan.id %}" style="display: inline;"
+                            onsubmit="return confirm('¿Estás seguro de eliminar este plan? Los usuarios actuales mantendrán su plan hasta que venza.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger"
+                                style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Eliminar</button>
+                        </form>
+                        {% endif %}
+                    </div>
                 </td>
                 {% endif %}
             </tr>

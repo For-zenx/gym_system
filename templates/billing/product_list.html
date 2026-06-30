@@ -22,10 +22,10 @@
         <thead>
             <tr>
                 <th>Nombre</th>
-                <th>Tipo</th>
-                <th>Precio (USD)</th>
+                <th style="width: 120px;">Tipo</th>
+                <th style="width: 120px;">Precio (USD)</th>
                 {% if 'products.manage' in user_permissions %}
-                <th style="text-align: right;">Acciones</th>
+                <th style="text-align: right; width: 180px;">Acciones</th>
                 {% endif %}
             </tr>
         </thead>
@@ -34,18 +34,20 @@
             <tr>
                 <td style="font-weight: 500;">{{ item.name }}</td>
                 <td>
-                    {% if item.is_system_managed %}
-                    <span class="badge badge-warning">Sistema</span>
-                    {% elif item.item_type == 'SERVICE' %}
-                    <span class="badge badge-warning">Servicio</span>
-                    {% else %}
-                    <span class="badge badge-success">Producto</span>
-                    {% endif %}
+                    <div style="white-space: nowrap;">
+                        {% if item.is_system_managed %}
+                        <span class="badge badge-warning">Sistema</span>
+                        {% elif item.item_type == 'SERVICE' %}
+                        <span class="badge badge-warning">Servicio</span>
+                        {% else %}
+                        <span class="badge badge-success">Producto</span>
+                        {% endif %}
+                    </div>
                 </td>
-                <td style="font-weight: 600; color: var(--success);">${{ item.price_usd }}</td>
+                <td style="font-weight: 600; color: var(--success); white-space: nowrap;">${{ item.price_usd }}</td>
                 {% if 'products.manage' in user_permissions %}
                 <td style="text-align: right;">
-                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end; white-space: nowrap;">
                         <a href="{% url 'billing:product_update' item.pk %}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Editar</a>
                         {% if not item.is_system_managed %}
                         <form method="post" action="{% url 'billing:product_delete' item.pk %}" style="margin: 0;" onsubmit="return confirm('¿Desactivar «{{ item.name }}» del catálogo?');">
