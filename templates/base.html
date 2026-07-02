@@ -23,6 +23,14 @@
             </div>
             {% endif %}
             <nav class="sidebar-nav">
+                {% if 'billing.charge' in user_permissions %}
+                <button type="button" class="nav-item btn-sidebar-primary" id="quickChargeBtn" data-search-url="{% url 'billing:person_search' %}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px;">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                    Registrar cobro
+                </button>
+                {% endif %}
                 {% if 'dashboard.view' in user_permissions %}
                 <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Inicio</a>
                 {% endif %}
@@ -166,6 +174,10 @@
     </div>
     {% endif %}
 
+    {% if 'billing.charge' in user_permissions %}
+        {% include "billing/includes/quick_charge_modal.html" %}
+    {% endif %}
+
     <script>
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         window.DASHBOARD_WS_URL = wsScheme + "://" + window.location.host + "/ws/dashboard/";
@@ -190,6 +202,9 @@
     </script>
     <script src="{% static 'js/modal.js' %}?v=1.0"></script>
     <script src="{% static 'js/dashboard_ws.js' %}?v=1.9"></script>
+    {% if 'billing.charge' in user_permissions %}
+    <script src="{% static 'js/quick_charge.js' %}?v=1.0"></script>
+    {% endif %}
 
     {% block extra_js %}{% endblock %}
 

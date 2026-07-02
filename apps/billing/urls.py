@@ -21,6 +21,7 @@ from .views import (
     PrintInvoiceActionView,
     InvoiceDeleteView,
     VoidInvoiceView,
+    GlobalPersonSearchView,
     ReportView,
     ReportSendView,
 )
@@ -29,6 +30,7 @@ app_name = 'billing'
 
 urlpatterns = [
     path('cobro/<str:codigo_afiliado>/', ChargeCheckoutView.as_view(), name='charge_checkout'),
+    path('buscar-persona/', GlobalPersonSearchView.as_view(), name='person_search'),
     path('renovar/<str:codigo_afiliado>/', RenewPlanView.as_view(), name='renew_plan'),
     path('preview-cobro/<str:codigo_afiliado>/', PaymentPeriodPreviewView.as_view(), name='payment_preview'),
     path('cobro-exito/<int:pk>/', PaymentSuccessView.as_view(), name='payment_success'),

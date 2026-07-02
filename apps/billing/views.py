@@ -826,3 +826,36 @@ class ReportSendView(PermissionRequiredMixin, View):
             failed = next((item["text"] for item in result["items"] if not item["ok"]), None)
             messages.error(request, failed or "No se pudo enviar el reporte.")
         return redirect(f"{reverse('billing:report')}?period={period_days}")
+
+
+class GlobalPersonSearchView(PermissionRequiredMixin, View):
+    required_permission = "billing.charge"
+
+    def get(self, request, *args, **kwargs):
+        query = request.GET.get("q", "").strip()
+        if len(query) < 2:
+            return JsonResponse({"results": []})
+
+        # Filtrar Client por nombre, cedula o codigo_afiliado.
+        # Excluir explícitamente PersonCategory.GUEST.
+        persons = (
+            Client.objects.filter(
+                Q(cedula__icontains=query)
+                | Q(codigo_afiliado__icontains=query)
+                | Q(nombre__icontains=query)
+            )
+            .exclude(person_category=PersonCategory.GUEST)
+            .order_by("nombre")[:8]
+        )
+
+        results = []
+        for person in persons:
+            results.append({
+                "id": person.pk,
+                "nombre": person.nombre,
+                "cedula": person.cedula,
+                "codigo_afiliado": person.codigo_afiliado,
+                "categoria": person.get_person_category_display(),
+            })
+
+        return JsonResponse({"results": results})
