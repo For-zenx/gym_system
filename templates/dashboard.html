@@ -11,6 +11,7 @@
 
     <div class="feed-grid-xl" id="live-feed-grid">
         {% for log in logs %}
+            {% if log.client %}
             <a href="{% if log.client.is_guest %}{% url 'guests:profile' log.client.codigo_afiliado %}{% elif log.client.is_staff_person %}{% url 'staff_persons:profile' log.client.codigo_afiliado %}{% else %}{% url 'clients:profile' log.client.codigo_afiliado %}{% endif %}" class="feed-card-xl {% if log.resultado %}granted{% else %}denied{% endif %}" id="log-{{ log.id }}">
                 <div class="feed-header-xl">
                     <img src="{% if log.client.foto_frente %}{{ log.client.foto_frente.url }}{% else %}{% static 'img/gym_bg.png' %}{% endif %}" alt="Foto" class="feed-avatar-xl">
@@ -46,6 +47,56 @@
                     </div>
                 </div>
             </a>
+            {% else %}
+            <div class="feed-card-xl denied" id="log-{{ log.id }}">
+                <div class="feed-header-xl">
+                    <div class="feed-avatar-xl avatar-unknown">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
+                            <path d="M0 0h24v24H0z" fill="none" />
+                            <path fill="currentColor" d="M11.33 15.539q0-1.372.421-2.288q.42-.916 1.73-2.062q.91-.824 1.37-1.563t.46-1.666q0-1.333-.918-2.22q-.918-.886-2.509-.886q-1.294 0-2.062.602T8.587 6.954L7.51 6.45q.641-1.273 1.714-2.016q1.073-.742 2.66-.742q2.22 0 3.422 1.27t1.2 2.974q0 1.097-.479 2.003q-.48.907-1.4 1.724q-1.378 1.214-1.737 1.98q-.358.766-.358 1.895zM11.886 21q-.402 0-.701-.299q-.3-.299-.3-.701t.3-.701t.7-.299t.702.299t.299.701t-.3.701t-.7.299" />
+                        </svg>
+                    </div>
+                    <div class="feed-title-container">
+                        <h3 class="feed-name-xl">No reconocido</h3>
+                        <div class="feed-badge-container">
+                            <span class="feed-status-badge-xl danger">No reconocido</span>
+                        </div>
+                        <div class="feed-time-xl">
+                            <span style="font-size: 1.2rem;">⏱</span> {{ log.timestamp|date:"d/m/Y - H:i:s" }}
+                        </div>
+                    </div>
+                </div>
+                <div class="feed-details-grid">
+                    <div class="feed-data-item">
+                        <span class="feed-data-label">Cédula de Identidad</span>
+                        <span class="feed-data-value">—</span>
+                    </div>
+                    <div class="feed-data-item">
+                        <span class="feed-data-label">Código</span>
+                        <span class="feed-data-value">—</span>
+                    </div>
+                    <div class="feed-data-item">
+                        <span class="feed-data-label">Teléfono</span>
+                        <span class="feed-data-value">—</span>
+                    </div>
+                    <div class="feed-data-item">
+                        <span class="feed-data-label">Ingreso al Sistema</span>
+                        <span class="feed-data-value">—</span>
+                    </div>
+                    <div class="feed-data-item feed-data-item--membership">
+                        <div class="feed-membership-block" style="border-left-color: var(--text-muted); background: rgba(15, 23, 42, 0.5);">
+                            <p class="feed-membership-kicker" style="color: var(--text-muted);">Sin información</p>
+                            <ul class="feed-membership-lines">
+                                <li class="feed-membership-line feed-membership-line--empty">
+                                    <span class="feed-membership-line-title">Acceso denegado</span>
+                                    <span class="feed-membership-line-primary">No reconocido</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         {% empty %}
             <div id="empty-feed-msg" style="text-align: center; color: var(--text-muted); grid-column: 1 / -1; padding: 4rem; background: var(--bg-surface); border-radius: 0.75rem; border: 1px dashed var(--border-color); box-sizing: border-box;">
                 No hay accesos recientes. El feed en vivo está esperando a que alguien ingrese.
@@ -76,20 +127,33 @@
         const emptyMsg = document.getElementById('empty-feed-msg');
         if (emptyMsg) emptyMsg.remove();
 
-        const card = document.createElement('a');
-        card.href = data.is_guest_person
-            ? `/invitados/${data.codigo}/`
-            : (data.is_staff_person ? `/personal/${data.codigo}/` : `/afiliados/${data.codigo}/`);
-        card.className = `feed-card-xl ${data.granted ? 'granted' : 'denied'}`;
+        let card;
+        if (data.is_unknown) {
+            card = document.createElement('div');
+            card.className = 'feed-card-xl denied';
+        } else {
+            card = document.createElement('a');
+            card.href = data.is_guest_person
+                ? `/invitados/${data.codigo}/`
+                : (data.is_staff_person ? `/personal/${data.codigo}/` : `/afiliados/${data.codigo}/`);
+            card.className = `feed-card-xl ${data.granted ? 'granted' : 'denied'}`;
+        }
         
         // Initial state for animation
         card.style.opacity = '0';
         card.style.transform = 'translateY(-10px)';
 
-        const photoUrl = data.photo_url ? data.photo_url : '{% static "img/gym_bg.png" %}';
+        const photoHtml = data.is_unknown
+            ? `<div class="feed-avatar-xl avatar-unknown">
+                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
+                    <path d="M0 0h24v24H0z" fill="none" />
+                    <path fill="currentColor" d="M11.33 15.539q0-1.372.421-2.288q.42-.916 1.73-2.062q.91-.824 1.37-1.563t.46-1.666q0-1.333-.918-2.22q-.918-.886-2.509-.886q-1.294 0-2.062.602T8.587 6.954L7.51 6.45q.641-1.273 1.714-2.016q1.073-.742 2.66-.742q2.22 0 3.422 1.27t1.2 2.974q0 1.097-.479 2.003q-.48.907-1.4 1.724q-1.378 1.214-1.737 1.98q-.358.766-.358 1.895zM11.886 21q-.402 0-.701-.299q-.3-.299-.3-.701t.3-.701t.7-.299t.702.299t.299.701t-.3.701t-.7.299" />
+                </svg>
+               </div>`
+            : `<img src="${data.photo_url ? data.photo_url : '{% static "img/gym_bg.png" %}'}" alt="Foto" class="feed-avatar-xl">`;
         
         const membershipLines = data.membership_lines || [];
-        const telText = formatFeedPhoneDisplay(data.telefono);
+        const telText = data.is_unknown ? '—' : formatFeedPhoneDisplay(data.telefono);
 
         function escapeHtml(text) {
             if (!text) return '';
@@ -98,7 +162,15 @@
             return div.innerHTML;
         }
 
-        function renderMembershipBlock(lines, isGuest) {
+        function renderMembershipBlock(lines, isGuest, isUnknown) {
+            if (isUnknown) {
+                return '<div class="feed-membership-block" style="border-left-color: var(--text-muted); background: rgba(15, 23, 42, 0.5);">' +
+                    '<p class="feed-membership-kicker" style="color: var(--text-muted);">Sin información</p>' +
+                    '<ul class="feed-membership-lines"><li class="feed-membership-line feed-membership-line--empty">' +
+                    '<span class="feed-membership-line-title">Acceso denegado</span>' +
+                    '<span class="feed-membership-line-primary">No reconocido</span>' +
+                    '</li></ul></div>';
+            }
             if (isGuest) {
                 const line = lines[0] || { title: 'Sin pase activo', primary: null };
                 return '<div class="feed-membership-block">' +
@@ -130,7 +202,7 @@
 
         card.innerHTML = `
             <div class="feed-header-xl">
-                <img src="${photoUrl}" alt="Foto" class="feed-avatar-xl">
+                ${photoHtml}
                 <div class="feed-title-container">
                     <h3 class="feed-name-xl">${data.name}</h3>
                     <div class="feed-badge-container">
@@ -144,7 +216,7 @@
             <div class="feed-details-grid">
                 <div class="feed-data-item">
                     <span class="feed-data-label">Cédula de Identidad</span>
-                    <span class="feed-data-value">${data.cedula}</span>
+                    <span class="feed-data-value">${data.cedula || '—'}</span>
                 </div>
                 <div class="feed-data-item">
                     <span class="feed-data-label">Código</span>
@@ -159,7 +231,7 @@
                     <span class="feed-data-value">${data.fecha_ingreso}</span>
                 </div>
                 <div class="feed-data-item feed-data-item--membership">
-                    ${renderMembershipBlock(membershipLines, data.is_guest_person)}
+                    ${renderMembershipBlock(membershipLines, data.is_guest_person, data.is_unknown)}
                 </div>
             </div>
         `;

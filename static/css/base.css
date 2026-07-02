@@ -496,6 +496,19 @@ a.sidebar-brand-link:hover span {
     border: 2px solid var(--border-color);
 }
 
+.avatar-unknown {
+    background-color: #334155;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-main);
+    font-size: 1.5rem;
+}
+
+.avatar-sm.avatar-unknown {
+    font-size: 1.2rem;
+}
+
 /* --- Live Feed Component (Extra Detailed) --- */
 .feed-grid-xl {
     display: grid;

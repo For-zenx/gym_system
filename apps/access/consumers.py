@@ -9,6 +9,7 @@ from apps.access import ai_engine
 from apps.access.services import (
     build_tablet_access_payload,
     check_access_integrity,
+    log_unknown_access,
     pulse_turnstile_if_granted,
 )
 
@@ -23,6 +24,7 @@ TABLET_ROLE_ENROLLMENT = "enrollment"
 
 
 class AccessTabletConsumer(AsyncWebsocketConsumer):
+    last_unknown_log_time = None
 
     async def connect(self):
         await self.accept()
@@ -59,12 +61,48 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
         client = await database_sync_to_async(ai_engine.recognize_face)(base64_image)
 
         if client is None:
-            await self.send(json.dumps({
-                "status": "DENIED",
-                "variant": "denied_unknown",
-                "name": "",
-                "detail": "No reconocido",
-            }))
+            now = datetime.datetime.now()
+            should_log = False
+            if (
+                AccessTabletConsumer.last_unknown_log_time is None
+                or (now - AccessTabletConsumer.last_unknown_log_time).total_seconds()
+                >= 10
+            ):
+                AccessTabletConsumer.last_unknown_log_time = now
+                should_log = True
+
+            if should_log:
+                await database_sync_to_async(log_unknown_access)()
+                await self.channel_layer.group_send(
+                    DASHBOARD_GROUP,
+                    {
+                        "type": "new_access_log",
+                        "name": "No reconocido",
+                        "cedula": "",
+                        "codigo": "—",
+                        "telefono": "",
+                        "fecha_ingreso": "—",
+                        "photo_url": "",
+                        "granted": False,
+                        "detail": "No reconocido",
+                        "is_staff_person": False,
+                        "is_guest_person": False,
+                        "is_unknown": True,
+                        "membership_lines": [],
+                        "timestamp": now.strftime("%d/%m/%Y - %H:%M:%S"),
+                    },
+                )
+
+            await self.send(
+                json.dumps(
+                    {
+                        "status": "DENIED",
+                        "variant": "denied_unknown",
+                        "name": "",
+                        "detail": "No reconocido",
+                    }
+                )
+            )
             return
 
         def get_membership_data(client_obj):

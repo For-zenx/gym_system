@@ -3,7 +3,14 @@ from django.db import models
 from apps.clients.models import Client
 
 class AccessLog(models.Model):
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='access_logs', verbose_name="Afiliado")
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name="access_logs",
+        verbose_name="Afiliado",
+        null=True,
+        blank=True,
+    )
     timestamp = models.DateTimeField("Fecha/Hora", auto_now_add=True)
     resultado = models.BooleanField("Acceso Concedido", default=True)
     motivo = models.CharField("Motivo/Detalle", max_length=255, blank=True, null=True)
@@ -15,7 +22,8 @@ class AccessLog(models.Model):
 
     def __str__(self):
         status = "EXITOSO" if self.resultado else "DENEGADO"
-        return f"{self.client.nombre} - {status} ({self.timestamp.strftime('%d/%m/%Y %H:%M')})"
+        name = self.client.nombre if self.client else "No reconocido"
+        return f"{name} - {status} ({self.timestamp.strftime('%d/%m/%Y %H:%M')})"
 
 
 class ManualTurnstileAccess(models.Model):

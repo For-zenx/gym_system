@@ -132,6 +132,14 @@ def check_access_integrity(client):
     return granted, motivo
 
 
+def log_unknown_access():
+    return AccessLog.objects.create(
+        client=None,
+        resultado=False,
+        motivo="No reconocido",
+    )
+
+
 def _suspended_since_display(client, today=None):
     if today is None:
         today = datetime.date.today()
