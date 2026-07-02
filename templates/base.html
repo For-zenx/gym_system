@@ -39,27 +39,21 @@
                 {% elif 'guests.view_list' in user_permissions %}
                 <a href="{% url 'clients:client_list' %}?tipo=invitados" class="nav-item {% if request.resolver_match.url_name == 'client_list' or '/invitados/' in request.path %}active{% endif %}">Lista de invitados</a>
                 {% endif %}
-                {% if 'staff_persons.view_list' in user_permissions %}
-                <a href="{% url 'staff_persons:staff_list' %}" class="nav-item {% if '/personal/' in request.path and 'enrolamiento' not in request.path %}active{% endif %}">Lista de personal</a>
-                {% endif %}
-                {% if 'access.view_logs' in user_permissions %}
-                <a href="{% url 'access:access_log_list' %}" class="nav-item {% if request.resolver_match.url_name == 'access_log_list' %}active{% endif %}">Historial de acceso</a>
-                {% endif %}
                 {% if 'access.open_turnstile' in user_permissions %}
                 <a href="{% url 'access:turnstile_control' %}" class="nav-item {% if request.resolver_match.url_name == 'turnstile_control' %}active{% endif %}">Torniquete</a>
                 {% endif %}
                 {% if 'billing.view_invoices' in user_permissions %}
                 <a href="{% url 'billing:invoice_list' %}" class="nav-item {% if request.resolver_match.url_name == 'invoice_list' %}active{% endif %}">Historial de facturas</a>
                 {% endif %}
-                {% if 'reports.view' in user_permissions %}
-                <a href="{% url 'billing:report' %}" class="nav-item {% if request.resolver_match.url_name == 'report' %}active{% endif %}">Reportes</a>
-                {% endif %}
-                {% if 'stats.view' in user_permissions %}
-                <a href="{% url 'stats:entry_hours' %}" class="nav-item {% if '/estadisticas/' in request.path %}active{% endif %}">Estadísticas</a>
-                {% endif %}
                 {% if 'clients.enroll' in user_permissions or 'staff_persons.enroll' in user_permissions or 'guests.register' in user_permissions %}
                 <a href="{% url 'enrollment' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment' %}active{% endif %}">Enrolamiento</a>
                 {% endif %}
+                {% if 'classes.view' in user_permissions %}
+                <a href="{% url 'classes:session_list' %}" class="nav-item {% if '/clases/' in request.path %}active{% endif %}">Clases</a>
+                {% endif %}
+
+                {% if 'plans.view' in user_permissions or 'products.view' in user_permissions or 'lockers.view' in user_permissions or 'staff_persons.view_list' in user_permissions %}
+                <div class="nav-section-label">Catálogo y Recursos</div>
                 {% if 'plans.view' in user_permissions %}
                 <a href="{% url 'billing:plan_list' %}" class="nav-item {% if 'planes' in request.path %}active{% endif %}">Planes</a>
                 {% endif %}
@@ -69,8 +63,22 @@
                 {% if 'lockers.view' in user_permissions %}
                 <a href="{% url 'lockers:locker_list' %}" class="nav-item {% if '/casilleros/' in request.path %}active{% endif %}">Casilleros</a>
                 {% endif %}
-                {% if 'classes.view' in user_permissions %}
-                <a href="{% url 'classes:session_list' %}" class="nav-item {% if '/clases/' in request.path %}active{% endif %}">Clases</a>
+                {% if 'staff_persons.view_list' in user_permissions %}
+                <a href="{% url 'staff_persons:staff_list' %}" class="nav-item {% if '/personal/' in request.path and 'enrolamiento' not in request.path %}active{% endif %}">Lista de personal</a>
+                {% endif %}
+                {% endif %}
+
+                {% if 'access.view_logs' in user_permissions or 'reports.view' in user_permissions or 'stats.view' in user_permissions %}
+                <div class="nav-section-label">Auditoría y Análisis</div>
+                {% if 'access.view_logs' in user_permissions %}
+                <a href="{% url 'access:access_log_list' %}" class="nav-item {% if request.resolver_match.url_name == 'access_log_list' %}active{% endif %}">Historial de acceso</a>
+                {% endif %}
+                {% if 'reports.view' in user_permissions %}
+                <a href="{% url 'billing:report' %}" class="nav-item {% if request.resolver_match.url_name == 'report' %}active{% endif %}">Reportes</a>
+                {% endif %}
+                {% if 'stats.view' in user_permissions %}
+                <a href="{% url 'stats:entry_hours' %}" class="nav-item {% if '/estadisticas/' in request.path %}active{% endif %}">Estadísticas</a>
+                {% endif %}
                 {% endif %}
             </nav>
             <div class="sidebar-footer">

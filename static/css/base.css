@@ -168,6 +168,36 @@ a.sidebar-brand-link:hover span {
     flex: 1;
     padding: 1.5rem 1rem;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 20px;
+}
+
+.nav-section-label {
+    display: block;
+    padding: 1.5rem 1rem 0.5rem 1rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    opacity: 0.8;
+}
+
+.nav-section-label:first-child {
+    padding-top: 0;
 }
 
 .nav-item {
