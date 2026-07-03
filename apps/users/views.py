@@ -15,6 +15,8 @@ from .models import StaffRole
 from .permissions import has_permission
 from apps.billing.models import BillingSettings, ReportEmailSettings
 from apps.billing.services import update_late_fee_amount_usd, update_fixed_grace_days, update_report_recipient_email
+from apps.access.models import AccessSettings
+from apps.access.services import update_post_access_cooldown
 from .services import (
     create_staff_role,
     create_staff_user,
@@ -94,7 +96,14 @@ class StaffProfileView(LoginRequiredMixin, View):
 
 
 class ConfigHomeView(AnyPermissionRequiredMixin, TemplateView):
-    required_any_permissions = ("users.view", "roles.manage", "settings.billing", "settings.grace", "settings.reports")
+    required_any_permissions = (
+        "users.view",
+        "roles.manage",
+        "settings.billing",
+        "settings.grace",
+        "settings.access",
+        "settings.reports",
+    )
     template_name = "users/config_home.html"
 
 
@@ -144,6 +153,35 @@ class GraceSettingsView(PermissionRequiredMixin, View):
             for msg in exc.messages:
                 messages.error(request, msg)
         return redirect("users:grace_settings")
+
+
+class AccessCooldownSettingsView(PermissionRequiredMixin, View):
+    required_permission = "settings.access"
+
+    def get(self, request):
+        settings_obj = AccessSettings.get_settings()
+        minutes, seconds = divmod(settings_obj.post_access_cooldown_seconds, 60)
+        return render(
+            request,
+            "users/access_cooldown_settings.html",
+            {
+                "cooldown_minutes": minutes,
+                "cooldown_seconds": seconds,
+                "updated_at": settings_obj.updated_at,
+            },
+        )
+
+    def post(self, request):
+        try:
+            update_post_access_cooldown(
+                request.POST.get("cooldown_minutes"),
+                request.POST.get("cooldown_seconds"),
+            )
+            messages.success(request, "Enfriamiento post-acceso actualizado correctamente.")
+        except ValidationError as exc:
+            for msg in exc.messages:
+                messages.error(request, msg)
+        return redirect("users:access_cooldown_settings")
 
 
 class ReportEmailSettingsView(PermissionRequiredMixin, View):

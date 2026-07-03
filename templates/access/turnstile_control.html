@@ -111,7 +111,10 @@
     </section>
 
     <section class="card turnstile-history-card">
-        <h2>Últimas aperturas manuales</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 style="margin: 0;">Últimas aperturas manuales</h2>
+            <a href="{% url 'access:manual_access_list' %}" class="btn btn-primary-outline btn-sm">Ver historial completo</a>
+        </div>
 
         <div class="table-container">
             <table class="data-table">

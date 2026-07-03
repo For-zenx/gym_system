@@ -57,7 +57,7 @@ function isGrantedVariant(variant) {
 function hideBottomBanner() {
     accessBottomBanner.className = 'access-bottom-banner hidden';
     accessBottomBanner.classList.remove(
-        'granted', 'granted_staff', 'granted_guest', 'granted_grace', 'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_other', 'processing'
+        'granted', 'granted_staff', 'granted_guest', 'granted_grace', 'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_cooldown', 'denied_other', 'processing'
     );
 }
 
@@ -202,6 +202,12 @@ function buildResultCopy(data, variant) {
     } else if (variant === 'denied_schedule') {
         title = 'Fuera de horario';
         subtitle = (data.name ? data.name + ' — ' : '') + (data.detail || 'Horario no permitido');
+    } else if (variant === 'denied_cooldown') {
+        title = 'Espere un momento';
+        const waitLine = data.cooldown_remaining_display
+            ? 'Puede volver a intentar en ' + data.cooldown_remaining_display
+            : (data.detail || 'Debe esperar antes de volver a entrar');
+        subtitle = (data.name ? data.name + ' — ' : '') + waitLine;
     } else if (variant === 'denied_suspended') {
         title = 'Acceso suspendido';
         const since = data.suspended_since_display

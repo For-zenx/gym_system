@@ -71,6 +71,98 @@ class AccessLogListView(PermissionRequiredMixin, ListView):
         return queryset
 
 
+class ManualTurnstileAccessListView(PermissionRequiredMixin, ListView):
+    required_permission = "access.view_logs"
+    model = ManualTurnstileAccess
+    template_name = "access/manual_access_list.html"
+    context_object_name = "accesses"
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = ManualTurnstileAccess.objects.select_related(
+            "client", "opened_by", "opened_by__staff_profile"
+        ).all()
+
+        q = self.request.GET.get("q", "").strip()
+        if q:
+            queryset = queryset.filter(
+                Q(person_name__icontains=q)
+                | Q(client__nombre__icontains=q)
+                | Q(client__cedula__icontains=q)
+                | Q(client__codigo_afiliado__icontains=q)
+                | Q(custom_reason__icontains=q)
+            )
+
+        fecha = self.request.GET.get("fecha", "").strip()
+        if fecha:
+            queryset = queryset.filter(timestamp__date=fecha)
+
+        return queryset
+
+
+class QuickTurnstileOpenView(PermissionRequiredMixin, View):
+    required_permission = "access.open_turnstile"
+
+    def post(self, request, *args, **kwargs):
+        reason = request.POST.get("reason", ManualTurnstileAccess.Reason.UNSPECIFIED)
+        custom_reason = request.POST.get("custom_reason", "").strip()
+        person_name = (request.POST.get("person_name") or "").strip()
+        client_id = (request.POST.get("client_id") or "").strip()
+        allow_unidentified = reason == ManualTurnstileAccess.Reason.UNSPECIFIED
+
+        client = None
+        membership_warning = ""
+
+        if client_id:
+            try:
+                client = Client.objects.get(pk=int(client_id))
+            except (Client.DoesNotExist, ValueError, TypeError):
+                return JsonResponse(
+                    {"success": False, "error": "La persona seleccionada ya no existe."},
+                    status=400,
+                )
+            person_name = client.nombre
+            granted, detail = evaluate_access_integrity(client)
+            if not granted:
+                membership_warning = detail
+        elif not person_name:
+            if allow_unidentified:
+                person_name = "Sin identificar"
+            else:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Seleccione una persona o indique el nombre.",
+                    },
+                    status=400,
+                )
+
+        if reason == ManualTurnstileAccess.Reason.OTHER and not custom_reason:
+            return JsonResponse(
+                {"success": False, "error": "Debe especificar el motivo."}, status=400
+            )
+
+        hardware_result = open_turnstile()
+
+        ManualTurnstileAccess.objects.create(
+            client=client,
+            person_name=person_name,
+            reason=reason,
+            custom_reason=custom_reason,
+            opened_by=request.user,
+            hardware_success=hardware_result.success,
+            hardware_error=hardware_result.message,
+            membership_warning=membership_warning,
+            port_used=hardware_result.port,
+        )
+
+        if hardware_result.success:
+            return JsonResponse({"success": True, "message": "Torniquete abierto."})
+        return JsonResponse(
+            {"success": False, "error": hardware_result.message}, status=500
+        )
+
+
 class TurnstileClientSearchView(PermissionRequiredMixin, View):
     required_permission = "access.open_turnstile"
 

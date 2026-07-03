@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Historial de Aperturas Manuales - Perfect Line II{% endblock %}
+{% block page_title %}Historial de Aperturas Manuales{% endblock %}
+
+{% block content %}
+<div class="access-log-page">
+    <div class="page-header-actions">
+        <div class="search-filter-bar">
+            <form method="get" class="search-form">
+                <div class="search-input-group">
+                    <div class="btn-search">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </div>
+                    <input type="text" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Buscar por nombre, cédula o código...">
+                </div>
+                <div class="filter-group">
+                    <input type="date" name="fecha" value="{{ request.GET.fecha|default:'' }}" class="filter-input">
+                    <button type="submit" class="btn btn-primary">Filtrar</button>
+                    {% if request.GET.q or request.GET.fecha %}
+                        <a href="{% url 'access:manual_access_list' %}" class="btn btn-secondary">Limpiar</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+        <div class="header-nav-actions" style="margin-left: 1rem;">
+            <a href="{% url 'access:turnstile_control' %}" class="btn btn-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Volver al Torniquete
+            </a>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="white-space: nowrap; width: 250px;">Persona / Afiliado</th>
+                    <th style="white-space: nowrap; width: 200px;">Razón</th>
+                    <th style="white-space: nowrap; width: 150px;">Operador</th>
+                    <th style="white-space: nowrap; width: 120px;">Resultado</th>
+                    <th style="white-space: nowrap; width: 180px;">Fecha y hora</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for access in accesses %}
+                <tr>
+                    <td>
+                        <div style="display: flex; flex-direction: column;">
+                            <strong>{{ access.person_name }}</strong>
+                            {% if access.client %}
+                            <span class="text-muted" style="font-size: 0.85rem;">{{ access.client.cedula }} · {{ access.client.codigo_afiliado }}</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <div style="display: flex; flex-direction: column;">
+                            <span>{{ access.get_reason_display }}</span>
+                            {% if access.custom_reason %}
+                            <span class="text-muted" style="font-size: 0.85rem;">{{ access.custom_reason }}</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {{ access.opened_by.staff_profile.display_name|default:access.opened_by.username|default:"—" }}
+                    </td>
+                    <td>
+                        {% if access.hardware_success %}
+                        <span class="badge badge-success">Abierto</span>
+                        {% else %}
+                        <span class="badge badge-danger" title="{{ access.hardware_error }}">Error</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space: nowrap;">
+                        {{ access.timestamp|date:"d/m/Y H:i:s" }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 3rem;">
+                        No se encontraron registros de aperturas manuales.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <div class="pagination-wrapper">
+        {% if page_obj.has_previous %}
+            <a href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.fecha %}&fecha={{ request.GET.fecha }}{% endif %}" class="page-btn">&laquo; Primera</a>
+            <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.fecha %}&fecha={{ request.GET.fecha }}{% endif %}" class="page-btn">Anterior</a>
+        {% endif %}
+
+        <span class="page-current">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.fecha %}&fecha={{ request.GET.fecha }}{% endif %}" class="page-btn">Siguiente</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.fecha %}&fecha={{ request.GET.fecha }}{% endif %}" class="page-btn">Última &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

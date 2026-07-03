@@ -168,6 +168,11 @@ html, body {
     box-shadow: 0 0 0 9999px rgba(234, 179, 8, 0.84);
 }
 
+.face-guide-access.denied_cooldown .access-guide-oval {
+    border-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0 9999px rgba(234, 179, 8, 0.84);
+}
+
 .face-guide-access.processing .access-guide-oval {
     box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.75);
 }
@@ -239,6 +244,14 @@ html, body {
 
 .access-bottom-banner.denied_schedule .access-banner-title {
     color: #a16207;
+}
+
+.access-bottom-banner.denied_cooldown .access-banner-title {
+    color: #a16207;
+}
+
+.access-bottom-banner.denied_cooldown .access-banner-subtitle {
+    color: #854d0e;
 }
 
 .access-bottom-banner.processing .access-banner-title {

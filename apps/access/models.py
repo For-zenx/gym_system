@@ -1,6 +1,45 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
 from apps.clients.models import Client
+
+
+class AccessSettings(models.Model):
+    post_access_cooldown_seconds = models.PositiveIntegerField(
+        "Enfriamiento post-acceso (segundos)",
+        default=0,
+        help_text="Tiempo mínimo entre accesos biométricos concedidos a la misma persona. 0 = desactivado.",
+    )
+    updated_at = models.DateTimeField("Actualizado", auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración de acceso"
+        verbose_name_plural = "Configuración de acceso"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("No se puede eliminar la configuración global de acceso.")
+
+    @classmethod
+    def get_settings(cls):
+        obj, _ = cls.objects.get_or_create(pk=1, defaults={"post_access_cooldown_seconds": 0})
+        return obj
+
+    @property
+    def cooldown_enabled(self):
+        return self.post_access_cooldown_seconds > 0
+
+    def __str__(self):
+        if not self.cooldown_enabled:
+            return "Enfriamiento post-acceso desactivado"
+        minutes, seconds = divmod(self.post_access_cooldown_seconds, 60)
+        if seconds:
+            return "Enfriamiento post-acceso: {} min {} s".format(minutes, seconds)
+        return "Enfriamiento post-acceso: {} min".format(minutes)
 
 class AccessLog(models.Model):
     client = models.ForeignKey(
@@ -32,7 +71,9 @@ class ManualTurnstileAccess(models.Model):
         ADMIN_AUTHORIZATION = "admin_authorization", "Autorización administrativa"
         ENROLLMENT_PENDING = "enrollment_pending", "Enrolamiento pendiente"
         GUEST_OR_VENDOR = "guest_or_vendor", "Invitado o proveedor"
+        PAY_LATER = "pay_later", "Paga después"
         EMERGENCY = "emergency", "Emergencia"
+        UNSPECIFIED = "unspecified", "Sin razón especificada"
         OTHER = "other", "Otra"
 
     client = models.ForeignKey(

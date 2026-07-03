@@ -36,6 +36,13 @@
     </a>
     {% endif %}
 
+    {% if 'settings.access' in user_permissions %}
+    <a href="{% url 'users:access_cooldown_settings' %}" class="card config-hub-card">
+        <h3>Enfriamiento post-acceso</h3>
+        <p>Tiempo de espera para la misma persona antes de volver a entrar por la tablet biométrica.</p>
+    </a>
+    {% endif %}
+
     {% if 'settings.reports' in user_permissions %}
     <a href="{% url 'users:report_settings' %}" class="card config-hub-card">
         <h3>Reportes por correo</h3>

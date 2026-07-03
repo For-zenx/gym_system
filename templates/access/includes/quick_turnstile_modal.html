@@ -1,0 +1,90 @@
+<div class="modal-overlay" id="quickTurnstileModal"
+     data-search-url="{% url 'access:turnstile_client_search' %}"
+     data-reason-other="other">
+    <div class="modal-content modal-content-narrow">
+        {% include "includes/modal_header.html" with modal_title="Apertura rápida de torniquete" %}
+
+        <div class="modal-body">
+            <form id="quickTurnstileForm" method="POST" action="{% url 'access:quick_open' %}">
+                {% csrf_token %}
+                <input type="hidden" name="client_id" id="quick_client_id" value="">
+
+                <div class="form-group" id="quick-search-block">
+                    <label for="quick-client-search">Persona</label>
+                    <input type="text"
+                           id="quick-client-search"
+                           class="form-control quick-turnstile-input"
+                           placeholder="Buscar por nombre, cédula o código..."
+                           autocomplete="off">
+                    <div id="quick-search-results" class="quick-turnstile-search-results" hidden></div>
+                    <button type="button" class="quick-turnstile-link-btn" id="quick-no-client-btn">
+                        Persona no registrada
+                    </button>
+                </div>
+
+                <div id="quick-selected-client" class="quick-turnstile-selected-client is-hidden">
+                    <div class="quick-turnstile-selected-info">
+                        <strong id="quick-selected-name"></strong>
+                        <span id="quick-selected-meta" class="quick-turnstile-subtext"></span>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="quick-change-client-btn">
+                        Cambiar
+                    </button>
+                </div>
+
+                <div id="quick-person-block" class="form-group is-hidden">
+                    <label for="quick_person_name">Nombre de la persona</label>
+                    <input type="text"
+                           name="person_name"
+                           id="quick_person_name"
+                           class="form-control quick-turnstile-input"
+                           placeholder="Escriba el nombre..."
+                           maxlength="255">
+                    <button type="button" class="quick-turnstile-link-btn" id="quick-back-to-search-btn">
+                        Buscar persona
+                    </button>
+                </div>
+
+                <div id="quick-access-warning" class="quick-turnstile-warning is-hidden"></div>
+
+                <div class="form-group">
+                    <label for="quick_reason">Razón de apertura</label>
+                    <select name="reason" id="quick_reason" class="form-control">
+                        <option value="biometric_failure">Falla biométrica</option>
+                        <option value="admin_authorization">Autorización administrativa</option>
+                        <option value="enrollment_pending">Enrolamiento pendiente</option>
+                        <option value="guest_or_vendor">Invitado o proveedor</option>
+                        <option value="pay_later">Paga después</option>
+                        <option value="emergency">Emergencia</option>
+                        <option value="other">Otra razón</option>
+                    </select>
+                </div>
+
+                <div class="form-group is-hidden" id="quick_custom_reason_block">
+                    <label for="quick_custom_reason">Especifique el motivo</label>
+                    <input type="text"
+                           name="custom_reason"
+                           id="quick_custom_reason"
+                           class="form-control quick-turnstile-input"
+                           placeholder="Describa la razón..."
+                           maxlength="255">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="quickTurnstileUnspecifiedBtn">
+                        Activar de todas formas
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="quickTurnstileSubmitBtn">
+                        Abrir torniquete
+                    </button>
+                </div>
+            </form>
+
+            <div class="quick-modal-footer">
+                <a href="{% url 'access:manual_access_list' %}" class="quick-modal-link">
+                    Ver historial completo de aperturas
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

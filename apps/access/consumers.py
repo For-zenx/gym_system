@@ -7,8 +7,11 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 from apps.access import ai_engine
 from apps.access.services import (
+    build_cooldown_denied_payload,
     build_tablet_access_payload,
     check_access_integrity,
+    get_client_cooldown_remaining,
+    log_cooldown_denial,
     log_unknown_access,
     pulse_turnstile_if_granted,
 )
@@ -102,6 +105,44 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
                         "detail": "No reconocido",
                     }
                 )
+            )
+            return
+
+        remaining = await database_sync_to_async(get_client_cooldown_remaining)(client)
+        if remaining is not None:
+            await database_sync_to_async(log_cooldown_denial)(client, remaining)
+            tablet_payload = await database_sync_to_async(build_cooldown_denied_payload)(
+                client, remaining
+            )
+            await self.send(json.dumps(tablet_payload))
+
+            photo_url = client.foto_frente.url if client.foto_frente else ""
+            if client.is_guest:
+                from apps.clients.services import get_guest_feed_lines
+
+                membership_lines = await database_sync_to_async(get_guest_feed_lines)(client)
+            else:
+                from apps.billing.services import get_membership_feed_lines
+
+                membership_lines = await database_sync_to_async(get_membership_feed_lines)(client)
+
+            await self.channel_layer.group_send(
+                DASHBOARD_GROUP,
+                {
+                    "type": "new_access_log",
+                    "name": client.nombre,
+                    "cedula": client.cedula or "",
+                    "codigo": client.codigo_afiliado,
+                    "telefono": client.telefono,
+                    "fecha_ingreso": client.fecha_ingreso.strftime('%d/%m/%Y'),
+                    "photo_url": photo_url,
+                    "granted": False,
+                    "detail": tablet_payload["detail"],
+                    "is_staff_person": client.is_staff_person,
+                    "is_guest_person": client.is_guest,
+                    "membership_lines": membership_lines,
+                    "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S'),
+                },
             )
             return
 

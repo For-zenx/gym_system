@@ -41,6 +41,9 @@
             {% if 'settings.grace' in user_permissions %}
             <a href="{% url 'users:grace_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'grace_settings' %}active{% endif %}">Días de gracia</a>
             {% endif %}
+            {% if 'settings.access' in user_permissions %}
+            <a href="{% url 'users:access_cooldown_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'access_cooldown_settings' %}active{% endif %}">Enfriamiento</a>
+            {% endif %}
             {% if 'settings.reports' in user_permissions %}
             <a href="{% url 'users:report_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'report_settings' %}active{% endif %}">Reportes</a>
             {% endif %}

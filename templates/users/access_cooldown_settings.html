@@ -1,0 +1,58 @@
+{% extends "users/config_base.html" %}
+
+{% block title %}Enfriamiento de acceso - Configuración{% endblock %}
+{% block config_heading %}Enfriamiento post-acceso{% endblock %}
+
+{% block config_content %}
+<p class="config-intro">
+    Tiempo mínimo que debe esperar la misma persona antes de volver a obtener acceso biométrico tras una entrada concedida.
+    Con 0 minutos y 0 segundos el enfriamiento queda desactivado.
+</p>
+
+<form method="post" class="card config-form-card">
+    {% csrf_token %}
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Tablet de acceso</h3>
+            <p>Solo aplica a accesos biométricos concedidos. La apertura manual del torniquete no usa este plazo.</p>
+        </div>
+        <div class="config-form-grid" style="grid-template-columns: repeat(2, minmax(0, 160px));">
+            <div class="config-form-group">
+                <label for="cooldown_minutes">Minutos</label>
+                <input
+                    type="text"
+                    id="cooldown_minutes"
+                    name="cooldown_minutes"
+                    value="{{ cooldown_minutes }}"
+                    required
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                >
+            </div>
+            <div class="config-form-group">
+                <label for="cooldown_seconds">Segundos</label>
+                <input
+                    type="text"
+                    id="cooldown_seconds"
+                    name="cooldown_seconds"
+                    value="{{ cooldown_seconds }}"
+                    required
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                >
+            </div>
+        </div>
+        {% if updated_at %}
+        <p class="config-muted" style="margin: 0.75rem 0 0;">Última actualización: {{ updated_at|date:"d/m/Y H:i" }}</p>
+        {% endif %}
+    </div>
+
+    <div class="config-form-actions">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'users:config_home' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

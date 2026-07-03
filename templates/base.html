@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Perfect Line II{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=3.1">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=3.2">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -102,6 +102,16 @@
                     <h3>{% block page_title %}Dashboard{% endblock %}</h3>
                 </div>
                 <div class="navbar-user" style="display: flex; align-items: center; gap: 1.5rem;">
+                    {% if 'access.open_turnstile' in user_permissions %}
+                    <button type="button" class="btn-f2" id="quickTurnstileBtn" title="Abrir torniquete (F2)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+                            <path d="M0 0h24v24H0z" fill="none" />
+                            <path fill="currentColor" d="M13.41 10.41c-.37.38-.88.59-1.41.59a2 2 0 0 1-2-2c0-.53.21-1.04.59-1.41L9.17 6.17C8.42 6.92 8 7.94 8 9H2v2h6.55c.35.6.85 1.1 1.45 1.45V19h2v-6c1.06 0 2.08-.42 2.83-1.17zM10 2v3l6 6v11h6V2zm10 18h-2v-9.83l-6-6V4h8z" />
+                        </svg>
+                        <span>F2</span>
+                    </button>
+                    {% endif %}
+
                     {% if latest_rate %}
                     {% if 'settings.exchange_rate' in user_permissions %}
                     <div class="rate-widget" onclick="openRateModal()" title="Editar Tasa de Cambio">
@@ -186,6 +196,10 @@
         {% include "billing/includes/quick_charge_modal.html" %}
     {% endif %}
 
+    {% if 'access.open_turnstile' in user_permissions %}
+        {% include "access/includes/quick_turnstile_modal.html" %}
+    {% endif %}
+
     <script>
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         window.DASHBOARD_WS_URL = wsScheme + "://" + window.location.host + "/ws/dashboard/";
@@ -212,6 +226,9 @@
     <script src="{% static 'js/dashboard_ws.js' %}?v=1.9"></script>
     {% if 'billing.charge' in user_permissions %}
     <script src="{% static 'js/quick_charge.js' %}?v=1.0"></script>
+    {% endif %}
+    {% if 'access.open_turnstile' in user_permissions %}
+    <script src="{% static 'js/quick_turnstile.js' %}?v=1.1"></script>
     {% endif %}
 
     {% block extra_js %}{% endblock %}

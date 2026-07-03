@@ -1,6 +1,8 @@
 import datetime
 import logging
+import math
 
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from apps.billing.cycle import (
@@ -16,9 +18,90 @@ from apps.billing.services import get_profile_subscription_summary
 from apps.clients.services import get_active_guest_pass
 
 from .hardware import open_turnstile
-from .models import AccessLog
+from .models import AccessLog, AccessSettings
 
 logger = logging.getLogger(__name__)
+
+
+def get_post_access_cooldown_seconds():
+    return AccessSettings.get_settings().post_access_cooldown_seconds
+
+
+def update_post_access_cooldown(minutes_raw, seconds_raw):
+    minutes_str = (minutes_raw or "").strip()
+    seconds_str = (seconds_raw or "").strip()
+    if not minutes_str:
+        minutes_str = "0"
+    if not seconds_str:
+        seconds_str = "0"
+    try:
+        minutes = int(minutes_str)
+        seconds = int(seconds_str)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("Minutos y segundos deben ser números enteros.") from exc
+    if minutes < 0:
+        raise ValidationError("Los minutos no pueden ser negativos.")
+    if seconds < 0 or seconds > 59:
+        raise ValidationError("Los segundos deben estar entre 0 y 59.")
+
+    total = minutes * 60 + seconds
+    settings_obj = AccessSettings.get_settings()
+    settings_obj.post_access_cooldown_seconds = total
+    settings_obj.save(update_fields=["post_access_cooldown_seconds", "updated_at"])
+    return total
+
+
+def format_cooldown_remaining(seconds):
+    remaining = max(int(math.ceil(seconds)), 1)
+    minutes, secs = divmod(remaining, 60)
+    if minutes and secs:
+        return "{} min {} s".format(minutes, secs)
+    if minutes:
+        minute_word = "minuto" if minutes == 1 else "min"
+        return "{} {}".format(minutes, minute_word)
+    second_word = "segundo" if secs == 1 else "s"
+    return "{} {}".format(secs, second_word)
+
+
+def get_client_cooldown_remaining(client):
+    cooldown_seconds = get_post_access_cooldown_seconds()
+    if cooldown_seconds <= 0:
+        return None
+
+    last_granted = (
+        AccessLog.objects.filter(client=client, resultado=True)
+        .order_by("-timestamp")
+        .first()
+    )
+    if not last_granted:
+        return None
+
+    elapsed = (timezone.now() - last_granted.timestamp).total_seconds()
+    if elapsed >= cooldown_seconds:
+        return None
+    return cooldown_seconds - elapsed
+
+
+def log_cooldown_denial(client, remaining_seconds):
+    display = format_cooldown_remaining(remaining_seconds)
+    motivo = "Enfriamiento activo — espere {}".format(display)
+    return AccessLog.objects.create(
+        client=client,
+        resultado=False,
+        motivo=motivo,
+    )
+
+
+def build_cooldown_denied_payload(client, remaining_seconds):
+    display = format_cooldown_remaining(remaining_seconds)
+    return {
+        "status": "DENIED",
+        "variant": "denied_cooldown",
+        "name": client.nombre,
+        "detail": "Enfriamiento activo — espere {}".format(display),
+        "cooldown_remaining_seconds": remaining_seconds,
+        "cooldown_remaining_display": display,
+    }
 
 
 def _membership_hours_ok(membership, current_time):
