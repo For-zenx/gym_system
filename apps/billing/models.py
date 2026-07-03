@@ -148,10 +148,10 @@ class BillingSettings(models.Model):
 
 
 class ReportEmailSettings(models.Model):
-    recipient_email = models.EmailField(
-        "Correo del destinatario",
+    recipient_emails = SQLiteJSONField(
+        "Correos destinatarios",
+        default=list,
         blank=True,
-        default="",
     )
     daily_send_limit = models.PositiveSmallIntegerField(
         "Límite de envíos por día",
@@ -175,9 +175,18 @@ class ReportEmailSettings(models.Model):
         obj, _ = cls.objects.get_or_create(pk=1, defaults={"daily_send_limit": 3})
         return obj
 
+    @property
+    def recipient_emails_list(self):
+        emails = self.recipient_emails or []
+        return [e.strip() for e in emails if isinstance(e, str) and e.strip()]
+
+    @property
+    def recipient_emails_display(self):
+        return ", ".join(self.recipient_emails_list)
+
     def __str__(self):
-        if self.recipient_email:
-            return f"Reportes → {self.recipient_email}"
+        if self.recipient_emails_list:
+            return "Reportes → {}".format(self.recipient_emails_display)
         return "Reportes (sin correo destino)"
 
 

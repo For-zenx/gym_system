@@ -1,34 +1,44 @@
 {% extends "users/config_base.html" %}
+{% load static %}
 
 {% block title %}Reportes por correo - Configuración{% endblock %}
 {% block config_heading %}Reportes por correo{% endblock %}
 
 {% block config_content %}
 <p class="config-intro">
-    Correo que recibirá el resumen enviado desde la pantalla de <a href="{% url 'billing:report' %}">Reportes</a>.
+    Correos que recibirán el resumen enviado desde la pantalla de <a href="{% url 'billing:report' %}">Reportes</a>.
+    Puede agregar hasta {{ max_recipients }} destinatarios.
 </p>
 
-<form method="post" class="card config-form-card">
+<form method="post" class="card config-form-card" id="report-settings-form">
     {% csrf_token %}
 
     <div class="config-form-section">
         <div class="config-form-section-header">
-            <h3>Destinatario</h3>
-            <p>Hasta {{ daily_send_limit }} envíos por día.</p>
+            <h3>Destinatarios</h3>
+            <p>Hasta {{ daily_send_limit }} envíos por día (cada envío llega a todos los destinatarios).</p>
         </div>
-        <div class="config-form-grid" style="grid-template-columns: minmax(0, 360px);">
-            <div class="config-form-group">
-                <label for="recipient_email">Correo del destinatario</label>
+        <div id="report-recipient-list" class="report-recipient-list">
+            {% for email in recipient_emails %}
+            <div class="config-form-group report-recipient-row" data-recipient-row>
+                <div class="report-recipient-row-header">
+                    <label class="report-recipient-label">Destinatario {{ forloop.counter }}</label>
+                    <button type="button" class="btn-link-muted report-recipient-remove" data-remove-recipient {% if forloop.first and recipient_emails|length == 1 %}hidden{% endif %}>Quitar</button>
+                </div>
                 <input
                     type="email"
-                    id="recipient_email"
-                    name="recipient_email"
-                    value="{{ recipient_email }}"
+                    name="recipient_email_{{ forloop.counter }}"
+                    value="{{ email }}"
                     placeholder="ejemplo@correo.com"
                     autocomplete="email"
+                    data-recipient-input
                 >
             </div>
+            {% endfor %}
         </div>
+        <button type="button" class="btn btn-secondary report-recipient-add" id="report-recipient-add" {% if recipient_emails|length >= max_recipients %}hidden{% endif %}>
+            Agregar otro
+        </button>
         {% if updated_at %}
         <p class="config-muted" style="margin: 0.75rem 0 0;">Última actualización: {{ updated_at|date:"d/m/Y H:i" }}</p>
         {% endif %}
@@ -39,4 +49,11 @@
         <a href="{% url 'users:config_home' %}" class="btn btn-secondary">Cancelar</a>
     </div>
 </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.REPORT_SETTINGS_MAX_RECIPIENTS = {{ max_recipients }};
+</script>
+<script src="{% static 'js/report_settings.js' %}?v=1.0"></script>
 {% endblock %}

@@ -19,7 +19,12 @@
         table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
         th, td { border-bottom: 1px solid #e4e4e7; padding: 8px 6px; text-align: left; }
         th { color: #71717a; font-weight: 600; }
-        tfoot td { border-top: 2px solid #18181b; font-weight: 700; font-size: 14px; padding-top: 12px; }
+        .totals-box { background: #f4f4f5; border-radius: 8px; padding: 4px 16px; margin-top: 8px; }
+        .totals-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+        .totals-table td { padding: 12px 0; border-bottom: 1px solid #e4e4e7; vertical-align: middle; }
+        .totals-table tr:last-child td { border-bottom: none; }
+        .totals-table .totals-label { color: #52525b; }
+        .totals-table .totals-amount { text-align: right; font-size: 18px; font-weight: 700; color: #18181b; white-space: nowrap; padding-left: 24px; }
         .muted { color: #71717a; font-size: 13px; }
         .footer { padding: 16px 24px; background: #fafafa; font-size: 12px; color: #71717a; }
     </style>
@@ -31,21 +36,11 @@
             <p>Reporte — {{ period_label }} ({{ date_range }})</p>
         </div>
         <div class="body">
-            <h2>Resumen contable</h2>
+            <h2>Resumen de cobros</h2>
             <div class="kpi-grid">
                 <div class="kpi">
                     <span>Facturas</span>
-                    <strong>{{ totals.invoice_count }}</strong>
-                </div>
-                <div class="kpi">
-                    <span>Membresías</span>
-                    <strong>{{ totals.membership_count }}</strong>
-                    <span>{{ totals.membership_ves_fmt }}</span>
-                </div>
-                <div class="kpi">
-                    <span>Productos</span>
-                    <strong>{{ totals.product_count }}</strong>
-                    <span>{{ totals.product_ves_fmt }}</span>
+                    <strong>{{ invoice_count }}</strong>
                 </div>
                 <div class="kpi">
                     <span>Afiliados nuevos</span>
@@ -54,33 +49,42 @@
                 </div>
             </div>
 
-            <h3>Facturas del período</h3>
-            {% if invoice_rows_truncated %}<p class="muted">Últimas 50 del período. El total incluye todas las facturas.</p>{% endif %}
+            <h3>Cobros por forma de pago</h3>
             <table>
                 <thead>
-                    <tr><th>Fecha</th><th>Nro.</th><th>Afiliado</th><th style="text-align: right;">Total</th></tr>
+                    <tr>
+                        <th>Forma de pago</th>
+                        <th style="text-align: right;">Cobros</th>
+                        <th style="text-align: right;">Total</th>
+                    </tr>
                 </thead>
                 <tbody>
-                    {% for row in invoice_rows %}
+                    {% for row in payment_rows %}
                     <tr>
-                        <td>{{ row.date }}</td>
-                        <td>{{ row.number }}</td>
-                        <td>{{ row.client }}</td>
-                        <td style="text-align: right;">{{ row.total_ves }}</td>
+                        <td>{{ row.label }}</td>
+                        <td style="text-align: right;">{{ row.count }}</td>
+                        <td style="text-align: right;">{{ row.amount_fmt }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="4" class="muted" style="text-align: center;">No hay facturas en este período.</td>
+                        <td colspan="3" class="muted" style="text-align: center;">No hay cobros registrados en este período.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="3">Total generado</td>
-                        <td style="text-align: right;">{{ totals.total_ves_fmt }}</td>
-                    </tr>
-                </tfoot>
             </table>
+
+            <div class="totals-box">
+                <table class="totals-table" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td class="totals-label" style="color: #52525b; padding: 12px 0; vertical-align: middle; width: 50%;">Total en Bs</td>
+                        <td class="totals-amount" style="text-align: right; font-size: 18px; font-weight: 700; color: #18181b; padding: 12px 0; padding-left: 24px; white-space: nowrap; width: 50%;">{{ totals.total_ves_fmt }}</td>
+                    </tr>
+                    <tr>
+                        <td class="totals-label" style="color: #52525b; padding: 12px 0; vertical-align: middle; border-top: 1px solid #e4e4e7;">Total en $</td>
+                        <td class="totals-amount" style="text-align: right; font-size: 18px; font-weight: 700; color: #18181b; padding: 12px 0; padding-left: 24px; white-space: nowrap; border-top: 1px solid #e4e4e7;">{{ totals.total_usd_fmt }}</td>
+                    </tr>
+                </table>
+            </div>
         </div>
         <div class="footer">
             Generado {{ generated_at }} — Perfect Line II

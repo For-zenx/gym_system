@@ -1227,16 +1227,33 @@ def update_fixed_grace_days(days_raw):
     return settings_obj
 
 
-def update_report_recipient_email(email_raw):
+def update_report_recipient_emails(emails_raw):
     from .models import ReportEmailSettings
 
-    email = (email_raw or "").strip()
-    if email and "@" not in email:
-        raise ValidationError("El correo del dueño no es válido.")
+    MAX_RECIPIENTS = 5
+    if emails_raw is None:
+        emails_raw = []
+
+    normalized = []
+    seen = set()
+    for raw in emails_raw:
+        email = (raw or "").strip()
+        if not email:
+            continue
+        if "@" not in email:
+            raise ValidationError("El correo «{}» no es válido.".format(email))
+        key = email.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(email)
+
+    if len(normalized) > MAX_RECIPIENTS:
+        raise ValidationError("Puede configurar hasta {} destinatarios.".format(MAX_RECIPIENTS))
 
     settings_obj = ReportEmailSettings.get_settings()
-    settings_obj.recipient_email = email
-    settings_obj.save(update_fields=["recipient_email", "updated_at"])
+    settings_obj.recipient_emails = normalized
+    settings_obj.save(update_fields=["recipient_emails", "updated_at"])
     return settings_obj
 
 

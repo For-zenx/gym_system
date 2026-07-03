@@ -310,3 +310,25 @@ body.config-body {
         padding: 1rem;
     }
 }
+
+.report-recipient-list {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.report-recipient-row-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.35rem;
+}
+
+.report-recipient-row-header label {
+    margin: 0;
+}
+
+.report-recipient-add {
+    margin-top: 0.25rem;
+}

@@ -29,8 +29,8 @@
 
         <div class="report-toolbar-meta">
             <p><strong>{{ report.period_label }}</strong> — {{ report.date_range }}</p>
-            {% if recipient_email %}
-            <p class="report-muted">Destinatario: {{ recipient_email }}</p>
+            {% if recipient_emails %}
+            <p class="report-muted">Destinatarios: {{ recipient_emails_display }}</p>
             {% else %}
             <p class="report-muted report-warn">
                 Sin correo configurado.

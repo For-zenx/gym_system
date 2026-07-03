@@ -247,3 +247,39 @@
 .report-send-close-btn {
     width: 100%;
 }
+
+.report-kpi-grid-compact {
+    max-width: 420px;
+}
+
+.report-payment-table td:last-child,
+.report-payment-table th:last-child {
+    font-variant-numeric: tabular-nums;
+}
+
+.report-grand-totals {
+    display: grid;
+    gap: 0.75rem;
+    max-width: 420px;
+    margin-top: 0.5rem;
+}
+
+.report-grand-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--bg-elevated, rgba(255, 255, 255, 0.04));
+}
+
+.report-grand-total-row span {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.report-grand-total-row strong {
+    font-size: 1.35rem;
+    color: var(--primary);
+}

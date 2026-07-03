@@ -14,7 +14,7 @@ from .mixins import PermissionRequiredMixin
 from .models import StaffRole
 from .permissions import has_permission
 from apps.billing.models import BillingSettings, ReportEmailSettings
-from apps.billing.services import update_late_fee_amount_usd, update_fixed_grace_days, update_report_recipient_email
+from apps.billing.services import update_late_fee_amount_usd, update_fixed_grace_days, update_report_recipient_emails
 from apps.access.models import AccessSettings
 from apps.access.services import update_post_access_cooldown
 from .services import (
@@ -189,20 +189,28 @@ class ReportEmailSettingsView(PermissionRequiredMixin, View):
 
     def get(self, request):
         settings_obj = ReportEmailSettings.get_settings()
+        emails = settings_obj.recipient_emails_list
+        if not emails:
+            emails = [""]
         return render(
             request,
             "users/report_settings.html",
             {
-                "recipient_email": settings_obj.recipient_email,
+                "recipient_emails": emails,
                 "updated_at": settings_obj.updated_at,
                 "daily_send_limit": settings_obj.daily_send_limit,
+                "max_recipients": 5,
             },
         )
 
     def post(self, request):
         try:
-            update_report_recipient_email(request.POST.get("recipient_email"))
-            messages.success(request, "Correo de reportes actualizado correctamente.")
+            emails = [
+                request.POST.get("recipient_email_{}".format(i), "")
+                for i in range(1, 6)
+            ]
+            update_report_recipient_emails(emails)
+            messages.success(request, "Destinatarios de reportes actualizados correctamente.")
         except ValidationError as exc:
             for msg in exc.messages:
                 messages.error(request, msg)
