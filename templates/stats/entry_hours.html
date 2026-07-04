@@ -5,15 +5,15 @@
 {% block page_title %}Estadísticas{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/stats.css' %}?v=1.0">
+<link rel="stylesheet" href="{% static 'css/stats.css' %}?v=2.0">
 {% endblock %}
 
 {% block content %}
 <div class="stats-page" id="stats-page">
     <div class="card stats-toolbar">
         <div class="stats-toolbar-heading">
-            <h2 class="stats-metric-title">Entradas por hora del día</h2>
-            <p class="stats-metric-subtitle">Accesos biométricos concedidos de afiliados, agregados por hora local</p>
+            <h2 class="stats-metric-title">Panel de Control</h2>
+            <p class="stats-metric-subtitle">Visualización de métricas operativas del gimnasio</p>
         </div>
 
         <div class="stats-period-buttons" role="group" aria-label="Período">
@@ -49,19 +49,68 @@
         </div>
     </div>
 
-    <div class="card stats-chart-card">
-        <div id="stats-empty-state" class="stats-empty-state{% if stats.total_entries %} hidden{% endif %}">
-            No hay accesos concedidos en este período.
+    <!-- Fila 1: Entradas por Hora (66%) + Distribución de Planes (33%) -->
+    <div class="stats-grid-row">
+        <div class="card stats-chart-card stats-chart-main">
+            <div class="stats-chart-header">
+                <h3 class="stats-chart-title">Entradas por hora del día</h3>
+                <p class="stats-chart-subtitle">Accesos concedidos por franja horaria</p>
+            </div>
+            <div id="stats-empty-state-hours" class="stats-empty-state{% if stats.total_entries %} hidden{% endif %}">
+                No hay datos de acceso en este período.
+            </div>
+            <div class="stats-chart-wrap{% if not stats.total_entries %} hidden{% endif %}" id="stats-chart-wrap-hours">
+                <canvas id="entry-hours-chart"></canvas>
+            </div>
         </div>
-        <div class="stats-chart-wrap{% if not stats.total_entries %} hidden{% endif %}" id="stats-chart-wrap">
-            <canvas id="entry-hours-chart" aria-label="Gráfico de entradas por hora"></canvas>
+
+        <div class="card stats-chart-card stats-chart-side">
+            <div class="stats-chart-header">
+                <h3 class="stats-chart-title">Distribución de planes</h3>
+                <p class="stats-chart-subtitle">Afiliados activos por plan hoy</p>
+            </div>
+            <div id="stats-empty-state-plans" class="stats-empty-state{% if stats.plan_distribution.counts %} hidden{% endif %}">
+                No hay planes activos registrados.
+            </div>
+            <div class="stats-chart-wrap{% if not stats.plan_distribution.counts %} hidden{% endif %}" id="stats-chart-wrap-plans">
+                <canvas id="plan-dist-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fila 2: Entradas por Día (66%) + Distribución por Género (33%) -->
+    <div class="stats-grid-row">
+        <div class="card stats-chart-card stats-chart-main">
+            <div class="stats-chart-header">
+                <h3 class="stats-chart-title">Entradas por día de la semana</h3>
+                <p class="stats-chart-subtitle">Frecuencia de visitas según el día</p>
+            </div>
+            <div id="stats-empty-state-days" class="stats-empty-state{% if stats.total_entries %} hidden{% endif %}">
+                No hay datos de acceso en este período.
+            </div>
+            <div class="stats-chart-wrap{% if not stats.total_entries %} hidden{% endif %}" id="stats-chart-wrap-days">
+                <canvas id="entry-days-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="card stats-chart-card stats-chart-side">
+            <div class="stats-chart-header">
+                <h3 class="stats-chart-title">Distribución por género</h3>
+                <p class="stats-chart-subtitle">Afiliados activos por sexo hoy</p>
+            </div>
+            <div id="stats-empty-state-gender" class="stats-empty-state{% if stats.gender_distribution.counts %} hidden{% endif %}">
+                No hay datos demográficos.
+            </div>
+            <div class="stats-chart-wrap{% if not stats.gender_distribution.counts %} hidden{% endif %}" id="stats-chart-wrap-gender">
+                <canvas id="gender-dist-chart"></canvas>
+            </div>
         </div>
     </div>
 </div>
 
-{{ stats|json_script:"entry-hours-stats-data" }}
+{{ stats|json_script:"stats-data" }}
 <script>
-    window.ENTRY_HOURS_STATS = {
+    window.GYM_STATS_CONFIG = {
         dataUrl: "{% url 'stats:entry_hours_data' %}",
         initialPeriod: {{ period_days }},
     };
@@ -70,5 +119,5 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="{% static 'js/stats_entry_hours.js' %}?v=1.0"></script>
+<script src="{% static 'js/stats.js' %}?v=2.0"></script>
 {% endblock %}

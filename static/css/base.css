@@ -621,14 +621,86 @@ a.sidebar-brand-link:hover span {
 /* --- Live Feed Component (Extra Detailed) --- */
 .feed-grid-xl {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.25rem;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     .feed-grid-xl {
         grid-template-columns: 1fr;
     }
+}
+
+/* --- Dashboard Header & Quick Actions --- */
+.dashboard-header {
+    margin-bottom: 2.5rem;
+}
+
+.dashboard-intro {
+    margin-bottom: 1.5rem;
+}
+
+.dashboard-subtitle {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.quick-actions-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-top: 1.25rem;
+}
+
+.quick-action-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    text-decoration: none;
+    color: var(--text-main);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    text-align: left;
+}
+
+.quick-action-card:hover {
+    border-color: var(--primary);
+    background-color: rgba(16, 185, 129, 0.05);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.quick-action-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background-color: var(--primary-light);
+    color: var(--primary);
+    border-radius: 0.6rem;
+    flex-shrink: 0;
+}
+
+.quick-action-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.quick-action-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.quick-action-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
 }
 
 .feed-card-xl {
@@ -636,20 +708,20 @@ a.sidebar-brand-link:hover span {
     flex-direction: column;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
-    border-radius: 1rem;
-    padding: 2rem;
+    border-radius: 0.85rem;
+    padding: 1.25rem;
     text-decoration: none;
     color: var(--text-main);
     box-shadow: var(--shadow-sm);
     transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
     position: relative;
     overflow: hidden;
-    min-height: 280px;
+    min-height: 240px;
 }
 
 .feed-card-xl:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
     background-color: rgba(255, 255, 255, 0.02);
 }
 
@@ -658,7 +730,7 @@ a.sidebar-brand-link:hover span {
     position: absolute;
     left: 0;
     top: 0;
-    width: 6px;
+    width: 4px;
     height: 100%;
 }
 
@@ -667,21 +739,21 @@ a.sidebar-brand-link:hover span {
 
 .feed-header-xl {
     display: flex;
-    gap: 2rem;
-    margin-bottom: 1.5rem;
+    gap: 1.25rem;
+    margin-bottom: 1rem;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 1.5rem;
+    padding-bottom: 1rem;
 }
 
 .feed-avatar-xl {
-    width: 140px;
-    height: 140px;
-    border-radius: 1rem;
+    width: 90px;
+    height: 90px;
+    border-radius: 0.75rem;
     object-fit: cover;
-    border: 3px solid var(--border-color);
+    border: 2px solid var(--border-color);
     background-color: var(--bg-main);
     flex-shrink: 0;
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
 }
 
 .feed-title-container {
@@ -692,52 +764,52 @@ a.sidebar-brand-link:hover span {
 }
 
 .feed-name-xl {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.5rem;
+    margin: 0 0 0.35rem 0;
+    font-size: 1.15rem;
     font-weight: 700;
     color: var(--text-main);
 }
 
 .feed-badge-container {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
 }
 
 .feed-status-badge-xl {
     display: inline-flex;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-size: 0.85rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.4rem;
+    font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
 .feed-status-badge-xl.success {
-    background-color: rgba(16, 185, 129, 0.15);
+    background-color: rgba(16, 185, 129, 0.12);
     color: var(--success);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
 .feed-status-badge-xl.danger {
-    background-color: rgba(239, 68, 68, 0.15);
+    background-color: rgba(239, 68, 68, 0.12);
     color: var(--danger);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
 .feed-time-xl {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     font-weight: 500;
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 .feed-details-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: 0.75rem;
 }
 
 .feed-data-item {
@@ -746,35 +818,35 @@ a.sidebar-brand-link:hover span {
 }
 
 .feed-data-label {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-weight: 600;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.15rem;
 }
 
 .feed-data-value {
-    font-size: 1rem;
+    font-size: 0.875rem;
     color: var(--text-main);
     font-weight: 500;
 }
 
 .feed-data-item--membership {
     grid-column: 1 / -1;
-    margin-top: 0.35rem;
+    margin-top: 0.25rem;
 }
 
 .feed-membership-block {
-    padding: 0.85rem 1rem 0.9rem 0.9rem;
+    padding: 0.65rem 0.75rem 0.7rem 0.75rem;
     border-left: 3px solid var(--primary);
-    background: rgba(16, 185, 129, 0.06);
-    border-radius: 0 0.5rem 0.5rem 0;
+    background: rgba(16, 185, 129, 0.05);
+    border-radius: 0 0.4rem 0.4rem 0;
 }
 
 .feed-membership-kicker {
-    margin: 0 0 0.6rem;
-    font-size: 0.68rem;
+    margin: 0 0 0.45rem;
+    font-size: 0.6rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -787,15 +859,15 @@ a.sidebar-brand-link:hover span {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: 0.5rem;
 }
 
 .feed-membership-line {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
-    padding-bottom: 0.65rem;
-    border-bottom: 1px solid rgba(30, 41, 59, 0.6);
+    gap: 0.1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(30, 41, 59, 0.5);
 }
 
 .feed-membership-line:last-child {
@@ -804,7 +876,7 @@ a.sidebar-brand-link:hover span {
 }
 
 .feed-membership-line-title {
-    font-size: 0.72rem;
+    font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -812,16 +884,16 @@ a.sidebar-brand-link:hover span {
 }
 
 .feed-membership-line-primary {
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-main);
-    line-height: 1.35;
+    line-height: 1.3;
 }
 
 .feed-membership-line-secondary {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
-    line-height: 1.35;
+    line-height: 1.3;
 }
 
 .feed-membership-line--active .feed-membership-line-primary {

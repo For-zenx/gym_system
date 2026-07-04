@@ -1,20 +1,22 @@
 (function () {
-    const quickChargeBtn = document.getElementById('quickChargeBtn');
+    const quickChargeTriggers = document.querySelectorAll('.js-quick-charge-trigger, #quickChargeBtn');
     const quickChargeModal = document.getElementById('quickChargeModal');
     const searchInput = document.getElementById('quick-charge-search');
     const resultsContainer = document.getElementById('quick-charge-results');
     const emptyState = document.getElementById('quick-charge-empty');
     const loadingState = document.getElementById('quick-charge-loading');
 
-    if (!quickChargeBtn || !quickChargeModal) return;
+    if (quickChargeTriggers.length === 0 || !quickChargeModal) return;
 
-    const searchUrl = quickChargeBtn.getAttribute('data-search-url');
+    const searchUrl = quickChargeTriggers[0].getAttribute('data-search-url');
     let searchTimer = null;
 
     // Abrir modal
-    quickChargeBtn.addEventListener('click', () => {
-        quickChargeModal.classList.add('show');
-        setTimeout(() => searchInput.focus(), 100);
+    quickChargeTriggers.forEach(trigger => {
+        trigger.addEventListener('click', () => {
+            quickChargeModal.classList.add('show');
+            setTimeout(() => searchInput.focus(), 100);
+        });
     });
 
     // Cerrar modal

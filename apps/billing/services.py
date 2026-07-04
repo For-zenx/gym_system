@@ -1227,7 +1227,7 @@ def update_fixed_grace_days(days_raw):
     return settings_obj
 
 
-def update_report_recipient_emails(emails_raw):
+def update_report_email_settings(*, emails_raw, gym_location_raw=""):
     from .models import ReportEmailSettings
 
     MAX_RECIPIENTS = 5
@@ -1251,9 +1251,14 @@ def update_report_recipient_emails(emails_raw):
     if len(normalized) > MAX_RECIPIENTS:
         raise ValidationError("Puede configurar hasta {} destinatarios.".format(MAX_RECIPIENTS))
 
+    gym_location = (gym_location_raw or "").strip()
+    if len(gym_location) > 100:
+        raise ValidationError("La localidad no puede superar 100 caracteres.")
+
     settings_obj = ReportEmailSettings.get_settings()
     settings_obj.recipient_emails = normalized
-    settings_obj.save(update_fields=["recipient_emails", "updated_at"])
+    settings_obj.gym_location = gym_location
+    settings_obj.save(update_fields=["recipient_emails", "gym_location", "updated_at"])
     return settings_obj
 
 

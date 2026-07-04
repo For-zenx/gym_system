@@ -5,8 +5,73 @@
 {% block page_title %}Inicio{% endblock %}
 
 {% block content %}
-    <div style="margin-bottom: 2rem;">
-        <p style="color: var(--text-muted); font-size: 0.875rem;">Monitoreo en tiempo real de los afiliados que ingresan por la tablet biométrica.</p>
+    <div class="dashboard-header">
+        
+        <div class="quick-actions-container">
+            {% if 'billing.charge' in user_permissions %}
+            <button type="button" class="quick-action-card js-quick-charge-trigger" data-search-url="{% url 'billing:person_search' %}">
+                <div class="quick-action-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                </div>
+                <div class="quick-action-info">
+                    <span class="quick-action-title">Registrar Cobro</span>
+                    <span class="quick-action-desc">Cobro rápido a afiliado</span>
+                </div>
+            </button>
+            {% endif %}
+
+            {% if 'clients.enroll' in user_permissions %}
+            <a href="{% url 'enrollment' %}" class="quick-action-card">
+                <div class="quick-action-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="8.5" cy="7" r="4"></circle>
+                        <line x1="20" y1="8" x2="20" y2="14"></line>
+                        <line x1="23" y1="11" x2="17" y2="11"></line>
+                    </svg>
+                </div>
+                <div class="quick-action-info">
+                    <span class="quick-action-title">Enrolar Persona</span>
+                    <span class="quick-action-desc">Nuevo registro biométrico</span>
+                </div>
+            </a>
+            {% endif %}
+
+            {% if 'access.open_turnstile' in user_permissions %}
+            <a href="{% url 'access:turnstile_control' %}" class="quick-action-card">
+                <div class="quick-action-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                </div>
+                <div class="quick-action-info">
+                    <span class="quick-action-title">Torniquete</span>
+                    <span class="quick-action-desc">Control de apertura manual</span>
+                </div>
+            </a>
+            {% endif %}
+
+            {% if 'access.view_logs' in user_permissions %}
+            <a href="{% url 'access:access_log_list' %}" class="quick-action-card">
+                <div class="quick-action-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                </div>
+                <div class="quick-action-info">
+                    <span class="quick-action-title">Historial</span>
+                    <span class="quick-action-desc">Registros de acceso</span>
+                </div>
+            </a>
+            {% endif %}
+        </div>
     </div>
 
     <div class="feed-grid-xl" id="live-feed-grid">
@@ -246,9 +311,9 @@
             });
         });
 
-        // Keep only 4 cards
+        // Keep only 6 cards
         const cards = grid.querySelectorAll('.feed-card-xl');
-        if (cards.length > 4) {
+        if (cards.length > 6) {
             cards[cards.length - 1].remove();
         }
     });

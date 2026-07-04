@@ -14,7 +14,7 @@ from .mixins import PermissionRequiredMixin
 from .models import StaffRole
 from .permissions import has_permission
 from apps.billing.models import BillingSettings, ReportEmailSettings
-from apps.billing.services import update_late_fee_amount_usd, update_fixed_grace_days, update_report_recipient_emails
+from apps.billing.services import update_late_fee_amount_usd, update_fixed_grace_days, update_report_email_settings
 from apps.access.models import AccessSettings
 from apps.access.services import update_post_access_cooldown
 from .services import (
@@ -197,6 +197,7 @@ class ReportEmailSettingsView(PermissionRequiredMixin, View):
             "users/report_settings.html",
             {
                 "recipient_emails": emails,
+                "gym_location": settings_obj.gym_location,
                 "updated_at": settings_obj.updated_at,
                 "daily_send_limit": settings_obj.daily_send_limit,
                 "max_recipients": 5,
@@ -209,8 +210,11 @@ class ReportEmailSettingsView(PermissionRequiredMixin, View):
                 request.POST.get("recipient_email_{}".format(i), "")
                 for i in range(1, 6)
             ]
-            update_report_recipient_emails(emails)
-            messages.success(request, "Destinatarios de reportes actualizados correctamente.")
+            update_report_email_settings(
+                emails_raw=emails,
+                gym_location_raw=request.POST.get("gym_location", ""),
+            )
+            messages.success(request, "Configuración de reportes actualizada correctamente.")
         except ValidationError as exc:
             for msg in exc.messages:
                 messages.error(request, msg)

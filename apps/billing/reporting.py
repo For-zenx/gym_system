@@ -171,6 +171,39 @@ def _invoice_client_label(invoice: Invoice) -> str:
     return "—"
 
 
+def _location_suffix(location: str) -> str:
+    location = (location or "").strip()
+    if not location:
+        return ""
+    return " — {}".format(location)
+
+
+def _report_email_branding(meta: dict, gym_location: str) -> dict:
+    location = (gym_location or "").strip()
+    suffix = _location_suffix(location)
+    return {
+        "gym_location": location,
+        "email_title": "{} — Reporte {} ({}){}".format(
+            meta["gym_name"],
+            meta["period_label"],
+            meta["date_range"],
+            suffix,
+        ),
+        "report_subtitle": "Reporte — {} ({}){}".format(
+            meta["period_label"],
+            meta["date_range"],
+            suffix,
+        ),
+        "footer_brand": "{}{}".format(meta["gym_name"], suffix),
+        "subject_line": "{} — Reporte {} ({}){}".format(
+            meta["gym_name"],
+            meta["period_label"],
+            meta["date_range"],
+            suffix,
+        ),
+    }
+
+
 def _report_meta(period_days: int, start_date, end_date):
     gym_name = getattr(settings, "GYM_NAME", "Perfect Line II")
     period_label = f"Últimos {period_days} día{'s' if period_days != 1 else ''}"
@@ -281,8 +314,12 @@ def build_report_email_context(period_days: int) -> dict:
         fecha_ingreso__lte=end_date,
     ).count()
 
+    meta = _report_meta(period_days, start_date, end_date)
+    cfg = ReportEmailSettings.get_settings()
+
     return {
-        **_report_meta(period_days, start_date, end_date),
+        **meta,
+        **_report_email_branding(meta, cfg.gym_location),
         "invoice_count": invoices.count(),
         "new_clients": new_clients,
         "payment_rows": payment_rows,
@@ -359,10 +396,7 @@ def send_report_email(*, period_days: int, user) -> dict:
 
     context = build_report_email_context(period_days)
     html_body = render_to_string("billing/emails/report.html", context)
-    subject = (
-        f"{settings.REPORT_EMAIL_SUBJECT_PREFIX} — "
-        f"Reporte {context['period_label']} ({context['date_range']})"
-    )
+    subject = context["subject_line"]
     items.append({"ok": True, "text": f"Reporte generado ({context['period_label']})"})
 
     recipients_display = ", ".join(recipients)

@@ -39,6 +39,26 @@
         <button type="button" class="btn btn-secondary report-recipient-add" id="report-recipient-add" {% if recipient_emails|length >= max_recipients %}hidden{% endif %}>
             Agregar otro
         </button>
+    </div>
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Localidad</h3>
+        </div>
+        <div class="config-form-grid" style="grid-template-columns: minmax(0, 320px);">
+            <div class="config-form-group">
+                <label for="gym_location">Localidad del gimnasio (Opcional)</label>
+                <input
+                    type="text"
+                    id="gym_location"
+                    name="gym_location"
+                    value="{{ gym_location }}"
+                    placeholder="Ej. Porlamar"
+                    maxlength="100"
+                    autocomplete="off"
+                >
+            </div>
+        </div>
         {% if updated_at %}
         <p class="config-muted" style="margin: 0.75rem 0 0;">Última actualización: {{ updated_at|date:"d/m/Y H:i" }}</p>
         {% endif %}

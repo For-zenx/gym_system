@@ -156,7 +156,7 @@ def enrollment_cedula_check(request):
 @login_required
 @permission_required("dashboard.view")
 def dashboard(request):
-    latest_logs = AccessLog.objects.select_related("client").order_by("-timestamp")[:4]
+    latest_logs = AccessLog.objects.select_related("client").order_by("-timestamp")[:6]
     return render(request, "dashboard.html", {"logs": latest_logs})
 
 

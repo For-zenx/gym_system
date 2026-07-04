@@ -153,6 +153,13 @@ class ReportEmailSettings(models.Model):
         default=list,
         blank=True,
     )
+    gym_location = models.CharField(
+        "Localidad del gimnasio",
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Ciudad o sede opcional. Aparece en el asunto y cuerpo del correo de reportes.",
+    )
     daily_send_limit = models.PositiveSmallIntegerField(
         "Límite de envíos por día",
         default=3,
