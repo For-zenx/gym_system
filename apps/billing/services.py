@@ -1282,6 +1282,26 @@ def delete_invoice(invoice):
 
 
 @transaction.atomic
+def delete_membership_with_audit(membership, user):
+    client = membership.client
+    plan_name = membership.plan.nombre
+    period_str = f"{membership.fecha_inicio.strftime('%d/%m/%Y')} al {membership.fecha_fin.strftime('%d/%m/%Y')}"
+    
+    log_billing_event(
+        client,
+        ClientBillingEvent.EventType.MEMBERSHIP_DELETED,
+        payload={
+            "membership_id": membership.pk,
+            "plan_name": plan_name,
+            "period": period_str,
+        },
+        motivo=f"Eliminación manual por {user.username if user else 'sistema'}",
+        user=user,
+    )
+    membership.delete()
+
+
+@transaction.atomic
 def void_invoice(invoice, user, reason):
     if invoice.esta_anulada:
         raise ValidationError("La factura ya está anulada.")

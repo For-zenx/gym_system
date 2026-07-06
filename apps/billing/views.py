@@ -36,6 +36,7 @@ from .services import (
     build_amount_overrides_from_post,
     post_amount_edits_differ_from_stored,
     void_invoice,
+    delete_membership_with_audit,
 )
 from apps.users.permissions import has_permission
 
@@ -590,6 +591,23 @@ class MembershipDeleteView(PermissionRequiredMixin, View):
             messages.error(request, "No se puede eliminar una membresía activa o pasada.")
             
         return redirect('clients:profile', codigo_afiliado=client_code)
+
+
+class DeleteMembershipActionView(PermissionRequiredMixin, View):
+    required_permission = "billing.delete_membership"
+
+    def post(self, request, pk):
+        membership = get_object_or_404(Membership, pk=pk)
+        client_code = membership.client.codigo_afiliado
+        
+        try:
+            delete_membership_with_audit(membership, request.user)
+            messages.success(request, "Membresía eliminada correctamente.")
+        except Exception as e:
+            messages.error(request, f"Error al eliminar la membresía: {str(e)}")
+            
+        return redirect('clients:profile', codigo_afiliado=client_code)
+
 
 class InvoiceListView(PermissionRequiredMixin, ListView):
     required_permission = "billing.view_invoices"

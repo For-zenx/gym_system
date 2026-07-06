@@ -155,6 +155,9 @@ def _evaluate_guest_access(client, today=None):
 
 
 def evaluate_access_integrity(client):
+    if client.is_blocked:
+        return False, "Suscripción suspendida"
+
     if client.is_guest:
         return _evaluate_guest_access(client)
 

@@ -31,9 +31,14 @@
 
         <div class="profile-info-wrapper">
             <div class="profile-title-row">
-                <h1>{{ client.nombre }}</h1>
-                {% if 'clients.edit' in user_permissions %}
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <h1>{{ client.nombre }}</h1>
+                    {% if client.is_blocked %}
+                    <span class="badge badge-danger" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">BLOQUEADO</span>
+                    {% endif %}
+                </div>
                 <div class="profile-header-actions">
+                    {% if 'clients.edit' in user_permissions %}
                     <button type="button" class="btn btn-secondary profile-edit-btn" onclick="openEditModal()">
                         <svg style="width:16px;height:16px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         Editar Datos
@@ -233,6 +238,7 @@
                 {% if 'billing.change_cut_date' in user_permissions %}
                 <button type="button" class="btn btn-link-muted" onclick="openCutDateModal()">Cambiar fecha de corte</button>
                 {% endif %}
+                <button type="button" class="btn btn-link-muted" onclick="openManageMembershipsModal()">Gestionar membresías</button>
             </div>
         </div>
 
@@ -311,14 +317,72 @@
         </div>
     </div>
 
-    {% if 'clients.delete' in user_permissions %}
+    {% if 'clients.delete' in user_permissions or 'clients.block' in user_permissions %}
     <div class="card profile-danger-card">
         <h3 class="profile-section-title">Zona de riesgo</h3>
-        <p class="profile-danger-text">
-            Eliminar el afiliado borra membresías, historial de accesos y fotos biométricas.
-            Las facturas ya emitidas permanecen en el historial con los datos del receptor guardados al momento del cobro.
-        </p>
-        <button type="button" class="btn btn-danger" onclick="openDeleteClientModal()">Eliminar afiliado</button>
+
+        {% if 'clients.block' in user_permissions %}
+        <div style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+            <p class="profile-danger-text" style="margin-bottom: 0.75rem;">
+                <strong>Bloquear acceso:</strong> Impide que el afiliado ingrese al gimnasio independientemente de su estado de pago.
+            </p>
+            {% if client.is_blocked %}
+                <div style="background: rgba(239, 68, 68, 0.05); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; border: 1px solid rgba(239, 68, 68, 0.1);">
+                    <p style="margin: 0; font-size: 0.85rem; color: var(--text-main);">
+                        <strong>Estado:</strong> Bloqueado
+                    </p>
+                    {% if client.blocking_reason %}
+                    <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--text-muted);">
+                        <strong>Motivo:</strong> {{ client.blocking_reason }}
+                    </p>
+                    {% endif %}
+                </div>
+                <form method="POST" action="{% url 'clients:toggle_block' client.codigo_afiliado %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success-outline">
+                        <svg style="width:16px;height:16px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+                        Desbloquear Acceso
+                    </button>
+                </form>
+            {% else %}
+                <button type="button" class="btn btn-danger-outline" onclick="openBlockModal()">
+                    <svg style="width:16px;height:16px;margin-right:8px;vertical-align:text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    Bloquear Acceso
+                </button>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if 'clients.delete' in user_permissions %}
+        <div>
+            <p class="profile-danger-text">
+                <strong>Eliminar afiliado:</strong> Borra membresías, historial de accesos y fotos biométricas. Esta acción no se puede deshacer.
+            </p>
+            <button type="button" class="btn btn-danger" onclick="openDeleteClientModal()">Eliminar afiliado</button>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'clients.block' in user_permissions and not client.is_blocked %}
+    <div class="modal-overlay" id="blockModal">
+        <div class="modal-content">
+            {% include "includes/modal_header.html" with modal_title="Bloquear Acceso" %}
+            <p class="profile-danger-text" style="margin-top: 0;">
+                El afiliado <strong>{{ client.nombre }}</strong> no podrá ingresar al gimnasio aunque tenga una membresía activa.
+            </p>
+            <form method="POST" action="{% url 'clients:toggle_block' client.codigo_afiliado %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="blocking_reason">Motivo del bloqueo (opcional)</label>
+                    <textarea name="blocking_reason" id="blocking_reason" class="form-control" rows="3" placeholder="Ej: Comportamiento inadecuado, deuda pendiente, etc."></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeBlockModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Confirmar Bloqueo</button>
+                </div>
+            </form>
+        </div>
     </div>
     {% endif %}
 
@@ -412,6 +476,66 @@
     </div>
     {% endif %}
 
+    <div class="modal-overlay" id="manageMembershipsModal">
+        <div class="modal-content" style="max-width: 800px;">
+            {% include "includes/modal_header.html" with modal_title="Gestionar Membresías" %}
+            <div class="modal-body" style="padding: 1.5rem;">
+                <p class="billing-field-hint" style="margin-bottom: 1.5rem;">
+                    Historial completo de membresías del afiliado. Tenga cuidado al eliminar membresías activas, ya que impactará inmediatamente en el acceso.
+                </p>
+                
+                {% if all_memberships %}
+                <div class="table-responsive">
+                    <table class="table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="text-align: left; border-bottom: 1px solid var(--border-color);">
+                                <th style="padding: 0.75rem;">Plan</th>
+                                <th style="padding: 0.75rem;">Inicio</th>
+                                <th style="padding: 0.75rem;">Vencimiento</th>
+                                <th style="padding: 0.75rem;">Estado</th>
+                                <th style="padding: 0.75rem; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mem in all_memberships %}
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding: 0.75rem;"><strong>{{ mem.plan.nombre }}</strong></td>
+                                <td style="padding: 0.75rem;">{{ mem.fecha_inicio|date:"d/m/Y" }}</td>
+                                <td style="padding: 0.75rem;">{{ mem.fecha_fin|date:"d/m/Y" }}</td>
+                                <td style="padding: 0.75rem;">
+                                    {% if mem.es_valida %}
+                                    <span class="badge badge-success" style="font-size: 0.7rem;">Activa</span>
+                                    {% elif mem.fecha_inicio > today %}
+                                    <span class="badge badge-info" style="font-size: 0.7rem;">Encolada</span>
+                                    {% else %}
+                                    <span class="badge badge-secondary" style="font-size: 0.7rem;">Vencida</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 0.75rem; text-align: right;">
+                                    {% if 'billing.delete_membership' in user_permissions %}
+                                    <form method="POST" action="{% url 'billing:delete_membership_action' mem.id %}" onsubmit="return confirm('¿Está seguro de eliminar esta membresía? Esta acción es irreversible y quedará registrada en la auditoría.');" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Eliminar</button>
+                                    </form>
+                                    {% else %}
+                                    <span class="text-muted" style="font-size: 0.75rem;">Sin permisos</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="profile-tab-empty">No hay membresías registradas.</p>
+                {% endif %}
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeManageMembershipsModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -437,6 +561,18 @@
     function closeCutDateModal() {
         document.getElementById('cutDateModal').classList.remove('show');
         if (cutDateMotivo) cutDateMotivo.reset();
+    }
+    {% endif %}
+
+    {% if 'clients.block' in user_permissions %}
+    function openBlockModal() {
+        const modal = document.getElementById('blockModal');
+        if (modal) modal.classList.add('show');
+    }
+
+    function closeBlockModal() {
+        const modal = document.getElementById('blockModal');
+        if (modal) modal.classList.remove('show');
     }
     {% endif %}
 
@@ -477,12 +613,23 @@
     {% if 'billing.change_cut_date' in user_permissions %}
     bindDismissibleModalById('cutDateModal', { onClose: closeCutDateModal });
     {% endif %}
+    {% if 'clients.block' in user_permissions and not client.is_blocked %}
+    bindDismissibleModalById('blockModal', { onClose: closeBlockModal });
+    {% endif %}
     {% if 'clients.delete' in user_permissions %}
     bindDismissibleModalById('deleteClientModal', { onClose: closeDeleteClientModal });
     {% endif %}
     {% if 'clients.edit' in user_permissions %}
     bindDismissibleModalById('editModal', { onClose: closeEditModal });
     {% endif %}
+    bindDismissibleModalById('manageMembershipsModal', { onClose: closeManageMembershipsModal });
 
+    function openManageMembershipsModal() {
+        document.getElementById('manageMembershipsModal').classList.add('show');
+    }
+
+    function closeManageMembershipsModal() {
+        document.getElementById('manageMembershipsModal').classList.remove('show');
+    }
 </script>
 {% endblock %}

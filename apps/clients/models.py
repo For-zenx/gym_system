@@ -57,6 +57,17 @@ class Client(models.Model):
         blank=True,
     )
 
+    is_blocked = models.BooleanField(
+        "Bloqueado",
+        default=False,
+        help_text="Si se activa, el afiliado no podrá ingresar aunque tenga membresía activa."
+    )
+    blocking_reason = models.TextField(
+        "Motivo del bloqueo",
+        blank=True,
+        null=True
+    )
+
     # foto_frente alimenta el motor de reconocimiento y la UI; perfiles legacy sin uso activo.
     foto_frente = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
     foto_perfil_izq = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)

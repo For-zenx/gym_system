@@ -207,6 +207,7 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
             or context['service_periods']
             or context['locker_rentals']
         )
+        context['all_memberships'] = self.object.memberships.select_related('plan').order_by('-fecha_inicio')
         context['has_chargeable_plans'] = bool(
             get_chargeable_plans(self.object, active_plans)
         )
@@ -216,6 +217,7 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
 
             context["class_registrations"] = get_client_class_registrations(self.object)
         can_view_phone = has_permission(self.request.user, "clients.view_phone")
+        context['today'] = date.today()
         context.update(
             client_form_context(client=self.object, can_view_phone=can_view_phone)
         )
@@ -379,6 +381,24 @@ class ClientDeleteView(PermissionRequiredMixin, View):
             f"Afiliado {nombre} eliminado. Las facturas emitidas permanecen en el historial con datos históricos.",
         )
         return redirect("clients:client_list")
+
+
+class ToggleBlockClientView(PermissionRequiredMixin, View):
+    required_permission = "clients.block"
+
+    def post(self, request, codigo_afiliado):
+        client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if client.is_blocked:
+            client.is_blocked = False
+            client.blocking_reason = ""
+            messages.success(request, f"Acceso desbloqueado para {client.nombre}.")
+        else:
+            client.is_blocked = True
+            client.blocking_reason = request.POST.get("blocking_reason", "").strip()
+            messages.warning(request, f"Acceso bloqueado para {client.nombre}.")
+        
+        client.save(update_fields=["is_blocked", "blocking_reason"])
+        return redirect("clients:profile", codigo_afiliado=codigo_afiliado)
 
 
 class ReEnrollClientView(PermissionRequiredMixin, View):

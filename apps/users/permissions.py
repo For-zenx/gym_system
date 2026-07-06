@@ -19,6 +19,7 @@ PERMISSION_GROUPS = {
             ("clients.view_phone", "Ver teléfono del afiliado"),
             ("clients.enroll", "Enrolar nuevos afiliados"),
             ("clients.delete", "Eliminar afiliados"),
+            ("clients.block", "Bloquear acceso manualmente"),
         ],
     },
     "staff_persons": {
@@ -48,6 +49,7 @@ PERMISSION_GROUPS = {
             ("billing.change_cut_date", "Cambiar fecha de corte"),
             ("billing.view_audit", "Ver auditoría en perfil"),
             ("billing.delete_queued_membership", "Eliminar membresía encolada"),
+            ("billing.delete_membership", "Eliminar cualquier membresía"),
         ],
     },
     "billing_invoices": {
@@ -144,6 +146,7 @@ CASHIER_PERMISSION_CODES = [
     "clients.view_profile",
     "clients.edit",
     "clients.enroll",
+    "clients.block",
     "staff_persons.view_list",
     "staff_persons.view_profile",
     "staff_persons.edit",

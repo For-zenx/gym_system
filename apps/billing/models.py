@@ -282,6 +282,7 @@ class ClientBillingEvent(models.Model):
         SUBSCRIPTION_REACTIVATED = "SUBSCRIPTION_REACTIVATED", "Reactivación de suscripción"
         LATE_FEE_APPLIED = "LATE_FEE_APPLIED", "Multa aplicada"
         LATE_FEE_WAIVED = "LATE_FEE_WAIVED", "Multa omitida"
+        MEMBERSHIP_DELETED = "MEMBERSHIP_DELETED", "Membresía eliminada"
 
     client = models.ForeignKey(
         Client,

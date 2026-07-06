@@ -7,6 +7,7 @@ from .views import (
     ClientListView,
     InactiveClientsPreviewView,
     ReEnrollClientView,
+    ToggleBlockClientView,
 )
 
 app_name = 'clients'
@@ -19,4 +20,5 @@ urlpatterns = [
     path('<str:codigo_afiliado>/editar/', EditClientView.as_view(), name='edit_client'),
     path('<str:codigo_afiliado>/re-enrolar/', ReEnrollClientView.as_view(), name='re_enroll'),
     path('<str:codigo_afiliado>/eliminar/', ClientDeleteView.as_view(), name='delete_client'),
+    path('<str:codigo_afiliado>/bloquear/', ToggleBlockClientView.as_view(), name='toggle_block'),
 ]
