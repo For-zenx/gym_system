@@ -88,6 +88,13 @@ def get_client_billing_context(client):
     billing_settings = BillingSettings.get_settings()
     suspended = is_subscription_suspended(client)
     unpaid = unpaid_fixed_periods(client)
+    
+    hoy = timezone.localdate()
+    has_active = client.memberships.filter(
+        plan__billing_type=Plan.BillingType.FIXED,
+        fecha_inicio__lte=hoy,
+        fecha_fin__gte=hoy,
+    ).exists()
 
     return {
         "fecha_corte_dia": client.fecha_corte_dia,
@@ -98,6 +105,7 @@ def get_client_billing_context(client):
         "suggested_late_fee_usd": billing_settings.multa_monto_usd,
         "default_apply_late_fee": suspended,
         "warnings_on_flexible_purchase": suspended and bool(client.fecha_corte_dia),
+        "has_active_membership": has_active,
     }
 
 
@@ -430,7 +438,7 @@ def get_membership_status_display(client):
     return " · ".join(parts) if parts else "Sin plan activo"
 
 
-def preview_membership_period(client, plan, cut_day_override=None):
+def preview_membership_period(client, plan, cut_day_override=None, roll_forward=False):
     hoy = timezone.localdate()
     if plan.is_flexible:
         return {
@@ -445,7 +453,7 @@ def preview_membership_period(client, plan, cut_day_override=None):
         cut_day = client.fecha_corte_dia or hoy.day
 
     _, period_start, _ = _resolve_fixed_period(client, hoy, cut_day=cut_day)
-    fecha_inicio, fecha_fin = subscription_period_bounds(cut_day, period_start)
+    fecha_inicio, fecha_fin = subscription_period_bounds(cut_day, period_start, roll_forward=roll_forward)
     return {
         "fecha_inicio": fecha_inicio,
         "fecha_fin": fecha_fin,
@@ -871,6 +879,7 @@ def register_checkout(
     payment_cut_motivo="",
     payment_method=None,
     payment_splits=None,
+    roll_forward=False,
 ):
     product_lines = product_lines or []
     if not plan and not product_lines:
@@ -905,7 +914,7 @@ def register_checkout(
                 apply_cut_day_from_payment(
                     client, payment_cut_day, acting_user, motivo=payment_cut_motivo
                 )
-                membership = _create_fixed_membership(client, plan, hoy)
+                membership = _create_fixed_membership(client, plan, hoy, roll_forward=roll_forward)
             else:
                 membership = _create_flexible_membership(client, plan, hoy)
 
@@ -1133,6 +1142,7 @@ def register_membership_renewal(
     payment_cut_motivo="",
     payment_method=None,
     payment_splits=None,
+    roll_forward=False,
 ):
     """DEPRECATED: usar register_checkout — conservado para llamadas legacy."""
     return register_checkout(
@@ -1147,6 +1157,7 @@ def register_membership_renewal(
         payment_cut_motivo=payment_cut_motivo,
         payment_method=payment_method,
         payment_splits=payment_splits,
+        roll_forward=roll_forward,
     )
 
 
@@ -1171,17 +1182,18 @@ def _resolve_fixed_period(client, hoy, cut_day=None):
     if latest_fixed and latest_fixed.fecha_fin >= hoy:
         period_start = latest_fixed.fecha_fin + timedelta(days=1)
     else:
-        period_start = billing_period_start(cut_day, hoy)
+        # Si no hay membresía activa, empezamos hoy (evita retroceder al mes pasado)
+        period_start = hoy
 
     assigns_cut = client.fecha_corte_dia is None
     return cut_day, period_start, assigns_cut
 
 
-def _create_fixed_membership(client, plan, hoy):
+def _create_fixed_membership(client, plan, hoy, roll_forward=False):
     cut_day = client.fecha_corte_dia
     cut_day, period_start, _ = _resolve_fixed_period(client, hoy, cut_day=cut_day)
 
-    fecha_inicio, fecha_fin = subscription_period_bounds(cut_day, period_start)
+    fecha_inicio, fecha_fin = subscription_period_bounds(cut_day, period_start, roll_forward=roll_forward)
 
     return Membership.objects.create(
         client=client,

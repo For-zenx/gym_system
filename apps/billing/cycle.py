@@ -16,8 +16,10 @@ def advance_cut_date(cut_anchor, cut_day):
     return resolve_cut_date(year, month, cut_day)
 
 
-def subscription_period_bounds(cut_day, period_start):
+def subscription_period_bounds(cut_day, period_start, roll_forward=False):
     next_cut = advance_cut_date(period_start, cut_day)
+    if roll_forward:
+        next_cut = advance_cut_date(next_cut, cut_day)
     return period_start, next_cut - timedelta(days=1)
 
 

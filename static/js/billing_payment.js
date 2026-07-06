@@ -26,6 +26,8 @@
         const cutMotivoSection = document.getElementById('payment-cut-motivo-section');
         const cutMotivoPreset = document.getElementById('payment_cut_motivo_preset');
         const cutMotivoCustom = document.getElementById('payment_cut_motivo_custom');
+        const cycleSelector = document.getElementById('payment-cycle-selector');
+        const cycleSelect = document.getElementById('payment_roll_forward');
         let paymentCutMotivo = null;
 
         const tasaDia = config.tasaDia;
@@ -123,6 +125,10 @@
                 cutDayDisplay.value = defaultDay;
                 cutDayDisplay.disabled = true;
             }
+            if (cycleSelect) {
+                cycleSelect.value = '0';
+                cycleSelect.disabled = true;
+            }
             if (cutDayEditBtn) {
                 cutDayEditBtn.style.display = '';
             }
@@ -136,6 +142,7 @@
                 paymentCutMotivo.reset();
             }
             if (cutMotivoSection) cutMotivoSection.style.display = 'none';
+            if (cycleSelector) cycleSelector.style.display = 'none';
         }
 
         function enableCutDayEditor() {
@@ -149,7 +156,11 @@
             if (cutDayEditBtn) {
                 cutDayEditBtn.style.display = 'none';
             }
+            if (cycleSelect) {
+                cycleSelect.disabled = false;
+            }
             updateCutMotivoVisibility();
+            updatePrice();
         }
 
         const periodDetail = document.getElementById('payment-period-detail');
@@ -184,6 +195,10 @@
             }
         }
 
+        function getSelectedRollForward() {
+            return cycleSelect ? cycleSelect.value === '1' : false;
+        }
+
         function fetchPeriodPreview(planId, billingType) {
             if (!previewUrl || !planId) {
                 return;
@@ -199,9 +214,11 @@
                 return;
             }
 
+            const rollForward = getSelectedRollForward();
             const requestId = ++previewRequestId;
             const url = previewUrl + '?plan_id=' + encodeURIComponent(planId) +
-                '&payment_cut_day=' + encodeURIComponent(cutDay);
+                '&payment_cut_day=' + encodeURIComponent(cutDay) +
+                '&roll_forward=' + (rollForward ? '1' : '0');
 
             fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (response) { return response.json(); })
@@ -288,6 +305,33 @@
             }
             if (!isFixed) {
                 resetCutDayEditor();
+                if (cycleSelector) cycleSelector.style.display = 'none';
+            } else {
+                // Lógica de Sugerencia Inteligente (Regla de 20 días)
+                // Se muestra si no tiene membresía activa O si está editando el corte
+                const isNewOrReactivation = !billingContext.has_active_membership;
+                const showCycle = isNewOrReactivation || cutDayEditMode;
+                
+                if (cycleSelector) {
+                    cycleSelector.style.display = showCycle ? 'block' : 'none';
+                    
+                    if (showCycle) {
+                        // Calculamos días hasta el corte
+                        const hoy = new Date();
+                        const cutDay = getSelectedCutDay();
+                        const nextCut = new Date(hoy.getFullYear(), hoy.getMonth(), cutDay);
+                        if (nextCut < hoy) {
+                            nextCut.setMonth(nextCut.getMonth() + 1);
+                        }
+                        const diffDays = Math.ceil((nextCut - hoy) / (1000 * 60 * 60 * 24));
+                        
+                        // Si faltan menos de 20 días, sugerimos rodar al próximo mes
+                        const suggestRoll = diffDays < 20;
+                        if (cycleSelect) {
+                            cycleSelect.value = suggestRoll ? '1' : '0';
+                        }
+                    }
+                }
             }
 
             fetchPeriodPreview(select.value, billingType);
@@ -296,8 +340,9 @@
             const showFlexibleWarn = billingType === 'FLEXIBLE' && billingContext.warnings_on_flexible_purchase;
 
             if (alertSuspended) {
-                alertSuspended.style.display = showSuspended ? 'block' : 'none';
-                if (showSuspended && billingContext.unpaid_period_count > 0) {
+                const hasContent = showSuspended && billingContext.unpaid_period_count > 0;
+                alertSuspended.style.display = hasContent ? 'block' : 'none';
+                if (hasContent) {
                     alertSuspended.textContent =
                         'Suscripción fija suspendida. Periodos impagos (informativo): ' +
                         billingContext.unpaid_period_count + '.';
@@ -374,6 +419,13 @@
         }
         if (cutMotivoCustom) {
             cutMotivoCustom.addEventListener('input', refreshCheckoutSubmit);
+        }
+        if (cycleSelect) {
+            cycleSelect.addEventListener('change', function() {
+                const option = select.options[select.selectedIndex];
+                if (!option || !option.value) return;
+                fetchPeriodPreview(option.value, option.getAttribute('data-billing-type'));
+            });
         }
 
         ensurePaymentCutMotivo();

@@ -83,6 +83,7 @@ def _charge_form_context(client, planes):
                 "warnings_on_flexible_purchase": ctx["warnings_on_flexible_purchase"],
                 "fecha_corte_dia": ctx["fecha_corte_dia"],
                 "default_cut_day": default_cut_day,
+                "has_active_membership": ctx["has_active_membership"],
             }
         ),
         "plan_previews_json": json.dumps(plan_previews),
@@ -181,6 +182,7 @@ def _process_checkout_charge(request, client, origin):
 
     apply_late_fee, late_fee_usd = parse_late_fee_from_post(request.POST)
     payment_cut_day, payment_cut_motivo = parse_payment_cut_from_post(request.POST)
+    roll_forward = request.POST.get("payment_roll_forward") == "1"
 
     try:
         payment_method, payment_splits = parse_payment_method_from_post(request.POST)
@@ -195,6 +197,7 @@ def _process_checkout_charge(request, client, origin):
             payment_cut_motivo=payment_cut_motivo,
             payment_method=payment_method,
             payment_splits=payment_splits,
+            roll_forward=roll_forward,
         )
         for warning in result.warnings:
             if warning == "flexible_on_suspended_subscription":
@@ -366,12 +369,14 @@ class PaymentPeriodPreviewView(PermissionRequiredMixin, View):
         except ValidationError as e:
             return JsonResponse({"error": str(e)}, status=400)
 
+        roll_forward = request.GET.get("roll_forward") == "1"
+
         if plan.is_flexible:
             preview = preview_membership_period(client, plan)
         else:
             if cut_day is None:
                 cut_day = client.fecha_corte_dia or timezone.localdate().day
-            preview = preview_membership_period(client, plan, cut_day_override=cut_day)
+            preview = preview_membership_period(client, plan, cut_day_override=cut_day, roll_forward=roll_forward)
 
         payload = {
             "inicio": preview["fecha_inicio"].strftime("%d/%m/%Y"),

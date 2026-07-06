@@ -13,12 +13,22 @@
 <div id="payment-cut-day-section" class="form-group billing-cut-day-section" style="display: none;">
     <div class="billing-cut-day-header">
         <label for="payment_cut_day_display">Día de corte (1-31)</label>
+        {% if 'billing.change_cut_date' in user_permissions %}
         <button type="button" class="btn-link-muted billing-cut-day-edit-btn" id="payment_cut_day_edit_btn">Modificar</button>
+        {% endif %}
     </div>
     <input type="hidden" name="payment_cut_day" id="payment_cut_day" value="{{ payment_cut_day_default }}">
     <input type="hidden" name="payment_cut_initial" id="payment_cut_initial" value="{{ payment_cut_day_default }}">
     <input type="hidden" name="payment_cut_editing" id="payment_cut_editing" value="0">
-    <input type="number" id="payment_cut_day_display" min="1" max="31" value="{{ payment_cut_day_default }}" disabled class="billing-cut-day-input">
+    <div class="billing-cut-day-row">
+        <input type="number" id="payment_cut_day_display" min="1" max="31" value="{{ payment_cut_day_default }}" disabled class="billing-cut-day-input">
+        <div id="payment-cycle-selector" class="billing-cycle-selector-inline" style="display: none;">
+            <select name="payment_roll_forward" id="payment_roll_forward" disabled class="billing-cycle-select">
+                <option value="0">Vencer este mes</option>
+                <option value="1">Vencer el próximo mes</option>
+            </select>
+        </div>
+    </div>
     <p class="billing-field-hint" id="payment_cut_day_hint">
         Se aplicará al confirmar este cobro.
         <span class="checkout-cut-day-ref" id="payment_cut_day_current_ref">

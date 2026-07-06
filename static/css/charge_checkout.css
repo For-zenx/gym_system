@@ -884,8 +884,32 @@
     min-height: 1.1rem;
 }
 
-@media (max-width: 640px) {
-    .checkout-payment-mixed-grid {
-        grid-template-columns: 1fr;
-    }
+/* Ciclo de facturación sugerido (Refactorizado a select inline) */
+.billing-cut-day-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.billing-cut-day-input {
+    flex: 0 0 5rem;
+}
+
+.billing-cycle-selector-inline {
+    flex: 1;
+}
+
+.billing-cycle-select {
+    width: 100%;
+    padding: var(--checkout-control-padding-y) var(--checkout-control-padding-x);
+    font-size: var(--checkout-control-font-size);
+    border: 1px solid var(--border-color);
+    border-radius: var(--checkout-control-radius);
+    background-color: #020617;
+    color: var(--text-main);
+}
+
+.billing-cycle-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
