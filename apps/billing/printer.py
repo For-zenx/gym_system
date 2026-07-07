@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from datetime import datetime
 from decimal import Decimal
@@ -74,13 +75,36 @@ def compute_invoice_total(invoice, amount_overrides=None):
 
 
 def _membership_quota_line(invoice, line):
-    membership = line.membership if line else None
-    if membership is None:
-        membership = invoice.membership
+    target_line = line
+    if target_line is None:
+        # Intentar buscar la línea de membresía en la factura si no se pasó una línea específica
+        # Si las líneas ya están en memoria (prefetched), las usamos para evitar queries extras
+        try:
+            target_line = next((l for l in invoice.lines.all() if l.line_kind == InvoiceLine.LineKind.MEMBERSHIP), None)
+        except Exception:
+            target_line = invoice.lines.filter(line_kind=InvoiceLine.LineKind.MEMBERSHIP).first()
+
+    membership = target_line.membership if target_line else invoice.membership
+
     if membership and membership.fecha_fin:
         fecha_inicio = membership.fecha_inicio.strftime("%d/%m/%Y")
         fecha_fin = membership.fecha_fin.strftime("%d/%m/%Y")
         return f"|CUOTA {fecha_inicio} AL {fecha_fin}|"
+
+    # Si no hay membresía (ej: fue borrada), intentamos extraer de la descripción guardada
+    description = target_line.description if target_line else ""
+    if not description and not target_line:
+        # Como último recurso en facturas legacy, probamos con plan_snapshot
+        description = invoice.plan_snapshot
+
+    if description:
+        # Buscar todas las fechas con formato DD/MM/YYYY
+        dates = re.findall(r"(\d{2}/\d{2}/\d{4})", description)
+        if len(dates) >= 2:
+            return f"|CUOTA {dates[0]} AL {dates[1]}|"
+        if len(dates) == 1:
+            return f"|CUOTA DESDE {dates[0]}|"
+
     issued = timezone.localtime(invoice.fecha_emision).strftime("%d/%m/%Y")
     return f"|CUOTA REF EMISION: {issued}|"
 
