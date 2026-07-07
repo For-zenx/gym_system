@@ -16,11 +16,20 @@ def advance_cut_date(cut_anchor, cut_day):
     return resolve_cut_date(year, month, cut_day)
 
 
+def next_cut_on_or_after(reference_date, cut_day):
+    cut_this_month = resolve_cut_date(
+        reference_date.year, reference_date.month, cut_day
+    )
+    if reference_date <= cut_this_month:
+        return cut_this_month
+    return advance_cut_date(cut_this_month, cut_day)
+
+
 def subscription_period_bounds(cut_day, period_start, roll_forward=False):
-    next_cut = advance_cut_date(period_start, cut_day)
+    end_cut = advance_cut_date(period_start, cut_day)
     if roll_forward:
-        next_cut = advance_cut_date(next_cut, cut_day)
-    return period_start, next_cut - timedelta(days=1)
+        end_cut = advance_cut_date(end_cut, cut_day)
+    return period_start, end_cut
 
 
 def billing_period_start(cut_day, payment_date):
@@ -78,7 +87,7 @@ def unpaid_fixed_periods(client, today=None):
         period_end = subscription_period_bounds(cut_day, period_start)[1]
         if not _period_covered(period_start, period_end, fixed_memberships):
             unpaid.append((period_start, period_end))
-        period_start = period_end + timedelta(days=1)
+        period_start = advance_cut_date(period_end, cut_day)
 
     return unpaid
 
@@ -97,11 +106,7 @@ def next_cut_date(client, today=None):
         return None
     if today is None:
         today = date.today()
-    cut_day = client.fecha_corte_dia
-    cut_this_month = resolve_cut_date(today.year, today.month, cut_day)
-    if today <= cut_this_month:
-        return cut_this_month
-    return advance_cut_date(cut_this_month, cut_day)
+    return next_cut_on_or_after(today, client.fecha_corte_dia)
 
 
 def days_until_next_cut_date(client, today=None):

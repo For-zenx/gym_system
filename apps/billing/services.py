@@ -8,6 +8,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from .cycle import (
+    advance_cut_date,
     billing_period_start,
     subscription_period_bounds,
     is_subscription_suspended,
@@ -174,7 +175,7 @@ def _finalize_fixed_group(group, today):
     return group
 
 
-def group_consecutive_fixed_memberships(memberships, today=None):
+def group_consecutive_fixed_memberships(memberships, today=None, cut_day=None):
     if today is None:
         today = timezone.localdate()
 
@@ -196,10 +197,15 @@ def group_consecutive_fixed_memberships(memberships, today=None):
             }
             continue
 
-        if (
-            mem.plan_id == current["plan_id"]
-            and mem.fecha_inicio == current["end"] + timedelta(days=1)
-        ):
+        next_by_legacy = current["end"] + timedelta(days=1)
+        next_by_anchor = (
+            advance_cut_date(current["end"], cut_day) if cut_day else None
+        )
+        is_consecutive = mem.plan_id == current["plan_id"] and (
+            mem.fecha_inicio == next_by_legacy
+            or mem.fecha_inicio == next_by_anchor
+        )
+        if is_consecutive:
             current["end"] = mem.fecha_fin
             current["period_count"] += 1
         else:
@@ -227,7 +233,9 @@ def get_profile_subscription_summary(client):
     in_grace = is_in_fixed_grace_period(client, today)
     has_access = bool(active_memberships) or in_grace
 
-    fixed_groups = group_consecutive_fixed_memberships(memberships, today)
+    fixed_groups = group_consecutive_fixed_memberships(
+        memberships, today, cut_day=client.fecha_corte_dia
+    )
     current_fixed_group = None
     for group in fixed_groups:
         if group["status"] in ("active", "queued") and group["end"] >= today:
@@ -301,9 +309,11 @@ def get_profile_subscription_summary(client):
         cut_date_display = "Sin asignar"
 
     next_charge_hint = None
-    if current_fixed_group:
-        next_start = current_fixed_group["end"] + timedelta(days=1)
-        next_charge_hint = next_start.strftime("%d/%m/%Y")
+    if current_fixed_group and client.fecha_corte_dia:
+        next_cut = advance_cut_date(
+            current_fixed_group["end"], client.fecha_corte_dia
+        )
+        next_charge_hint = next_cut.strftime("%d/%m/%Y")
 
     return {
         "has_access": has_access,
@@ -1180,7 +1190,7 @@ def _resolve_fixed_period(client, hoy, cut_day=None):
     )
 
     if latest_fixed and latest_fixed.fecha_fin >= hoy:
-        period_start = latest_fixed.fecha_fin + timedelta(days=1)
+        period_start = advance_cut_date(latest_fixed.fecha_fin, cut_day)
     else:
         # Si no hay membresía activa, empezamos hoy (evita retroceder al mes pasado)
         period_start = hoy

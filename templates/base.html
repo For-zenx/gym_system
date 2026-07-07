@@ -170,6 +170,8 @@
         </div>
     </div>
 
+    {% block page_modals %}{% endblock %}
+
     {% if 'settings.exchange_rate' in user_permissions %}
     <div class="modal-overlay" id="rateModal">
         <div class="modal-content modal-content-narrow">

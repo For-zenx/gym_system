@@ -1,9 +1,16 @@
+.content-area:has(.enrollment-container) {
+    display: flex;
+    flex-direction: column;
+}
+
 .enrollment-container {
     display: flex;
     flex-direction: column;
     gap: 2rem;
     max-width: 800px;
     margin: 0 auto;
+    flex: 1;
+    width: 100%;
 }
 
 [hidden] {
@@ -31,6 +38,7 @@
 }
 
 .enrollment-category-option {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;

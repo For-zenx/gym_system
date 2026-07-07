@@ -5,7 +5,7 @@
 {% block page_title %}Enrolamiento{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=2.9">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.0">
 {% endblock %}
 
 {% block content %}
@@ -195,7 +195,9 @@
         </form>
     </div>
 </div>
+{% endblock %}
 
+{% block page_modals %}
 <div id="enrollment-process-modal" class="modal-overlay enrollment-process-modal" aria-hidden="true">
     <div class="modal-content modal-content-narrow enrollment-process-card" role="dialog" aria-modal="true">
         <div class="modal-header">
@@ -384,10 +386,6 @@
         }
         resetEnrollmentSessionState();
         syncCategoryPickerStyles();
-        const contentArea = document.querySelector('.content-area');
-        if (contentArea) {
-            contentArea.scrollTop = 0;
-        }
     }
 
     function setTermsStatus(state, message) {
