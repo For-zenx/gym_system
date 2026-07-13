@@ -144,4 +144,131 @@
     }
 
     markDirty();
+
+    var printBtn = document.getElementById("invoice-print-btn");
+    var printModal = document.getElementById("invoice-print-result-modal");
+    var printMessage = document.getElementById("invoice-print-result-message");
+    var printSteps = document.getElementById("invoice-print-result-steps");
+    var printClose = document.getElementById("invoice-print-result-close");
+    var isPrinting = false;
+
+    function setPrintButtonLoading(loading) {
+        if (!printBtn) {
+            return;
+        }
+        printBtn.disabled = loading;
+        printBtn.classList.toggle("is-loading", loading);
+        var label = printBtn.querySelector(".invoice-print-btn-label");
+        if (label) {
+            label.textContent = loading ? "Imprimiendo…" : "Imprimir factura";
+        }
+    }
+
+    function renderPrintSteps(steps) {
+        if (!printSteps) {
+            return;
+        }
+        printSteps.innerHTML = "";
+        if (!steps || !steps.length) {
+            printSteps.hidden = true;
+            return;
+        }
+        var failed = steps.filter(function (step) {
+            return !step.ok;
+        });
+        if (!failed.length) {
+            printSteps.hidden = true;
+            return;
+        }
+        failed.forEach(function (step) {
+            var item = document.createElement("li");
+            item.className = "invoice-print-step invoice-print-step--failed";
+            item.textContent = step.detail || step.label || "Paso fallido";
+            printSteps.appendChild(item);
+        });
+        printSteps.hidden = false;
+    }
+
+    function openPrintResultModal(data) {
+        if (!printModal || !printMessage) {
+            return;
+        }
+        printMessage.textContent = data.message || "";
+        if (data.simulated) {
+            printMessage.style.color = "#f59e0b";
+        } else {
+            printMessage.style.color = data.success ? "var(--success)" : "var(--danger)";
+        }
+        renderPrintSteps(data.steps || []);
+        printModal.classList.add("show");
+    }
+
+    function closePrintResultModal() {
+        if (printModal) {
+            printModal.classList.remove("show");
+        }
+    }
+
+    function buildPrintFormData() {
+        var data = new FormData(form);
+        getAmountInputs().forEach(function (input) {
+            data.set(input.name, input.value);
+        });
+        return data;
+    }
+
+    function handlePrintClick() {
+        if (!form || !printBtn || isPrinting) {
+            return;
+        }
+        isPrinting = true;
+        setPrintButtonLoading(true);
+
+        fetch(form.action, {
+            method: "POST",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRFToken": getCsrfToken(),
+            },
+            body: buildPrintFormData(),
+        })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    return { ok: response.ok, data: data };
+                });
+            })
+            .then(function (result) {
+                openPrintResultModal(result.data);
+                if (result.data.success && result.data.esta_impresa && !result.data.simulated) {
+                    isDirty = false;
+                    window.setTimeout(function () {
+                        window.location.reload();
+                    }, 1200);
+                }
+            })
+            .catch(function () {
+                openPrintResultModal({
+                    success: false,
+                    message: "No se pudo contactar al servidor. Verifique la conexión e intente de nuevo.",
+                });
+            })
+            .finally(function () {
+                isPrinting = false;
+                setPrintButtonLoading(false);
+            });
+    }
+
+    if (printBtn && form) {
+        printBtn.addEventListener("click", handlePrintClick);
+    }
+
+    if (printClose) {
+        printClose.addEventListener("click", closePrintResultModal);
+    }
+
+    if (typeof bindDismissibleModalById === "function") {
+        bindDismissibleModalById("invoice-print-result-modal", {
+            onClose: closePrintResultModal,
+        });
+    }
 })();

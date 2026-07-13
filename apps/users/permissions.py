@@ -122,6 +122,7 @@ PERMISSION_GROUPS = {
             ("settings.grace", "Configurar días de gracia"),
             ("settings.access", "Configurar enfriamiento de acceso"),
             ("settings.reports", "Configurar correo de reportes"),
+            ("settings.printers", "Configurar impresoras"),
         ],
     },
     "administration": {

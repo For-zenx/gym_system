@@ -1,15 +1,11 @@
-import os
 import re
 import logging
-from datetime import datetime
 from decimal import Decimal
 
 from django.conf import settings
 from django.utils import timezone
-from escpos.printer import Serial
 
 from apps.billing.models import InvoiceLine
-from apps.core.models import PrinterConfig
 
 logger = logging.getLogger(__name__)
 
@@ -123,19 +119,6 @@ def _cabecera_block_preview():
     ]
 
 
-def _cabecera_block_print():
-    blank = " " * MAX_LINE_WIDTH
-    return [
-        ("text", blank),
-        ("text", "-" * MAX_LINE_WIDTH),
-        ("text", blank),
-        ("text", _center("CABECERA")),
-        ("text", blank),
-        ("text", "-" * MAX_LINE_WIDTH),
-        ("text", blank),
-    ]
-
-
 def _legacy_ticket_amount_lines(invoice, preview=False, amount_overrides=None):
     overrides = _normalize_overrides(amount_overrides)
     cuota_ves = overrides.get("legacy_cuota", invoice.monto_cuota_ves)
@@ -246,20 +229,6 @@ def _client_header_lines(invoice, preview=False):
     ]
 
 
-def _build_ticket_lines(invoice):
-    lines = []
-    lines.extend(_cabecera_block_print())
-    lines.extend(_client_header_lines(invoice, preview=False))
-
-    if invoice.has_detail_lines():
-        lines.extend(_detail_ticket_amount_lines(invoice, preview=False))
-    else:
-        lines.extend(_legacy_ticket_amount_lines(invoice, preview=False))
-
-    lines.extend(_ticket_footer_lines(invoice, preview=False))
-    return lines
-
-
 def build_invoice_preview_lines(invoice, amount_overrides=None):
     lines = []
     lines.extend(_cabecera_block_preview())
@@ -282,57 +251,52 @@ def build_invoice_preview_lines(invoice, amount_overrides=None):
     return lines
 
 
-def _render_lines(lines):
-    output = []
-    for kind, content in lines:
-        if kind == "separator":
-            output.append("-" * MAX_LINE_WIDTH)
-        else:
-            output.append(content)
-    return "\n".join(output)
-
-
-def _print_to_file(invoice, lines):
-    debug_dir = os.path.join(settings.MEDIA_ROOT, "printer_debug")
-    os.makedirs(debug_dir, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"ticket_{invoice.nro_control}_{timestamp}.txt"
-    filepath = os.path.join(debug_dir, filename)
-
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(_render_lines(lines))
-        f.write("\n[CORTE]\n")
-
-    logger.info(f"[DEBUG] Tique guardado en: {filepath}")
-    return filepath
-
-
 def print_invoice(invoice):
+    from apps.billing.fiscal.hardware import (
+        execute_fiscal_print,
+        write_fiscal_debug_file,
+    )
+    from apps.billing.fiscal.services import build_fiscal_command_steps
+
     try:
-        lines = _build_ticket_lines(invoice)
+        steps = build_fiscal_command_steps(invoice)
 
         if settings.DEBUG:
-            _print_to_file(invoice, lines)
+            debug_path = write_fiscal_debug_file(invoice, steps)
+            result = execute_fiscal_print(
+                steps,
+                dry_run=True,
+                debug_log_path=debug_path,
+            )
+            result.debug_log_path = debug_path
         else:
-            config = PrinterConfig.get_active()
-            if not config:
-                raise RuntimeError("No hay una configuración de impresora activa en el sistema.")
+            result = execute_fiscal_print(steps, dry_run=False)
 
-            printer = Serial(devfile=config.port, baudrate=config.baudrate, profile="TM-T88IV")
-            for kind, content in lines:
-                if kind == "separator":
-                    printer.text("-" * MAX_LINE_WIDTH + "\n")
-                else:
-                    printer.text(f"{content}\n")
-            printer.cut()
+        if result.success and not settings.DEBUG:
+            invoice.esta_impresa = True
+            invoice.save(update_fields=["esta_impresa"])
+            logger.info("Factura %s impresa correctamente.", invoice.nro_control)
+        elif result.success and settings.DEBUG:
+            logger.info(
+                "Factura %s — simulación DEBUG guardada en %s.",
+                invoice.nro_control,
+                result.debug_log_path,
+            )
+        else:
+            logger.error(
+                "Factura %s — fallo impresión: %s (%s)",
+                invoice.nro_control,
+                result.message,
+                result.error_code,
+            )
 
-        invoice.esta_impresa = True
-        invoice.save()
+        return result
 
-        logger.info(f"Factura {invoice.nro_control} procesada correctamente.")
-        return True
-
-    except Exception as e:
-        logger.error(f"Error al imprimir factura {invoice.nro_control}: {e}", exc_info=True)
+    except Exception as exc:
+        logger.error(
+            "Error al imprimir factura %s: %s",
+            invoice.nro_control,
+            exc,
+            exc_info=True,
+        )
         raise

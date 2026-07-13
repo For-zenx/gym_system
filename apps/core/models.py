@@ -1,10 +1,21 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 
+
 class PrinterConfig(models.Model):
-    port = models.CharField("Puerto COM", max_length=20)
-    baudrate = models.PositiveIntegerField("Baudrate", default=38400)
+    class PrinterType(models.TextChoices):
+        DT230_FISCAL = "DT230_FISCAL", "Tally Dascom DT-230 (Fiscal)"
+
+    printer_type = models.CharField(
+        "Tipo de impresora",
+        max_length=32,
+        choices=PrinterType.choices,
+        default=PrinterType.DT230_FISCAL,
+    )
+    port = models.CharField("Puerto COM", max_length=20, blank=True, default="")
+    baudrate = models.PositiveIntegerField("Baudrate", default=9600)
     is_active = models.BooleanField("Activa", default=True)
+    updated_at = models.DateTimeField("Actualizado", auto_now=True)
 
     class Meta:
         verbose_name = "Configuración de Impresora"
@@ -19,8 +30,29 @@ class PrinterConfig(models.Model):
         super().save(*args, **kwargs)
 
     @classmethod
+    def get_settings(cls):
+        config = cls.objects.first()
+        if config:
+            return config
+        return cls(
+            printer_type=cls.PrinterType.DT230_FISCAL,
+            port="",
+            baudrate=9600,
+            is_active=True,
+        )
+
+    @classmethod
     def get_active(cls):
-        return cls.objects.filter(is_active=True).first()
+        config = cls.objects.filter(is_active=True).first()
+        if config and config.port.strip():
+            return config
+        return None
 
     def __str__(self):
-        return f"Impresora en {self.port} ({self.baudrate} bps)"
+        if self.port:
+            return "{0} en {1} ({2} bps)".format(
+                self.get_printer_type_display(),
+                self.port,
+                self.baudrate,
+            )
+        return "{0} (sin puerto COM)".format(self.get_printer_type_display())

@@ -186,6 +186,11 @@ LOGOUT_REDIRECT_URL = 'login'
 TURNSTILE_COM_PORT = os.getenv("TURNSTILE_COM_PORT", "COM3")
 TURNSTILE_PULSE_SECONDS = float(os.getenv("TURNSTILE_PULSE_SECONDS", "1.0"))
 
+# Impresora fiscal DT-230 (TFHKA @ 9600). Puerto: Configuración → Impresoras.
+FISCAL_BAUDRATE = int(os.getenv("FISCAL_BAUDRATE", "9600"))
+FISCAL_WAIT_BEFORE_CLOSE = float(os.getenv("FISCAL_WAIT_BEFORE_CLOSE", "5.0"))
+FISCAL_CLOSE_READ_TIMEOUT = float(os.getenv("FISCAL_CLOSE_READ_TIMEOUT", "10.0"))
+
 # DEPRECATED: TASK-045 — token único; tokens por rol se añadirán en tarea futura.
 TABLET_TOKEN = "gym-tablet-001"
 

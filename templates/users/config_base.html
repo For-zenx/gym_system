@@ -47,6 +47,9 @@
             {% if 'settings.reports' in user_permissions %}
             <a href="{% url 'users:report_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'report_settings' %}active{% endif %}">Reportes</a>
             {% endif %}
+            {% if 'settings.printers' in user_permissions %}
+            <a href="{% url 'users:printer_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'printer_settings' %}active{% endif %}">Impresoras</a>
+            {% endif %}
         </nav>
 
         {% if messages %}

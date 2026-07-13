@@ -1,0 +1,51 @@
+{% extends "users/config_base.html" %}
+
+{% block title %}Impresoras - Configuración{% endblock %}
+{% block config_heading %}Impresoras{% endblock %}
+
+{% block config_content %}
+<p class="config-intro">
+    Impresora fiscal conectada a esta PC. Seleccione el modelo y el puerto COM donde aparece el cable USB.
+    La detección automática estará disponible en una versión futura.
+</p>
+
+<form method="post" class="card config-form-card">
+    {% csrf_token %}
+
+    <div class="config-form-section">
+        <div class="config-form-section-header">
+            <h3>Impresora fiscal</h3>
+            <p>Solo puede haber una impresora activa en el sistema.</p>
+        </div>
+        <div class="config-form-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            <div class="config-form-group">
+                <label for="printer_type">Tipo de impresora</label>
+                <select id="printer_type" name="printer_type" required>
+                    {% for value, label in printer_type_choices %}
+                    <option value="{{ value }}" {% if config.printer_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="config-form-group">
+                <label for="port">Puerto COM</label>
+                <select id="port" name="port">
+                    {% for value, label in com_port_choices %}
+                    <option value="{{ value }}" {% if config.port == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <p class="config-muted" style="margin: 0.75rem 0 0;">
+            Protocolo TFHKA a 9600 baudios (DT-230). Si no está seguro del puerto, pruebe COM3, COM4 o COM5 según el Administrador de dispositivos de Windows.
+        </p>
+        {% if config.pk and config.updated_at %}
+        <p class="config-muted" style="margin: 0.75rem 0 0;">Última actualización: {{ config.updated_at|date:"d/m/Y H:i" }}</p>
+        {% endif %}
+    </div>
+
+    <div class="config-form-actions">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'users:config_home' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

@@ -17,6 +17,9 @@ from apps.billing.models import BillingSettings, ReportEmailSettings
 from apps.billing.services import update_late_fee_amount_usd, update_fixed_grace_days, update_report_email_settings
 from apps.access.models import AccessSettings
 from apps.access.services import update_post_access_cooldown
+from apps.core.constants import COM_PORT_CHOICES
+from apps.core.models import PrinterConfig
+from apps.core.services import update_printer_settings
 from .services import (
     create_staff_role,
     create_staff_user,
@@ -103,6 +106,7 @@ class ConfigHomeView(AnyPermissionRequiredMixin, TemplateView):
         "settings.grace",
         "settings.access",
         "settings.reports",
+        "settings.printers",
     )
     template_name = "users/config_home.html"
 
@@ -182,6 +186,34 @@ class AccessCooldownSettingsView(PermissionRequiredMixin, View):
             for msg in exc.messages:
                 messages.error(request, msg)
         return redirect("users:access_cooldown_settings")
+
+
+class PrinterSettingsView(PermissionRequiredMixin, View):
+    required_permission = "settings.printers"
+
+    def get(self, request):
+        config = PrinterConfig.get_settings()
+        return render(
+            request,
+            "users/printer_settings.html",
+            {
+                "config": config,
+                "printer_type_choices": PrinterConfig.PrinterType.choices,
+                "com_port_choices": COM_PORT_CHOICES,
+            },
+        )
+
+    def post(self, request):
+        try:
+            update_printer_settings(
+                printer_type=request.POST.get("printer_type"),
+                port=request.POST.get("port"),
+            )
+            messages.success(request, "Configuración de impresora guardada correctamente.")
+        except ValidationError as exc:
+            for msg in exc.messages:
+                messages.error(request, msg)
+        return redirect("users:printer_settings")
 
 
 class ReportEmailSettingsView(PermissionRequiredMixin, View):

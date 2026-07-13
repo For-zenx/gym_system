@@ -152,6 +152,23 @@
     color: var(--text-muted);
 }
 
+#invoice-print-btn.is-loading {
+    opacity: 0.75;
+    cursor: wait;
+}
+
+.invoice-print-steps {
+    margin: 1rem 0 0;
+    padding-left: 1.25rem;
+    color: var(--danger);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.invoice-print-step--failed {
+    margin-bottom: 0.35rem;
+}
+
 @media (max-width: 900px) {
     .invoice-review-layout {
         grid-template-columns: 1fr;

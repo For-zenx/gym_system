@@ -700,15 +700,25 @@ class InvoiceTicketPreviewView(PermissionRequiredMixin, View):
 class PrintInvoiceActionView(PermissionRequiredMixin, View):
     required_permission = "billing.print_invoice"
 
+    def _is_ajax(self, request):
+        return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
     def post(self, request, pk):
         invoice = get_object_or_404(Invoice, pk=pk)
         detail_url = reverse("billing:invoice_detail", kwargs={"pk": pk})
         next_url = _get_safe_next_url(request, request.POST.get("next", ""))
         if next_url:
             detail_url = "{}?{}".format(detail_url, urlencode({"next": next_url}))
+        is_ajax = self._is_ajax(request)
 
         if invoice.esta_impresa:
-            messages.error(request, "Esta factura ya ha sido impresa y no se puede volver a imprimir.")
+            message = "Esta factura ya ha sido impresa y no se puede volver a imprimir."
+            if is_ajax:
+                return JsonResponse(
+                    {"success": False, "message": message, "error_code": "ALREADY_PRINTED"},
+                    status=400,
+                )
+            messages.error(request, message)
             return redirect(detail_url)
 
         try:
@@ -717,10 +727,13 @@ class PrintInvoiceActionView(PermissionRequiredMixin, View):
                 request.POST, invoice
             ):
                 if not has_edit_perm:
-                    messages.error(
-                        request,
-                        "No tiene permiso para editar los montos de la factura.",
-                    )
+                    message = "No tiene permiso para editar los montos de la factura."
+                    if is_ajax:
+                        return JsonResponse(
+                            {"success": False, "message": message, "error_code": "FORBIDDEN"},
+                            status=403,
+                        )
+                    messages.error(request, message)
                     return redirect(detail_url)
 
             if not invoice.esta_impresa and has_edit_perm:
@@ -733,12 +746,43 @@ class PrintInvoiceActionView(PermissionRequiredMixin, View):
                     apply_invoice_amount_edits(invoice, line_edits)
                     invoice.refresh_from_db()
 
-            print_invoice(invoice)
-            messages.success(request, "Factura {} enviada a la impresora con éxito.".format(invoice.nro_control))
+            result = print_invoice(invoice)
+
+            if is_ajax:
+                payload = result.to_dict()
+                payload["esta_impresa"] = invoice.esta_impresa
+                status = 200 if result.success else 422
+                return JsonResponse(payload, status=status)
+
+            if result.success:
+                messages.success(
+                    request,
+                    "Factura {} enviada a la impresora con éxito.".format(invoice.nro_control),
+                )
+            else:
+                messages.error(request, result.message)
         except ValidationError as exc:
+            if is_ajax:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "message": " ".join(exc.messages),
+                        "error_code": "VALIDATION_ERROR",
+                    },
+                    status=400,
+                )
             for msg in exc.messages:
                 messages.error(request, msg)
         except Exception as e:
+            if is_ajax:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "message": "Error al imprimir la factura: {}".format(str(e)),
+                        "error_code": "UNEXPECTED",
+                    },
+                    status=500,
+                )
             messages.error(request, "Error al imprimir la factura: {}".format(str(e)))
 
         return redirect(detail_url)
