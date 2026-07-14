@@ -106,6 +106,8 @@ PERMISSION_GROUPS = {
         "permissions": [
             ("reports.view", "Ver reportes y vista previa"),
             ("reports.send", "Enviar reporte por correo"),
+            ("reports.print_x", "Imprimir reporte X (fiscal)"),
+            ("reports.print_z", "Imprimir reporte Z (cierre fiscal)"),
         ],
     },
     "statistics": {
@@ -173,6 +175,7 @@ CASHIER_PERMISSION_CODES = [
     "access.open_turnstile",
     "reports.view",
     "reports.send",
+    "reports.print_x",
 ]
 
 ADMINISTRATOR_PERMISSION_CODES = list(ALL_PERMISSION_CODES)

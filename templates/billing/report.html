@@ -5,65 +5,157 @@
 {% block page_title %}Reportes{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1.2">
+<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1.5">
 {% endblock %}
 
 {% block content %}
-<div class="report-page" id="report-page">
+<div class="report-page" id="report-page" data-fiscal-url="{{ fiscal_report_url }}">
+    {% csrf_token %}
 
     <div id="report-offline-banner" class="report-offline-banner" hidden>
         Sin conexión a internet. Puedes ver la vista previa, pero no enviar el correo hasta recuperar la red.
     </div>
 
-    <div class="report-toolbar card">
-        <form method="get" action="{% url 'billing:report' %}" class="report-period-form">
-            <label for="period">Período</label>
-            <select name="period" id="period" onchange="this.form.submit()">
-                {% for days in period_choices %}
-                <option value="{{ days }}" {% if period_days == days %}selected{% endif %}>
-                    {% if days == 1 %}Último día{% else %}Últimos {{ days }} días{% endif %}
-                </option>
-                {% endfor %}
-            </select>
-        </form>
+    <nav class="report-tabs" aria-label="Secciones de reportes">
+        {% if show_fiscal_reports %}
+        <a
+            href="{% url 'billing:report' %}?tab=fiscal"
+            class="report-tab {% if active_tab == 'fiscal' %}is-active{% endif %}"
+        >Cierre fiscal</a>
+        {% endif %}
+        <a
+            href="{% url 'billing:report' %}?tab=email&period={{ period_days }}"
+            class="report-tab {% if active_tab == 'email' %}is-active{% endif %}"
+        >Resumen por correo</a>
+    </nav>
 
-        <div class="report-toolbar-meta">
-            <p><strong>{{ report.period_label }}</strong> — {{ report.date_range }}</p>
-            {% if recipient_emails %}
-            <p class="report-muted">Destinatarios: {{ recipient_emails_display }}</p>
-            {% else %}
-            <p class="report-muted report-warn">
-                Sin correo configurado.
-                {% if 'settings.reports' in user_permissions %}
-                <a href="{% url 'users:report_settings' %}">Configurar</a>
-                {% else %}
-                Pida al administrador que lo configure en Configuración → Reportes.
-                {% endif %}
+    {% if active_tab == 'fiscal' and show_fiscal_reports %}
+    <div class="card report-fiscal-card">
+        <div class="report-section-header">
+            <h2>Cierre fiscal</h2>
+            <p class="report-muted" style="margin: 0.35rem 0 0;">
+                Imprime el reporte X o Z en la impresora DT-230.
             </p>
-            {% endif %}
-            <p class="report-muted" id="report-send-count">Envíos hoy: {{ daily_send_count }} / {{ daily_send_limit }}</p>
         </div>
 
-        {% if 'reports.send' in user_permissions %}
-        <form method="post" action="{% url 'billing:report_send' %}" class="report-send-form" id="report-send-form">
-            {% csrf_token %}
-            <input type="hidden" name="period_days" value="{{ period_days }}">
-            <button
-                type="submit"
-                class="btn btn-primary"
-                id="report-send-btn"
-                {% if not can_send %}disabled title="{{ send_block_reason }}"{% endif %}
-            >
-                Enviar por correo
+        <div class="report-fiscal-actions">
+            {% if can_print_x %}
+            <button type="button" class="btn btn-secondary" id="report-print-x-btn" data-report-type="X">
+                Imprimir reporte X
             </button>
-        </form>
+            {% endif %}
+            {% if can_print_z %}
+            <button type="button" class="btn btn-primary" id="report-print-z-btn" data-report-type="Z">
+                Imprimir reporte Z
+            </button>
+            {% endif %}
+        </div>
+
+        {% if today_report %}
+        <div class="report-fiscal-reference">
+            <h3>Referencia del sistema (hoy)</h3>
+            <div class="report-kpi-grid report-kpi-grid--compact">
+                <div class="report-kpi">
+                    <span class="report-kpi-label">Facturas hoy</span>
+                    <strong>{{ today_report.totals.invoice_count }}</strong>
+                </div>
+                <div class="report-kpi">
+                    <span class="report-kpi-label">Total hoy</span>
+                    <strong>{{ today_report.totals.total_ves_fmt }}</strong>
+                </div>
+            </div>
+        </div>
         {% endif %}
     </div>
+    {% endif %}
 
-    <div class="card report-preview-card">
-        {% include "billing/includes/report_preview.html" with report=report %}
+    {% if active_tab == 'email' %}
+    <div class="card report-email-section">
+        <div class="report-section-header" style="padding: 1rem 1.25rem 0;">
+            <h2>Resumen por correo</h2>
+            <p class="report-muted" style="margin: 0.35rem 0 0;">
+                Vista previa operativa de cobros en Perfect Line. Opcional: enviar por correo al dueño.
+            </p>
+        </div>
+
+        <div class="report-toolbar">
+            <form method="get" action="{% url 'billing:report' %}" class="report-period-form">
+                <input type="hidden" name="tab" value="email">
+                <label for="period">Período</label>
+                <select name="period" id="period" onchange="this.form.submit()">
+                    {% for days in period_choices %}
+                    <option value="{{ days }}" {% if period_days == days %}selected{% endif %}>
+                        {% if days == 1 %}Último día{% else %}Últimos {{ days }} días{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <div class="report-toolbar-meta">
+                <p><strong>{{ report.period_label }}</strong> — {{ report.date_range }}</p>
+                {% if recipient_emails %}
+                <p class="report-muted">Destinatarios: {{ recipient_emails_display }}</p>
+                {% else %}
+                <p class="report-muted report-warn">
+                    Sin correo configurado.
+                    {% if 'settings.reports' in user_permissions %}
+                    <a href="{% url 'users:report_settings' %}">Configurar</a>
+                    {% else %}
+                    Pida al administrador que lo configure en Configuración → Reportes.
+                    {% endif %}
+                </p>
+                {% endif %}
+                <p class="report-muted" id="report-send-count">Envíos hoy: {{ daily_send_count }} / {{ daily_send_limit }}</p>
+            </div>
+
+            {% if 'reports.send' in user_permissions %}
+            <form method="post" action="{% url 'billing:report_send' %}" class="report-send-form" id="report-send-form">
+                {% csrf_token %}
+                <input type="hidden" name="period_days" value="{{ period_days }}">
+                <button
+                    type="submit"
+                    class="btn btn-secondary"
+                    id="report-send-btn"
+                    {% if not can_send %}disabled title="{{ send_block_reason }}"{% endif %}
+                >
+                    Enviar por correo
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="report-preview-card">
+            {% include "billing/includes/report_preview.html" with report=report %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if show_fiscal_reports %}
+<div id="report-fiscal-confirm-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-content modal-content-narrow" role="dialog" aria-modal="true">
+        <div class="modal-header">
+            <h2 id="report-fiscal-confirm-title">Confirmar impresión</h2>
+            <button type="button" class="modal-close" data-modal-close aria-label="Cerrar">&times;</button>
+        </div>
+        <p id="report-fiscal-confirm-message" style="margin-top: 0; color: var(--text-muted); line-height: 1.5;"></p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="report-fiscal-confirm-cancel">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="report-fiscal-confirm-ok">Imprimir</button>
+        </div>
     </div>
 </div>
+
+<div id="report-fiscal-result-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-content modal-content-narrow" role="dialog" aria-modal="true">
+        {% include "includes/modal_header.html" with modal_title="Resultado fiscal" %}
+        <p id="report-fiscal-result-message" style="margin-top: 0; line-height: 1.5;"></p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-primary" id="report-fiscal-result-close">Aceptar</button>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% if 'reports.send' in user_permissions %}
 <div id="report-send-modal" class="modal-overlay report-send-modal" aria-hidden="true">
@@ -91,5 +183,5 @@
 
 {% block extra_js %}
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
-<script src="{% static 'js/reports.js' %}?v=1.1"></script>
+<script src="{% static 'js/reports.js' %}?v=1.4"></script>
 {% endblock %}

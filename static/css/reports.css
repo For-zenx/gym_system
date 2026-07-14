@@ -4,6 +4,96 @@
     gap: 1.25rem;
 }
 
+.report-tabs {
+    display: flex;
+    width: 100%;
+    gap: 0.35rem;
+    padding: 0.25rem;
+    border-radius: 0.65rem;
+    background: var(--bg-elevated, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--border-color);
+    box-sizing: border-box;
+}
+
+.report-tab {
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.925rem;
+}
+
+.report-tab:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.report-tab.is-active {
+    color: var(--text-main);
+    background: var(--bg-surface, var(--bg-main));
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.report-fiscal-card {
+    padding: 1.25rem 1.5rem;
+}
+
+.report-fiscal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.report-fiscal-z-hint {
+    margin: 0.85rem 0 0;
+}
+
+.report-fiscal-reference {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.report-fiscal-reference h3 {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+}
+
+.report-kpi-grid--compact {
+    margin-top: 0.85rem;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.report-fiscal-actions .btn.is-loading {
+    opacity: 0.75;
+    cursor: wait;
+}
+
+.report-email-section {
+    padding: 0;
+    overflow: hidden;
+}
+
+.report-email-section .report-toolbar {
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.report-email-section .report-preview-card {
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
 .report-offline-banner {
     background: #fef3c7;
     color: #92400e;

@@ -25,6 +25,7 @@ from .views import (
     GlobalPersonSearchView,
     ReportView,
     ReportSendView,
+    FiscalReportPrintView,
 )
 
 app_name = 'billing'
@@ -55,4 +56,5 @@ urlpatterns = [
     path('facturas/<int:pk>/eliminar/', InvoiceDeleteView.as_view(), name='invoice_delete'),
     path('reportes/', ReportView.as_view(), name='report'),
     path('reportes/enviar/', ReportSendView.as_view(), name='report_send'),
+    path('reportes/fiscal/', FiscalReportPrintView.as_view(), name='fiscal_report_print'),
 ]

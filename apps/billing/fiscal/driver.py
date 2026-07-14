@@ -17,6 +17,8 @@ ACK = 0x06
 NAK = 0x15
 
 PAYMENT_CMD_EFECTIVO = "101"
+REPORT_CMD_X = "I0X"
+REPORT_CMD_Z = "I0Z"
 
 
 def xor_checksum(cmd_bytes: bytes) -> int:

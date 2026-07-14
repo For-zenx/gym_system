@@ -39,6 +39,8 @@ from .services import (
     delete_membership_with_audit,
 )
 from apps.users.permissions import has_permission
+from django.conf import settings as django_settings
+from apps.billing.fiscal.hardware import execute_fiscal_report
 
 
 def _charge_form_context(client, planes):
@@ -854,7 +856,18 @@ class ReportView(PermissionRequiredMixin, View):
         from .models import ReportEmailSettings
 
         period_days = normalize_period_days(request.GET.get("period", 7))
+        can_print_x = has_permission(request.user, "reports.print_x")
+        can_print_z = has_permission(request.user, "reports.print_z")
+        show_fiscal_reports = can_print_x or can_print_z
+
+        tab = (request.GET.get("tab") or "").strip().lower()
+        if tab not in ("fiscal", "email"):
+            tab = "fiscal" if show_fiscal_reports else "email"
+        if tab == "fiscal" and not show_fiscal_reports:
+            tab = "email"
+
         report = build_report_context(period_days)
+        today_report = build_report_context(1) if tab == "fiscal" else None
         cfg = ReportEmailSettings.get_settings()
         can_send, send_block_reason = can_send_report_today()
 
@@ -863,6 +876,8 @@ class ReportView(PermissionRequiredMixin, View):
             "billing/report.html",
             {
                 "report": report,
+                "today_report": today_report,
+                "active_tab": tab,
                 "period_choices": REPORT_PERIOD_CHOICES,
                 "period_days": period_days,
                 "recipient_emails": cfg.recipient_emails_list,
@@ -872,8 +887,67 @@ class ReportView(PermissionRequiredMixin, View):
                 "can_send": can_send,
                 "send_block_reason": send_block_reason,
                 "smtp_configured": is_smtp_configured(),
+                "can_print_x": can_print_x,
+                "can_print_z": can_print_z,
+                "show_fiscal_reports": show_fiscal_reports,
+                "fiscal_report_url": reverse("billing:fiscal_report_print"),
             },
         )
+
+
+class FiscalReportPrintView(PermissionRequiredMixin, View):
+    """Imprime reporte X o Z en la DT-230. Permiso según tipo."""
+
+    required_permission = None
+
+    REPORT_PERMISSIONS = {
+        "X": "reports.print_x",
+        "Z": "reports.print_z",
+    }
+
+    def post(self, request):
+        report_type = (request.POST.get("report_type") or "").strip().upper()
+        required = self.REPORT_PERMISSIONS.get(report_type)
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+        if not required:
+            payload = {
+                "success": False,
+                "message": "Tipo de reporte fiscal no válido.",
+                "error_code": "INVALID_REPORT",
+            }
+            if is_ajax:
+                return JsonResponse(payload, status=400)
+            messages.error(request, payload["message"])
+            return redirect("{}?tab=fiscal".format(reverse("billing:report")))
+
+        if not has_permission(request.user, required):
+            payload = {
+                "success": False,
+                "message": "No tiene permiso para imprimir este reporte fiscal.",
+                "error_code": "FORBIDDEN",
+            }
+            if is_ajax:
+                return JsonResponse(payload, status=403)
+            messages.error(request, payload["message"])
+            return redirect("{}?tab=fiscal".format(reverse("billing:report")))
+
+        result = execute_fiscal_report(
+            report_type,
+            dry_run=django_settings.DEBUG,
+        )
+        payload = result.to_dict()
+        payload["report_type"] = report_type
+
+        if is_ajax:
+            status = 200 if result.success else 422
+            return JsonResponse(payload, status=status)
+
+        if result.success:
+            messages.success(request, result.message)
+        else:
+            messages.error(request, result.message)
+        return redirect("{}?tab=fiscal".format(reverse("billing:report")))
 
 
 class ReportSendView(PermissionRequiredMixin, View):
@@ -893,7 +967,7 @@ class ReportSendView(PermissionRequiredMixin, View):
         else:
             failed = next((item["text"] for item in result["items"] if not item["ok"]), None)
             messages.error(request, failed or "No se pudo enviar el reporte.")
-        return redirect(f"{reverse('billing:report')}?period={period_days}")
+        return redirect(f"{reverse('billing:report')}?tab=email&period={period_days}")
 
 
 class GlobalPersonSearchView(PermissionRequiredMixin, View):

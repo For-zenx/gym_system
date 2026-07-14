@@ -199,4 +199,176 @@
             allowBackdrop: true,
         });
     }
+
+    // --- Reportes fiscales X / Z ---
+    var page = document.getElementById("report-page");
+    var fiscalUrl = page && page.getAttribute("data-fiscal-url");
+    var printXBtn = document.getElementById("report-print-x-btn");
+    var printZBtn = document.getElementById("report-print-z-btn");
+    var confirmModal = document.getElementById("report-fiscal-confirm-modal");
+    var confirmTitle = document.getElementById("report-fiscal-confirm-title");
+    var confirmMessage = document.getElementById("report-fiscal-confirm-message");
+    var confirmCancel = document.getElementById("report-fiscal-confirm-cancel");
+    var confirmOk = document.getElementById("report-fiscal-confirm-ok");
+    var fiscalResultModal = document.getElementById("report-fiscal-result-modal");
+    var fiscalResultMsg = document.getElementById("report-fiscal-result-message");
+    var fiscalResultClose = document.getElementById("report-fiscal-result-close");
+    var fiscalBusy = false;
+    var pendingReportType = null;
+
+    function getPageCsrf() {
+        var tokenInput =
+            (page && page.querySelector('input[name="csrfmiddlewaretoken"]')) ||
+            (sendForm && sendForm.querySelector('input[name="csrfmiddlewaretoken"]'));
+        return tokenInput ? tokenInput.value : "";
+    }
+
+    function setFiscalButtonsLoading(loading) {
+        [printXBtn, printZBtn].forEach(function (btn) {
+            if (!btn) {
+                return;
+            }
+            btn.disabled = loading;
+            btn.classList.toggle("is-loading", loading);
+        });
+        if (confirmOk) {
+            confirmOk.disabled = loading;
+        }
+    }
+
+    function openFiscalConfirm(reportType) {
+        if (!confirmModal) {
+            return;
+        }
+        pendingReportType = reportType;
+        if (confirmTitle) {
+            confirmTitle.textContent =
+                reportType === "Z" ? "Confirmar reporte Z" : "Confirmar reporte X";
+        }
+        if (confirmMessage) {
+            if (reportType === "Z") {
+                confirmMessage.innerHTML =
+                    "Va a imprimir el <strong>reporte Z</strong>. Esto cierra la jornada fiscal en la impresora y reinicia sus acumuladores.";
+            } else {
+                confirmMessage.innerHTML =
+                    "Va a imprimir el <strong>reporte X</strong> en la impresora fiscal.";
+            }
+        }
+        if (confirmOk) {
+            confirmOk.textContent =
+                reportType === "Z" ? "Imprimir reporte Z" : "Imprimir reporte X";
+            confirmOk.className =
+                reportType === "Z" ? "btn btn-primary" : "btn btn-secondary";
+        }
+        confirmModal.classList.add("show");
+        confirmModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeFiscalConfirm() {
+        if (!confirmModal) {
+            return;
+        }
+        pendingReportType = null;
+        confirmModal.classList.remove("show");
+        confirmModal.setAttribute("aria-hidden", "true");
+    }
+
+    function openFiscalResult(data) {
+        if (!fiscalResultModal || !fiscalResultMsg) {
+            return;
+        }
+        fiscalResultMsg.textContent = data.message || "";
+        if (data.simulated) {
+            fiscalResultMsg.style.color = "#f59e0b";
+        } else {
+            fiscalResultMsg.style.color = data.success ? "var(--success)" : "var(--danger)";
+        }
+        fiscalResultModal.classList.add("show");
+        fiscalResultModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeFiscalResult() {
+        if (!fiscalResultModal) {
+            return;
+        }
+        fiscalResultModal.classList.remove("show");
+        fiscalResultModal.setAttribute("aria-hidden", "true");
+    }
+
+    function printFiscalReport(reportType) {
+        if (!fiscalUrl || fiscalBusy) {
+            return;
+        }
+        fiscalBusy = true;
+        setFiscalButtonsLoading(true);
+        closeFiscalConfirm();
+
+        var body = new FormData();
+        body.append("report_type", reportType);
+        body.append("csrfmiddlewaretoken", getPageCsrf());
+
+        fetch(fiscalUrl, {
+            method: "POST",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRFToken": getPageCsrf(),
+            },
+            body: body,
+        })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    return data;
+                });
+            })
+            .then(function (data) {
+                openFiscalResult(data);
+            })
+            .catch(function () {
+                openFiscalResult({
+                    success: false,
+                    message: "No se pudo contactar al servidor. Intente de nuevo.",
+                });
+            })
+            .finally(function () {
+                fiscalBusy = false;
+                setFiscalButtonsLoading(false);
+            });
+    }
+
+    if (printXBtn) {
+        printXBtn.addEventListener("click", function () {
+            openFiscalConfirm("X");
+        });
+    }
+
+    if (printZBtn) {
+        printZBtn.addEventListener("click", function () {
+            openFiscalConfirm("Z");
+        });
+    }
+
+    if (confirmCancel) {
+        confirmCancel.addEventListener("click", closeFiscalConfirm);
+    }
+
+    if (confirmOk) {
+        confirmOk.addEventListener("click", function () {
+            if (pendingReportType) {
+                printFiscalReport(pendingReportType);
+            }
+        });
+    }
+
+    if (fiscalResultClose) {
+        fiscalResultClose.addEventListener("click", closeFiscalResult);
+    }
+
+    if (typeof bindDismissibleModalById === "function") {
+        bindDismissibleModalById("report-fiscal-confirm-modal", {
+            onClose: closeFiscalConfirm,
+        });
+        bindDismissibleModalById("report-fiscal-result-modal", {
+            onClose: closeFiscalResult,
+        });
+    }
 })();

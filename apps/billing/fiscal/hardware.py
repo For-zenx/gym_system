@@ -11,11 +11,30 @@ from typing import List, Optional
 
 from django.conf import settings
 
-from apps.billing.fiscal.driver import NAK, PAYMENT_CMD_EFECTIVO, TfhkaClient
+from apps.billing.fiscal.driver import (
+    NAK,
+    PAYMENT_CMD_EFECTIVO,
+    REPORT_CMD_X,
+    REPORT_CMD_Z,
+    TfhkaClient,
+)
 from apps.billing.fiscal.services import FiscalCommandStep
 from apps.core.models import PrinterConfig
 
 logger = logging.getLogger(__name__)
+
+FISCAL_REPORT_TYPES = {
+    "X": {
+        "cmd": REPORT_CMD_X,
+        "label": "Reporte X",
+        "success_message": "Reporte X enviado a la impresora correctamente.",
+    },
+    "Z": {
+        "cmd": REPORT_CMD_Z,
+        "label": "Reporte Z (cierre de jornada)",
+        "success_message": "Reporte Z enviado a la impresora correctamente.",
+    },
+}
 
 MSG_NOT_CONFIGURED = (
     "La impresora fiscal no está configurada. "
@@ -37,6 +56,11 @@ MSG_DEBUG_OK = (
     "Simulación (modo desarrollo): secuencia fiscal guardada en archivo. "
     "No se abrió el puerto COM y la factura no se marcó como impresa."
 )
+MSG_DEBUG_REPORT = (
+    "Simulación (modo desarrollo): no se abrió el puerto COM y no se imprimió "
+    "el reporte fiscal. Use DEBUG=False en la PC con la impresora conectada."
+)
+MSG_INVALID_REPORT = "Tipo de reporte fiscal no válido."
 
 
 @dataclass
@@ -188,6 +212,120 @@ def execute_fiscal_print(
         return FiscalPrintResult(False, message, code, step_results, debug_log_path)
     finally:
         client.close()
+
+
+def execute_fiscal_report(
+    report_type: str,
+    *,
+    dry_run: bool = False,
+    debug_log_path: Optional[str] = None,
+) -> FiscalPrintResult:
+    meta = FISCAL_REPORT_TYPES.get((report_type or "").upper())
+    if not meta:
+        return FiscalPrintResult(False, MSG_INVALID_REPORT, "INVALID_REPORT")
+
+    if dry_run:
+        path = debug_log_path or write_fiscal_report_debug_file(meta["cmd"], meta["label"])
+        return FiscalPrintResult(
+            True,
+            MSG_DEBUG_REPORT,
+            None,
+            [
+                FiscalPrintStepResult(
+                    label=meta["label"],
+                    cmd=meta["cmd"],
+                    ok=True,
+                    detail="simulado",
+                )
+            ],
+            path,
+            simulated=True,
+        )
+
+    port = resolve_fiscal_port()
+    if not port:
+        return FiscalPrintResult(False, MSG_NOT_CONFIGURED, "NOT_CONFIGURED")
+
+    baudrate = resolve_fiscal_baudrate()
+    report_read_timeout = float(getattr(settings, "FISCAL_REPORT_READ_TIMEOUT", 30.0))
+    client = TfhkaClient(port=port, baudrate=baudrate, dry_run=False)
+    step_results: List[FiscalPrintStepResult] = []
+
+    try:
+        client.connect()
+        client.reset()
+        time.sleep(0.3)
+
+        ping = client.ping()
+        ping_result = FiscalPrintStepResult(
+            label="Conexión con impresora",
+            cmd="ENQ",
+            ok=ping.ok,
+            response_hex=ping.response_hex,
+        )
+        step_results.append(ping_result)
+        if not ping.ok:
+            return FiscalPrintResult(
+                False, MSG_NO_PING, "NO_PING", step_results
+            )
+
+        cmd_result = client.send_cmd(
+            meta["cmd"],
+            post_write_sleep=1.0,
+            read_timeout=report_read_timeout,
+        )
+        step_result = FiscalPrintStepResult(
+            label=meta["label"],
+            cmd=meta["cmd"],
+            ok=cmd_result.ok,
+            response_hex=cmd_result.response_hex,
+            detail=""
+            if cmd_result.ok
+            else _step_failure_message(
+                FiscalPrintStepResult(
+                    meta["label"], meta["cmd"], False, cmd_result.response_hex
+                )
+            ),
+        )
+        step_results.append(step_result)
+
+        if not cmd_result.ok:
+            return FiscalPrintResult(
+                False,
+                _step_failure_message(step_result),
+                _step_failure_code(step_result),
+                step_results,
+            )
+
+        return FiscalPrintResult(
+            True, meta["success_message"], None, step_results
+        )
+
+    except Exception as exc:
+        logger.exception("Error al imprimir reporte fiscal %s por %s", report_type, port)
+        code, message = _friendly_serial_error(exc)
+        return FiscalPrintResult(False, message, code, step_results)
+    finally:
+        client.close()
+
+
+def write_fiscal_report_debug_file(cmd: str, label: str) -> str:
+    debug_dir = os.path.join(settings.MEDIA_ROOT, "printer_debug")
+    os.makedirs(debug_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filepath = os.path.join(debug_dir, "fiscal_report_{0}.txt".format(timestamp))
+    lines = [
+        "=== MODO DEBUG — reporte fiscal TFHKA (DT-230) ===",
+        "Reporte: {0}".format(label),
+        "CMD: {0!r}".format(cmd),
+        "Puerto configurado: {0}".format(resolve_fiscal_port() or "(vacío)"),
+        "",
+        "Simulación: no se abrió COM ni se imprimió.",
+    ]
+    with open(filepath, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines))
+        handle.write("\n")
+    return filepath
 
 
 def write_fiscal_debug_file(invoice, steps: List[FiscalCommandStep]) -> str:
