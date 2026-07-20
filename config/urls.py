@@ -35,6 +35,11 @@ urlpatterns = [
     path('enrolamiento/facturacion/<str:codigo_afiliado>/', core_views.enrollment_billing, name='enrollment_billing'),
     path('tablet/acceso/', access_views.tablet_access_view, name='tablet_access'),
     path('tablet/enrolamiento/', access_views.tablet_enrollment_view, name='tablet_enrollment'),
+    path(
+        'tablet/enrolamiento_acceso/',
+        access_views.tablet_enrolamiento_acceso_view,
+        name='tablet_enrolamiento_acceso',
+    ),
     path('tablet/', RedirectView.as_view(url='/tablet/acceso/', permanent=True), name='tablet'),
     path('afiliados/', include('apps.clients.urls')),
     path('personal/enrolamiento/', core_views.staff_person_enrollment, name='staff_person_enrollment'),

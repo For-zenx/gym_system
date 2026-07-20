@@ -33,7 +33,14 @@ def tablet_enrollment_view(request):
     })
 
 
-# DEPRECATED: TASK-045 — reemplazado por tablet_access_view (una sola tablet dual-mode).
+def tablet_enrolamiento_acceso_view(request):
+    """Una sola tablet: acceso por defecto; enrolamiento al comando de la PC."""
+    return render(request, "tablet_enrolamiento_acceso.html", {
+        "ws_url": _tablet_ws_url(request, "/ws/tablet/enrolamiento_acceso/"),
+    })
+
+
+# DEPRECATED: TASK-045 — /tablet/ redirige a acceso; usar tablet_enrolamiento_acceso_view para 1 dispositivo.
 def tablet_view(request):
     return tablet_access_view(request)
 
