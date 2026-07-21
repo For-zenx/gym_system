@@ -252,6 +252,7 @@
     const guestPassValidityText = document.getElementById('guest-pass-validity-text');
     let enrollmentPhotoReady = false;
     let enrollmentTermsMet = false;
+    let memberTermsAcceptedOnTablet = false;
     let cedulaExists = false;
     let cedulaCheckTimer = null;
 
@@ -334,7 +335,8 @@
         });
     }
 
-    function applyCategoryUi() {
+    function applyCategoryUi(options) {
+        options = options || {};
         const isMember = isMemberEnrollment();
         const isGuest = isGuestEnrollment();
         if (enrollmentFormTitle) {
@@ -379,13 +381,13 @@
             }
         }
         if (isGuest) {
-            enrollmentTermsMet = enrollmentPhotoReady;
             updateGuestPassValidityText();
-        } else if (!isMember) {
-            enrollmentTermsMet = enrollmentPhotoReady;
         }
         resetEnrollmentSessionState();
         syncCategoryPickerStyles();
+        if (options.syncTablet) {
+            syncTabletForCategory(getSelectedCategory());
+        }
     }
 
     function setTermsStatus(state, message) {
@@ -412,15 +414,12 @@
         if (saveButton) {
             saveButton.disabled = !canSave;
         }
-        if (!isMemberEnrollment() && enrollmentPhotoReady) {
-            syncTermsAcceptedInput();
-        } else {
-            syncTermsAcceptedInput();
-        }
+        syncTermsAcceptedInput();
     }
 
     function resetEnrollmentSessionState() {
         if (isGuestEnrollment() || isStaffEnrollment()) {
+            enrollmentTermsMet = enrollmentPhotoReady;
             if (enrollmentPhotoReady) {
                 setTermsStatus('accepted', 'Foto capturada');
             } else {
@@ -429,13 +428,42 @@
             updateEnrollmentSaveState();
             return;
         }
-        enrollmentTermsMet = false;
+        enrollmentTermsMet = memberTermsAcceptedOnTablet;
         if (enrollmentPhotoReady) {
-            setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
+            if (memberTermsAcceptedOnTablet) {
+                setTermsStatus('accepted', 'Términos aceptados en la tablet');
+            } else {
+                setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
+            }
         } else {
             setTermsStatus('pending', 'Esperando foto del afiliado en la tablet');
         }
         updateEnrollmentSaveState();
+    }
+
+    function syncTabletForCategory(category) {
+        if (!window.sendDashboardCommand) {
+            return;
+        }
+        if (category === 'MEMBER') {
+            if (enrollmentPhotoReady && !memberTermsAcceptedOnTablet) {
+                window.sendDashboardCommand({ type: 'ENROLLMENT_REQUIRE_TERMS' });
+            }
+            return;
+        }
+        window.sendDashboardCommand({ type: 'ENROLLMENT_SKIP_TERMS' });
+    }
+
+    function startEnrollmentTabletSession() {
+        if (!window.sendDashboardCommand) {
+            return;
+        }
+        window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
+        if (!isMemberEnrollment()) {
+            window.setTimeout(function () {
+                window.sendDashboardCommand({ type: 'ENROLLMENT_SKIP_TERMS' });
+            }, 150);
+        }
     }
 
     function setCedulaWarning(visible, reEnrollUrl, existingCategory) {
@@ -510,6 +538,7 @@
         }
         input.value = '';
         enrollmentPhotoReady = false;
+        memberTermsAcceptedOnTablet = false;
         resetEnrollmentSessionState();
     }
 
@@ -551,6 +580,7 @@
     });
 
     window.addEventListener('enrollmentTermsAccepted', function () {
+        memberTermsAcceptedOnTablet = true;
         enrollmentTermsMet = true;
         setTermsStatus('accepted', 'Términos aceptados en la tablet');
         updateEnrollmentSaveState();
@@ -558,7 +588,7 @@
 
     function reconnectTablet() {
         clearEnrollmentPhoto();
-        window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
+        startEnrollmentTabletSession();
     }
 
     function retakeEnrollmentPhoto() {
@@ -581,7 +611,7 @@
 
     document.querySelectorAll('#enrollment-form input[name="person_category"]').forEach(function (input) {
         input.addEventListener('change', function () {
-            applyCategoryUi();
+            applyCategoryUi({ syncTablet: true });
             lookupEnrollmentCedula();
         });
     });
@@ -590,9 +620,7 @@
         applyCategoryUi();
         updateGuestPassValidityText();
         updateEnrollmentSaveState();
-        setTimeout(function () {
-            window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
-        }, 500);
+        setTimeout(startEnrollmentTabletSession, 500);
     });
 
     let wasHidden = false;
@@ -601,12 +629,12 @@
             window.sendDashboardCommand({ type: 'ENROLLMENT_END' });
             wasHidden = true;
         } else {
-            window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
             if (wasHidden) {
                 clearEnrollmentPhoto();
                 alert('Has vuelto a la pestaña de enrolamiento.\n\nLa cámara de la tablet se reiniciará. Debe tomarse la foto y aceptar los términos nuevamente. Los datos de texto están a salvo.');
                 wasHidden = false;
             }
+            startEnrollmentTabletSession();
         }
     });
 

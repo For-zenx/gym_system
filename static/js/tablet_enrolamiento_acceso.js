@@ -30,6 +30,7 @@ const accessProcessingOverlay = document.getElementById("access-processing-overl
 const accessProcessingLabel = document.getElementById("access-processing-label");
 const termsOverlay = document.getElementById("terms-overlay");
 const termsAcceptBtn = document.getElementById("terms-accept-btn");
+const waitingOverlay = document.getElementById("enrollment-waiting-overlay");
 
 let currentMode = MODE_ACCESS;
 let socket = null;
@@ -84,11 +85,26 @@ function hideTermsScreen() {
     }
 }
 
+function hideWaitingScreen() {
+    if (waitingOverlay) {
+        waitingOverlay.classList.add("hidden");
+    }
+}
+
+function showWaitingScreen() {
+    hideTermsScreen();
+    if (waitingOverlay) {
+        waitingOverlay.classList.remove("hidden");
+    }
+    setStatus("connected", "Espere");
+}
+
 function showTermsScreen() {
     if (!termsOverlay) {
-        finishEnrollmentWaiting();
+        showWaitingScreen();
         return;
     }
+    hideWaitingScreen();
     termsOverlay.classList.remove("hidden");
     setStatus("connected", "Lea y acepte");
 }
@@ -550,8 +566,9 @@ async function enrollmentDetectLoop() {
                         faceGuide.classList.remove("active");
                         faceGuide.classList.remove("face-guide-access");
                         hudInstruction.classList.add("hidden");
+                        isEnrollmentCaptureActive = false;
                         if (skipTermsAfterCapture) {
-                            finishEnrollmentWaiting();
+                            showWaitingScreen();
                         } else {
                             showTermsScreen();
                         }
@@ -635,6 +652,7 @@ function resetEnrollmentState() {
     enrollmentDetectionRunning = false;
     resetStability();
     hideTermsScreen();
+    hideWaitingScreen();
 }
 
 async function enterAccessMode() {
@@ -671,6 +689,7 @@ async function startEnrollmentSession() {
     isProcessingAccess = false;
 
     hideTermsScreen();
+    hideWaitingScreen();
     faceGuide.classList.add("active");
     faceGuide.classList.remove("face-guide-access");
     hudInstruction.classList.remove("hidden");
@@ -695,6 +714,7 @@ async function startEnrollmentSession() {
 
 function finishEnrollmentWaiting() {
     hideTermsScreen();
+    hideWaitingScreen();
     faceGuide.classList.remove("active");
     hudInstruction.classList.add("hidden");
     isEnrollmentCaptureActive = false;
@@ -714,7 +734,11 @@ function acceptTermsOnTablet() {
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "ENROLLMENT_TERMS_ACCEPTED" }));
     }
-    finishEnrollmentWaiting();
+    faceGuide.classList.remove("active");
+    hudInstruction.classList.add("hidden");
+    stopCameraTracks();
+    isEnrollmentCaptureActive = false;
+    showWaitingScreen();
 }
 
 function skipTermsOnTablet() {
@@ -722,12 +746,17 @@ function skipTermsOnTablet() {
     skipTermsAfterCapture = true;
     hideTermsScreen();
     if (enrollmentCaptureCompleted) {
-        finishEnrollmentWaiting();
+        faceGuide.classList.remove("active");
+        hudInstruction.classList.add("hidden");
+        stopCameraTracks();
+        isEnrollmentCaptureActive = false;
+        showWaitingScreen();
     }
 }
 
 function requireTermsOnTablet() {
     termsAcceptedThisSession = false;
+    skipTermsAfterCapture = false;
     if (enrollmentCaptureCompleted) {
         showTermsScreen();
         setStatus("connected", "Lea y acepte");

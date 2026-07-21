@@ -16,6 +16,7 @@ const hudInstruction = document.getElementById('hud-instruction');
 const hudText = document.getElementById('hud-text');
 const termsOverlay = document.getElementById('terms-overlay');
 const termsAcceptBtn = document.getElementById('terms-accept-btn');
+const waitingOverlay = document.getElementById('enrollment-waiting-overlay');
 
 let socket = null;
 let reconnectTimer = null;
@@ -50,11 +51,29 @@ function hideTermsScreen() {
     }
 }
 
+function hideWaitingScreen() {
+    if (waitingOverlay) {
+        waitingOverlay.classList.add('hidden');
+    }
+}
+
+function showWaitingScreen() {
+    hideTermsScreen();
+    if (idleOverlay) {
+        idleOverlay.classList.add('hidden');
+    }
+    if (waitingOverlay) {
+        waitingOverlay.classList.remove('hidden');
+    }
+    setStatus('connected', 'Espere');
+}
+
 function showTermsScreen() {
     if (!termsOverlay) {
-        completeEnrollmentIdle();
+        showWaitingScreen();
         return;
     }
+    hideWaitingScreen();
     idleOverlay.classList.add('hidden');
     termsOverlay.classList.remove('hidden');
     setStatus('connected', 'Lea y acepte');
@@ -62,6 +81,7 @@ function showTermsScreen() {
 
 function completeEnrollmentIdle() {
     hideTermsScreen();
+    hideWaitingScreen();
     idleOverlay.classList.remove('hidden');
     const idleSubtitle = idleOverlay.querySelector('.idle-subtitle');
     if (idleSubtitle) {
@@ -80,7 +100,7 @@ function acceptTermsOnTablet() {
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'ENROLLMENT_TERMS_ACCEPTED' }));
     }
-    completeEnrollmentIdle();
+    showWaitingScreen();
 }
 
 function skipTermsOnTablet() {
@@ -88,12 +108,13 @@ function skipTermsOnTablet() {
     skipTermsAfterCapture = true;
     hideTermsScreen();
     if (captureCompleted) {
-        completeEnrollmentIdle();
+        showWaitingScreen();
     }
 }
 
 function requireTermsOnTablet() {
     termsAcceptedThisSession = false;
+    skipTermsAfterCapture = false;
     if (captureCompleted) {
         showTermsScreen();
         setStatus('connected', 'Lea y acepte');
@@ -145,7 +166,7 @@ async function detectFaceLoop() {
                         faceGuide.classList.remove('active');
                         hudInstruction.classList.add('hidden');
                         if (skipTermsAfterCapture) {
-                            completeEnrollmentIdle();
+                            showWaitingScreen();
                         } else {
                             showTermsScreen();
                         }
@@ -222,6 +243,7 @@ function stopCamera() {
 
 function showIdleScreen() {
     hideTermsScreen();
+    hideWaitingScreen();
     idleOverlay.classList.remove('hidden');
     const idleSubtitle = idleOverlay.querySelector('.idle-subtitle');
     if (idleSubtitle) {
@@ -265,6 +287,7 @@ async function startEnrollmentSession() {
         stopCamera();
     }
     hideTermsScreen();
+    hideWaitingScreen();
     idleOverlay.classList.add('hidden');
     faceGuide.classList.add('active');
     hudInstruction.classList.remove('hidden');
