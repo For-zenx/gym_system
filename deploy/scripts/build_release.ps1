@@ -80,8 +80,17 @@ Get-ChildItem -Path $AppDest -Recurse -Directory -Filter __pycache__ -ErrorActio
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 $CompiledLicense = Get-ChildItem -Path (Join-Path $AppDest "config\licencia*.pyd") -ErrorAction SilentlyContinue
-if ($CompiledLicense) {
+$DeployEnv = Join-Path $DeployRoot "config\.env"
+$SkipLicenseInRelease = $false
+if (Test-Path $DeployEnv) {
+    $SkipLicenseInRelease = (Select-String -Path $DeployEnv -Pattern '^\s*SKIP_LICENSE_CHECK\s*=\s*true\s*$' -Quiet)
+}
+if ($CompiledLicense -and -not $SkipLicenseInRelease) {
     Remove-Item (Join-Path $AppDest "config\licencia.py") -Force -ErrorAction SilentlyContinue
+} elseif ($SkipLicenseInRelease -and $CompiledLicense) {
+    # Bypass temporal: dejar .py legible y quitar .pyd (Manager puede no ser Python 3.8)
+    Remove-Item $CompiledLicense.FullName -Force -ErrorAction SilentlyContinue
+    Write-Host "SKIP_LICENSE_CHECK activo: se empaqueta licencia.py (sin .pyd)."
 }
 
 Write-Host "collectstatic (settings_production)..."
@@ -130,6 +139,10 @@ New-Item -ItemType Directory -Path $ConfigDest -Force | Out-Null
 $EnvExample = Join-Path $GymSystem ".env.example"
 if (Test-Path $EnvExample) {
     Copy-Item -Path $EnvExample -Destination (Join-Path $ConfigDest ".env.example") -Force
+}
+$DeployEnv = Join-Path $DeployRoot "config\.env"
+if (Test-Path $DeployEnv) {
+    Copy-Item -Path $DeployEnv -Destination (Join-Path $ConfigDest ".env") -Force
 }
 
 if (-not $NoZip) {

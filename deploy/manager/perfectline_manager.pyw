@@ -66,8 +66,34 @@ class ManagerApp:
         if app_path not in sys.path:
             sys.path.insert(0, app_path)
 
+    def _skip_license_check(self) -> bool:
+        """Lee SKIP_LICENSE_CHECK sin importar config.licencia (el .pyd es solo cp38)."""
+        env_path = self.base_dir / "config" / ".env"
+        if env_path.exists():
+            try:
+                for line in env_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    if key.strip() == "SKIP_LICENSE_CHECK":
+                        cleaned = value.strip().strip('"').strip("'").lower()
+                        return cleaned == "true"
+            except OSError:
+                pass
+        return os.environ.get("SKIP_LICENSE_CHECK", "False").lower() == "true"
+
     def _get_license_status(self) -> dict:
         self._prepare_license_env()
+        if self._skip_license_check():
+            os.environ["SKIP_LICENSE_CHECK"] = "true"
+            return {
+                "status": "valid",
+                "message": "",
+                "expires_on": None,
+                "days_remaining": None,
+                "warning": False,
+            }
         from config.licencia import get_license_status
 
         return get_license_status()
@@ -84,16 +110,10 @@ class ManagerApp:
             self._refresh_status_loop()
             return
 
-        from config.licencia import (
-            STATUS_EXPIRED,
-            STATUS_EXPIRY_LOCKED,
-            STATUS_INVALID,
-        )
-
         self._license_blocked = status["status"] in (
-            STATUS_EXPIRED,
-            STATUS_EXPIRY_LOCKED,
-            STATUS_INVALID,
+            "expired",
+            "expiry_locked",
+            "invalid",
         )
 
         if show_warning and status.get("warning") and status.get("message"):
@@ -188,13 +208,8 @@ class ManagerApp:
 
     def start_service(self) -> None:
         status = self._get_license_status()
-        from config.licencia import (
-            STATUS_EXPIRED,
-            STATUS_EXPIRY_LOCKED,
-            STATUS_INVALID,
-        )
 
-        if status["status"] in (STATUS_EXPIRED, STATUS_EXPIRY_LOCKED, STATUS_INVALID):
+        if status["status"] in ("expired", "expiry_locked", "invalid"):
             messagebox.showerror(
                 "PerfectLine",
                 status.get("message") or "Licencia no valida.",
@@ -215,6 +230,8 @@ class ManagerApp:
         env = os.environ.copy()
         env["DJANGO_SETTINGS_MODULE"] = "config.settings_production"
         env["PERFECTLINE_ROOT"] = str(self.base_dir)
+        if self._skip_license_check():
+            env["SKIP_LICENSE_CHECK"] = "true"
         self.server_log = self.server_log_path.open("a", encoding="utf-8")
         self.server_log.write("\n=== PerfectLine server start ===\n")
         self.server_log.flush()

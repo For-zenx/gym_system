@@ -67,7 +67,7 @@ if errorlevel 1 (
     goto :finish
 )
 
-for /f "delims=" %%t in ('"%VENV%\Scripts\python.exe" -c "import sys; print('cp{0}{1}'.format(sys.version_info.major, sys.version_info.minor))"') do set "PYTAG=%%t"
+set "PYTAG=cp38"
 echo Tag de wheel requerido: !PYTAG! ^(archivo dlib-!PYTAG!-!PYTAG!-win_amd64.whl^)
 
 for %%f in ("%WHEELS%\dlib_bin*.whl") do (

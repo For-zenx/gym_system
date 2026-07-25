@@ -56,11 +56,11 @@ def _is_production_settings():
 def license_is_required():
     load_environment()
 
-    if _is_production_settings():
-        return True
-
     if os.environ.get("SKIP_LICENSE_CHECK", "False").lower() == "true":
         return False
+
+    if _is_production_settings():
+        return True
 
     return os.environ.get("LICENSE_REQUIRED", "False").lower() in ("1", "true", "yes", "on")
 
