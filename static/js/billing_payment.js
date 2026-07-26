@@ -27,7 +27,7 @@
         const cutMotivoPreset = document.getElementById('payment_cut_motivo_preset');
         const cutMotivoCustom = document.getElementById('payment_cut_motivo_custom');
         const cycleSelector = document.getElementById('payment-cycle-selector');
-        const cycleSelect = document.getElementById('payment_roll_forward');
+        const periodTypeSelect = document.getElementById('payment_period_type');
         let paymentCutMotivo = null;
 
         const tasaDia = config.tasaDia;
@@ -37,6 +37,21 @@
         let lateFeeDefaultApplied = false;
         let previewRequestId = 0;
         let cutDayEditMode = false;
+
+        // La opción "Solo hasta el próximo corte" solo se muestra si el cliente
+        // NO tiene membresía activa (nuevo / migración / reactivación).
+        function toggleCurrentPeriodOption() {
+            if (!periodTypeSelect) return;
+            const currentOption = periodTypeSelect.querySelector('.period-type-current-option');
+            if (!currentOption) return;
+            const isNewOrReactivation = !billingContext.has_active_membership;
+            const showCurrent = isNewOrReactivation || cutDayEditMode;
+            currentOption.hidden = !showCurrent;
+            // Si la opción actual es "current" y se oculta, volver a "full"
+            if (!showCurrent && periodTypeSelect.value === 'current') {
+                periodTypeSelect.value = 'full';
+            }
+        }
 
         function getDefaultCutDay() {
             return billingContext.default_cut_day || billingContext.fecha_corte_dia || new Date().getDate();
@@ -52,6 +67,10 @@
                 return parseInt(cutDayHidden.value, 10);
             }
             return getDefaultCutDay();
+        }
+
+        function getSelectedPeriodType() {
+            return periodTypeSelect ? periodTypeSelect.value : 'full';
         }
 
         function ensurePaymentCutMotivo() {
@@ -125,9 +144,9 @@
                 cutDayDisplay.value = defaultDay;
                 cutDayDisplay.disabled = true;
             }
-            if (cycleSelect) {
-                cycleSelect.value = '0';
-                cycleSelect.disabled = true;
+            if (periodTypeSelect) {
+                periodTypeSelect.value = 'full';
+                periodTypeSelect.disabled = true;
             }
             if (cutDayEditBtn) {
                 cutDayEditBtn.style.display = '';
@@ -143,6 +162,7 @@
             }
             if (cutMotivoSection) cutMotivoSection.style.display = 'none';
             if (cycleSelector) cycleSelector.style.display = 'none';
+            toggleCurrentPeriodOption();
         }
 
         function enableCutDayEditor() {
@@ -156,9 +176,10 @@
             if (cutDayEditBtn) {
                 cutDayEditBtn.style.display = 'none';
             }
-            if (cycleSelect) {
-                cycleSelect.disabled = false;
+            if (periodTypeSelect) {
+                periodTypeSelect.disabled = false;
             }
+            toggleCurrentPeriodOption();
             updateCutMotivoVisibility();
             updatePrice();
         }
@@ -195,10 +216,6 @@
             }
         }
 
-        function getSelectedRollForward() {
-            return cycleSelect ? cycleSelect.value === '1' : false;
-        }
-
         function fetchPeriodPreview(planId, billingType) {
             if (!previewUrl || !planId) {
                 return;
@@ -214,11 +231,11 @@
                 return;
             }
 
-            const rollForward = getSelectedRollForward();
+            const periodType = getSelectedPeriodType();
             const requestId = ++previewRequestId;
             const url = previewUrl + '?plan_id=' + encodeURIComponent(planId) +
                 '&payment_cut_day=' + encodeURIComponent(cutDay) +
-                '&roll_forward=' + (rollForward ? '1' : '0');
+                '&period_type=' + encodeURIComponent(periodType);
 
             fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (response) { return response.json(); })
@@ -307,31 +324,18 @@
                 resetCutDayEditor();
                 if (cycleSelector) cycleSelector.style.display = 'none';
             } else {
-                // Lógica de Sugerencia Inteligente (Regla de 20 días)
-                // Se muestra si no tiene membresía activa O si está editando el corte
+                // Mostrar selector de período solo si es nuevo/reactivación O si está editando el corte
                 const isNewOrReactivation = !billingContext.has_active_membership;
                 const showCycle = isNewOrReactivation || cutDayEditMode;
-                
+
                 if (cycleSelector) {
                     cycleSelector.style.display = showCycle ? 'block' : 'none';
-                    
-                    if (showCycle) {
-                        // Calculamos días hasta el corte
-                        const hoy = new Date();
-                        const cutDay = getSelectedCutDay();
-                        const nextCut = new Date(hoy.getFullYear(), hoy.getMonth(), cutDay);
-                        if (nextCut < hoy) {
-                            nextCut.setMonth(nextCut.getMonth() + 1);
-                        }
-                        const diffDays = Math.ceil((nextCut - hoy) / (1000 * 60 * 60 * 24));
-                        
-                        // Si faltan menos de 20 días, sugerimos rodar al próximo mes
-                        const suggestRoll = diffDays < 20;
-                        if (cycleSelect) {
-                            cycleSelect.value = suggestRoll ? '1' : '0';
-                        }
-                    }
                 }
+                // Habilitar el selector para nuevos o en edición
+                if (periodTypeSelect && showCycle && !cutDayEditMode) {
+                    periodTypeSelect.disabled = false;
+                }
+                toggleCurrentPeriodOption();
             }
 
             fetchPeriodPreview(select.value, billingType);
@@ -420,8 +424,8 @@
         if (cutMotivoCustom) {
             cutMotivoCustom.addEventListener('input', refreshCheckoutSubmit);
         }
-        if (cycleSelect) {
-            cycleSelect.addEventListener('change', function() {
+        if (periodTypeSelect) {
+            periodTypeSelect.addEventListener('change', function() {
                 const option = select.options[select.selectedIndex];
                 if (!option || !option.value) return;
                 fetchPeriodPreview(option.value, option.getAttribute('data-billing-type'));

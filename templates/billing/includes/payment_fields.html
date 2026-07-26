@@ -23,9 +23,9 @@
     <div class="billing-cut-day-row">
         <input type="number" id="payment_cut_day_display" min="1" max="31" value="{{ payment_cut_day_default }}" disabled class="billing-cut-day-input">
         <div id="payment-cycle-selector" class="billing-cycle-selector-inline" style="display: none;">
-            <select name="payment_roll_forward" id="payment_roll_forward" disabled class="billing-cycle-select">
-                <option value="0">Vencer este mes</option>
-                <option value="1">Vencer el próximo mes</option>
+            <select name="payment_period_type" id="payment_period_type" disabled class="billing-cycle-select">
+                <option value="full" selected>Período completo (1 mes)</option>
+                <option value="current" class="period-type-current-option">Solo hasta el próximo corte</option>
             </select>
         </div>
     </div>
