@@ -842,9 +842,11 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(function () {
             return enterAccessMode();
         })
+        .then(function () {
+            connectWebSocket();
+        })
         .catch(function (err) {
             console.error("[Tablet EA] Error cargando IA:", err);
             setStatus("disconnected", "Error IA");
         });
-    connectWebSocket();
 });
