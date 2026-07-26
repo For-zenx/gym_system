@@ -202,9 +202,11 @@ def group_consecutive_fixed_memberships(memberships, today=None, cut_day=None):
         next_by_anchor = (
             advance_cut_date(current["end"], cut_day) if cut_day else None
         )
+        next_by_same = current["end"]  # next_cut_on_or_after puede devolver el mismo día
         is_consecutive = mem.plan_id == current["plan_id"] and (
             mem.fecha_inicio == next_by_legacy
             or mem.fecha_inicio == next_by_anchor
+            or mem.fecha_inicio == next_by_same
         )
         if is_consecutive:
             current["end"] = mem.fecha_fin
@@ -311,7 +313,7 @@ def get_profile_subscription_summary(client):
 
     next_charge_hint = None
     if current_fixed_group and client.fecha_corte_dia:
-        next_cut = advance_cut_date(
+        next_cut = next_cut_on_or_after(
             current_fixed_group["end"], client.fecha_corte_dia
         )
         next_charge_hint = next_cut.strftime("%d/%m/%Y")
@@ -931,6 +933,9 @@ def register_checkout(
                     client, payment_cut_day, acting_user, motivo=payment_cut_motivo
                 )
                 membership = _create_fixed_membership(client, plan, hoy, roll_forward=roll_forward, cut_current_period_only=cut_current_period_only)
+                if client.fixed_plan_id is None or client.fixed_plan_id != plan.pk:
+                    client.fixed_plan = plan
+                    client.__class__.objects.filter(pk=client.pk).update(fixed_plan=plan)
             else:
                 membership = _create_flexible_membership(client, plan, hoy)
 
@@ -1196,7 +1201,7 @@ def _resolve_fixed_period(client, hoy, cut_day=None):
     )
 
     if latest_fixed and latest_fixed.fecha_fin >= hoy:
-        period_start = advance_cut_date(latest_fixed.fecha_fin, cut_day)
+        period_start = next_cut_on_or_after(latest_fixed.fecha_fin, cut_day)
     else:
         # Si no hay membresía activa, empezamos hoy (evita retroceder al mes pasado)
         period_start = hoy

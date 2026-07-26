@@ -1,5 +1,19 @@
 <div class="form-group">
-    <label for="plan_id">Seleccione el Plan</label>
+    <div class="billing-cut-day-header">
+        <label for="plan_id">Seleccione el Plan</label>
+        {% if client.fixed_plan_id and client.fixed_plan.is_active and planes|length == 1 %}
+        <button type="button" class="btn-link-muted billing-cut-day-edit-btn" id="btnUnbindPlan" style="color: var(--color-danger, #dc3545);">Cambiar plan</button>
+        {% endif %}
+    </div>
+    {% if client.fixed_plan_id and client.fixed_plan.is_active and planes|length == 1 %}
+    <select name="plan_id" id="plan_id">
+        {% for plan in planes %}
+        <option value="{{ plan.id }}" selected data-usd="{{ plan.precio_usd|stringformat:'.2f' }}" data-billing-type="{{ plan.billing_type }}">
+            {{ plan.nombre }} ({{ plan.duracion_display }})
+        </option>
+        {% endfor %}
+    </select>
+    {% else %}
     <select name="plan_id" id="plan_id">
         <option value="" selected>— Sin membresía en este cobro —</option>
         {% for plan in planes %}
@@ -8,13 +22,14 @@
         </option>
         {% endfor %}
     </select>
+    {% endif %}
 </div>
 
-<div id="payment-cut-day-section" class="form-group billing-cut-day-section" style="display: none;">
+<div id="payment-cut-day-section" class="form-group billing-cut-day-section billing-cut-day-idle" style="display: none;">
     <div class="billing-cut-day-header">
         <label for="payment_cut_day_display">Día de corte (1-31)</label>
         {% if 'billing.change_cut_date' in user_permissions %}
-        <button type="button" class="btn-link-muted billing-cut-day-edit-btn" id="payment_cut_day_edit_btn">Modificar</button>
+        <button type="button" class="btn-link-muted billing-cut-day-edit-btn btn-edit-primary" id="payment_cut_day_edit_btn">Modificar</button>
         {% endif %}
     </div>
     <input type="hidden" name="payment_cut_day" id="payment_cut_day" value="{{ payment_cut_day_default }}">

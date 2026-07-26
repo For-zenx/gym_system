@@ -51,6 +51,14 @@ class Client(models.Model):
         blank=True,
         help_text="Día del mes para renovación de plan fijo (1-31). Se asigna en el primer pago fijo.",
     )
+    fixed_plan = models.ForeignKey(
+        "billing.Plan",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Plan fijo vinculado",
+        help_text="Plan fijo asociado al afiliado. Se asigna al confirmar el primer cobro de un plan fijo.",
+    )
     terms_accepted_at = models.DateTimeField(
         "Términos aceptados el",
         null=True,

@@ -1,0 +1,15 @@
+<div class="modal-overlay" id="unbindPlanModal">
+    <div class="modal-content">
+        <h2>Cambiar plan de membresía</h2>
+        <p>¿Estás seguro de que quieres desvincular el plan <strong id="unbind-plan-name"></strong> de este afiliado?</p>
+        <p class="billing-field-hint">Al desvincular el plan, podrás seleccionar cualquier otro plan disponible. Esta acción no cancela membresías activas ni elimina el historial.</p>
+        <form method="POST" action="" id="unbindPlanForm">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ checkout_return_url }}">
+            <div class="modal-actions" style="margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeUnbindPlanModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; background: var(--color-danger, #dc3545);">Sí, desvincular y cambiar</button>
+            </div>
+        </form>
+    </div>
+</div>

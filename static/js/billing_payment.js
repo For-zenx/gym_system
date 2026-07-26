@@ -38,16 +38,13 @@
         let previewRequestId = 0;
         let cutDayEditMode = false;
 
-        // La opción "Solo hasta el próximo corte" solo se muestra si el cliente
-        // NO tiene membresía activa (nuevo / migración / reactivación).
         function toggleCurrentPeriodOption() {
             if (!periodTypeSelect) return;
             const currentOption = periodTypeSelect.querySelector('.period-type-current-option');
             if (!currentOption) return;
-            const isNewOrReactivation = !billingContext.has_active_membership;
-            const showCurrent = isNewOrReactivation || cutDayEditMode;
+            // Solo se muestra si el cliente NO tiene membresía activa (nuevo / migración / reactivación)
+            const showCurrent = !billingContext.has_active_membership;
             currentOption.hidden = !showCurrent;
-            // Si la opción actual es "current" y se oculta, volver a "full"
             if (!showCurrent && periodTypeSelect.value === 'current') {
                 periodTypeSelect.value = 'full';
             }
@@ -151,6 +148,9 @@
             if (cutDayEditBtn) {
                 cutDayEditBtn.style.display = '';
             }
+            if (cutDaySection) {
+                cutDaySection.classList.add('billing-cut-day-idle');
+            }
             if (cutMotivoPreset) {
                 cutMotivoPreset.required = false;
             }
@@ -178,6 +178,9 @@
             }
             if (periodTypeSelect) {
                 periodTypeSelect.disabled = false;
+            }
+            if (cutDaySection) {
+                cutDaySection.classList.remove('billing-cut-day-idle');
             }
             toggleCurrentPeriodOption();
             updateCutMotivoVisibility();
@@ -324,16 +327,11 @@
                 resetCutDayEditor();
                 if (cycleSelector) cycleSelector.style.display = 'none';
             } else {
-                // Mostrar selector de período solo si es nuevo/reactivación O si está editando el corte
-                const isNewOrReactivation = !billingContext.has_active_membership;
-                const showCycle = isNewOrReactivation || cutDayEditMode;
+                // Selector de período solo visible durante edición (botón Modificar)
+                const showCycle = cutDayEditMode;
 
                 if (cycleSelector) {
                     cycleSelector.style.display = showCycle ? 'block' : 'none';
-                }
-                // Habilitar el selector para nuevos o en edición
-                if (periodTypeSelect && showCycle && !cutDayEditMode) {
-                    periodTypeSelect.disabled = false;
                 }
                 toggleCurrentPeriodOption();
             }

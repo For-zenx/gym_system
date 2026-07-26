@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.2">
-<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=3.0">
+<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=3.2">
 {% endblock %}
 
 {% block content %}
@@ -79,6 +79,7 @@
 </div>
 
 {% include 'billing/includes/charge_checkout_edit_modal.html' %}
+{% include 'billing/includes/charge_checkout_unbind_modal.html' %}
 {% if can_checkout %}
 {% include 'billing/includes/charge_checkout_errors_modal.html' %}
 {% include 'billing/includes/charge_checkout_confirm_modal.html' %}
@@ -93,7 +94,7 @@
 <script src="{% static 'js/checkout_confirm.js' %}?v=1.1"></script>
 <script src="{% static 'js/checkout_products.js' %}?v=1.9"></script>
 <script src="{% static 'js/checkout_payment_method.js' %}?v=1.1"></script>
-<script src="{% static 'js/billing_payment.js' %}?v=3.0"></script>
+<script src="{% static 'js/billing_payment.js' %}?v=3.1"></script>
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
     const tasaDia = parseUsdAmount(tasaDiaStr);
@@ -190,6 +191,31 @@
     }
     function closeEditModal() {
         document.getElementById('editModal').classList.remove('show');
+    }
+    {% endif %}
+
+    {% if client.fixed_plan_id and client.fixed_plan.is_active %}
+    var unbindBtn = document.getElementById('btnUnbindPlan');
+    var unbindModal = document.getElementById('unbindPlanModal');
+    var unbindForm = document.getElementById('unbindPlanForm');
+    var unbindPlanName = document.getElementById('unbind-plan-name');
+    if (unbindBtn && unbindModal && unbindForm) {
+        unbindBtn.addEventListener('click', function () {
+            var sel = document.getElementById('plan_id');
+            if (sel && sel.options[sel.selectedIndex]) {
+                unbindPlanName.textContent = sel.options[sel.selectedIndex].text;
+            }
+            unbindForm.action = "{% url 'billing:unbind_fixed_plan' client.codigo_afiliado %}";
+            unbindModal.classList.add('show');
+        });
+    }
+    function closeUnbindPlanModal() {
+        if (unbindModal) unbindModal.classList.remove('show');
+    }
+    if (unbindModal) {
+        unbindModal.addEventListener('click', function (e) {
+            if (e.target === unbindModal) closeUnbindPlanModal();
+        });
     }
     {% endif %}
 </script>

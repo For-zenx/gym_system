@@ -254,7 +254,15 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
             )
         origin = _normalize_checkout_origin(request.GET.get("origin", "profile"))
         next_url = _get_safe_next_url(request, request.GET.get("next", ""))
-        planes = Plan.objects.filter(is_active=True) if client.can_purchase_membership else Plan.objects.none()
+        if client.can_purchase_membership and client.fixed_plan_id:
+            if client.fixed_plan and client.fixed_plan.is_active:
+                planes = Plan.objects.filter(pk=client.fixed_plan_id, is_active=True)
+            else:
+                client.fixed_plan = None
+                Client.objects.filter(pk=client.pk).update(fixed_plan=None)
+                planes = Plan.objects.filter(is_active=True)
+        else:
+            planes = Plan.objects.filter(is_active=True) if client.can_purchase_membership else Plan.objects.none()
         products_only = not client.can_purchase_membership
 
         context = {
@@ -972,6 +980,18 @@ class ReportSendView(PermissionRequiredMixin, View):
             failed = next((item["text"] for item in result["items"] if not item["ok"]), None)
             messages.error(request, failed or "No se pudo enviar el reporte.")
         return redirect(f"{reverse('billing:report')}?tab=email&period={period_days}")
+
+
+class UnbindFixedPlanView(PermissionRequiredMixin, View):
+    """Desvincula el fixed_plan del afiliado para permitir cambiar de plan."""
+    required_permission = "billing.charge"
+
+    def post(self, request, codigo_afiliado):
+        client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        if client.fixed_plan_id:
+            client.fixed_plan = None
+            Client.objects.filter(pk=client.pk).update(fixed_plan=None)
+        return redirect(request.POST.get("next", reverse("billing:charge_checkout", kwargs={"codigo_afiliado": codigo_afiliado})))
 
 
 class GlobalPersonSearchView(PermissionRequiredMixin, View):

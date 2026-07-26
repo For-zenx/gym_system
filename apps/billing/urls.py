@@ -22,6 +22,7 @@ from .views import (
     PrintInvoiceActionView,
     InvoiceDeleteView,
     VoidInvoiceView,
+    UnbindFixedPlanView,
     GlobalPersonSearchView,
     ReportView,
     ReportSendView,
@@ -56,5 +57,6 @@ urlpatterns = [
     path('facturas/<int:pk>/eliminar/', InvoiceDeleteView.as_view(), name='invoice_delete'),
     path('reportes/', ReportView.as_view(), name='report'),
     path('reportes/enviar/', ReportSendView.as_view(), name='report_send'),
+    path('cobro/<str:codigo_afiliado>/desvincular-plan/', UnbindFixedPlanView.as_view(), name='unbind_fixed_plan'),
     path('reportes/fiscal/', FiscalReportPrintView.as_view(), name='fiscal_report_print'),
 ]
