@@ -1,7 +1,7 @@
 <div class="form-group">
     <div class="billing-cut-day-header">
         <label for="plan_id">Seleccione el Plan</label>
-        {% if client.fixed_plan_id and client.fixed_plan.is_active and planes|length == 1 %}
+        {% if client.fixed_plan_id and client.fixed_plan.is_active and planes|length == 1 and not is_corp_member %}
         <button type="button" class="btn-link-muted billing-cut-day-edit-btn" id="btnUnbindPlan" style="color: var(--color-danger, #dc3545);">Cambiar plan</button>
         {% endif %}
     </div>

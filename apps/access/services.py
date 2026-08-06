@@ -283,20 +283,43 @@ def pulse_turnstile_if_granted(granted):
 
 def build_tablet_access_payload(client, granted, detail, membership_data=None):
     today = datetime.date.today()
-    next_cut = next_cut_date(client, today)
-    days_until_cut = days_until_next_cut_date(client, today)
+
+    # --- Soporte corporativo: usar el día de corte del grupo si aplica ---
+    from apps.billing.corporate_services import _get_active_corporate_group_for_client
+    corp_group = _get_active_corporate_group_for_client(client)
+
+    if corp_group:
+        # Para miembros corporativos, el día de corte lo maneja el grupo
+        cut_day = corp_group.fecha_corte_dia
+        from apps.billing.cycle import next_cut_on_or_after
+        next_cut = next_cut_on_or_after(today, cut_day) if cut_day else None
+        days_until_cut = (next_cut - today).days if next_cut else None
+
+        # Buscar membresía corporativa activa para covered_until_display
+        corp_membership = client.memberships.filter(
+            plan=corp_group.plan,
+            fecha_inicio__lte=today,
+            fecha_fin__gte=today,
+        ).order_by("-fecha_fin").first()
+        corp_covered_until_display = corp_membership.fecha_fin.strftime("%d/%m/%Y") if corp_membership else None
+    else:
+        next_cut = next_cut_date(client, today)
+        days_until_cut = days_until_next_cut_date(client, today)
+        cut_day = client.fecha_corte_dia
+        corp_covered_until_display = None
+
     active_guest_pass = get_active_guest_pass(client, on_date=today) if client.is_guest else None
 
     payload = {
         "name": client.nombre,
         "detail": detail,
-        "cut_day": client.fecha_corte_dia,
+        "cut_day": cut_day,
         "days_until_cut": days_until_cut,
         "next_cut_display": next_cut.strftime("%d/%m/%Y") if next_cut else None,
         "days_membership_left": None,
         "plan_name": None,
         "suspended_since_display": None,
-        "covered_until_display": None,
+        "covered_until_display": corp_covered_until_display,
         "sponsor_name": None,
         "pass_until_display": None,
         "grace_days_remaining": None,
@@ -326,7 +349,7 @@ def build_tablet_access_payload(client, granted, detail, membership_data=None):
                     payload["grace_until_display"] = grace_end.strftime("%d/%m/%Y")
             else:
                 payload["variant"] = "granted"
-                payload["covered_until_display"] = _tablet_covered_until_display(client)
+                payload["covered_until_display"] = corp_covered_until_display or _tablet_covered_until_display(client)
         else:
             payload["variant"] = "granted_staff"
         return payload

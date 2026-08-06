@@ -44,14 +44,24 @@
                 <td style="font-weight: 500;">{{ plan.nombre }}</td>
                 <td>
                     <div style="white-space: nowrap;">
-                        {% if plan.is_fixed %}
+                        {% if plan.billing_type == 'FIXED' %}
                         <span class="badge badge-success">Fijo</span>
+                        {% elif plan.billing_type == 'CORPORATE' %}
+                        <span class="badge" style="background:rgba(99,102,241,0.15); color:#818cf8; border:1px solid rgba(99,102,241,0.3);">Corporativo</span>
                         {% else %}
                         <span class="badge badge-warning">Flexible</span>
                         {% endif %}
                     </div>
                 </td>
-                <td style="white-space: nowrap;">{% if plan.is_fixed %}Por corte{% else %}{{ plan.dias_duracion }} días{% endif %}</td>
+                <td style="white-space: nowrap;">
+                    {% if plan.billing_type == 'FIXED' %}
+                    Por corte
+                    {% elif plan.billing_type == 'CORPORATE' %}
+                    Máx. {{ plan.max_members }} personas
+                    {% else %}
+                    {{ plan.dias_duracion }} días
+                    {% endif %}
+                </td>
                 <td>
                     <div style="white-space: nowrap;">
                         {% if plan.hora_inicio and plan.hora_fin %}

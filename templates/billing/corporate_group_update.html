@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Grupo #{{ group.id }} - Perfect Line II{% endblock %}
+{% block page_title %}Editar Grupo #{{ group.id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container { max-width: 560px; margin: 1rem auto 3rem auto; padding: 2.5rem; background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); border-radius: 1rem; backdrop-filter: blur(12px); box-shadow: var(--shadow-lg); box-sizing: border-box; }
+    .form-title { font-size: 1.4rem; font-weight: 700; margin: 0 0 1.75rem 0; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); color: var(--text-main); }
+    .form-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-control { box-sizing: border-box; width: 100%; padding: 0.8rem 1rem; font-size: 0.95rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); }
+    .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16,185,129,0.15); }
+    .info-hint { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.3rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:1.5rem;">
+    <a href="{% url 'billing:corporate_group_detail' group.id %}" class="btn btn-secondary">&larr; Volver al grupo</a>
+</div>
+
+{% if messages %}
+{% for message in messages %}
+<div style="padding:1rem; background:rgba(239,68,68,0.1); border-left:4px solid var(--danger); color:var(--danger); margin-bottom:1.5rem; border-radius:6px;">{{ message }}</div>
+{% endfor %}
+{% endif %}
+
+<div class="form-container">
+    <h3 class="form-title">✏ Editar Grupo Corporativo</h3>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_plan_id">Plan Corporativo</label>
+            <select name="plan_id" id="id_plan_id" class="form-control">
+                <option value="">-- Mantener plan actual ({{ group.plan.nombre }}) --</option>
+                {% for plan in corporate_plans %}
+                <option value="{{ plan.id }}" {% if plan.id == group.plan.id %}selected{% endif %}>
+                    {{ plan.nombre }} — Máx. {{ plan.max_members }} personas · ${{ plan.precio_usd }}/mes
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="id_fecha_corte_dia">Día de Corte</label>
+            <input type="number" name="fecha_corte_dia" id="id_fecha_corte_dia" class="form-control"
+                min="1" max="31" value="{{ group.fecha_corte_dia }}" placeholder="1–31">
+            <div class="info-hint">Día del mes para renovación del plan.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes">Notas Internas</label>
+            <textarea name="notes" id="id_notes" class="form-control" rows="4">{{ group.notes }}</textarea>
+        </div>
+
+        <div style="display:flex; gap:1rem; justify-content:flex-end; margin-top:1rem;">
+            <a href="{% url 'billing:corporate_group_detail' group.id %}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -15,6 +15,7 @@ NAV_ROUTE_PRIORITY = (
     ("staff_persons.enroll", "enrollment"),
     ("guests.register", "enrollment"),
     ("plans.view", "billing:plan_list"),
+    ("corporate.view", "billing:corporate_group_list"),
 )
 
 

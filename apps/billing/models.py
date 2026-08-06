@@ -14,6 +14,7 @@ class Plan(models.Model):
     class BillingType(models.TextChoices):
         FIXED = 'FIXED', 'Fijo'
         FLEXIBLE = 'FLEXIBLE', 'Flexible'
+        CORPORATE = 'CORPORATE', 'Corporativo'
 
     nombre = models.CharField("Nombre del Plan", max_length=50)
     billing_type = models.CharField(
@@ -40,6 +41,12 @@ class Plan(models.Model):
         blank=True,
         help_text="Dejar en blanco para acceso todo el día",
     )
+    max_members = models.PositiveIntegerField(
+        "Máximo de personas",
+        null=True,
+        blank=True,
+        help_text="Solo para planes corporativos. Total de personas incluyendo el suscriptor principal.",
+    )
     is_active = models.BooleanField(
         "Activo",
         default=True,
@@ -60,10 +67,17 @@ class Plan(models.Model):
             raise ValidationError(
                 {"dias_duracion": "La duración en días debe ser mayor a 0 si se especifica."}
             )
+        if self.billing_type == self.BillingType.CORPORATE:
+            if not self.max_members or self.max_members < 1:
+                raise ValidationError(
+                    {"max_members": "Los planes corporativos requieren al menos 1 persona."}
+                )
 
     def save(self, *args, **kwargs):
-        if self.billing_type == self.BillingType.FIXED:
+        if self.billing_type in (self.BillingType.FIXED, self.BillingType.CORPORATE):
             self.dias_duracion = None
+        if self.billing_type != self.BillingType.CORPORATE:
+            self.max_members = None
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -76,14 +90,20 @@ class Plan(models.Model):
         return self.billing_type == self.BillingType.FLEXIBLE
 
     @property
+    def is_corporate(self):
+        return self.billing_type == self.BillingType.CORPORATE
+
+    @property
     def duracion_display(self):
-        if self.is_fixed:
+        if self.is_fixed or self.is_corporate:
             return "Mensual"
         return f"{self.dias_duracion} días"
 
     def __str__(self):
         if self.is_fixed:
             return f"{self.nombre} (Fijo) - ${self.precio_usd}"
+        if self.is_corporate:
+            return f"{self.nombre} (Corporativo, {self.max_members or '?'} pers.) - ${self.precio_usd}"
         return f"{self.nombre} ({self.dias_duracion} días) - ${self.precio_usd}"
 
 
@@ -451,6 +471,14 @@ class Invoice(models.Model):
         blank=True,
     )
     membership = models.ForeignKey(Membership, on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices', verbose_name="Membresía")
+    corporate_group = models.ForeignKey(
+        "CorporateGroup",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoices",
+        verbose_name="Grupo corporativo",
+    )
     client_nombre_snapshot = models.CharField("Nombre del Receptor", max_length=255, blank=True)
     client_cedula_snapshot = models.CharField("Cédula del Receptor", max_length=20, blank=True)
     client_codigo_snapshot = models.CharField("Cód. Afiliado (snapshot)", max_length=20, blank=True)
@@ -694,3 +722,180 @@ class InvoiceLine(models.Model):
 
     def __str__(self):
         return f"{self.description} — Bs {self.amount_ves}"
+
+
+class CorporateGroup(models.Model):
+    """Un grupo de afiliados bajo un plan corporativo compartido.
+
+    El ``subscriber`` es el responsable principal del grupo.
+    Los sub-afiliados se vinculan a través de ``CorporateGroupMember``.
+    El cobro del plan genera membresías individuales para todos los
+    miembros activos, igual que en un plan fijo normal.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Activo"
+        SUSPENDED = "SUSPENDED", "Suspendido"
+        DISSOLVED = "DISSOLVED", "Disuelto"
+
+    plan = models.ForeignKey(
+        Plan,
+        on_delete=models.PROTECT,
+        related_name="corporate_groups",
+        verbose_name="Plan corporativo",
+        limit_choices_to={"billing_type": Plan.BillingType.CORPORATE},
+    )
+    subscriber = models.ForeignKey(
+        Client,
+        on_delete=models.PROTECT,
+        related_name="owned_corporate_groups",
+        verbose_name="Suscriptor principal",
+    )
+    fecha_corte_dia = models.PositiveSmallIntegerField(
+        "Día de corte",
+        help_text="Día del mes para renovación (1–31). Heredado del suscriptor o configurado al crear.",
+    )
+    status = models.CharField(
+        "Estado",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.SUSPENDED,
+        db_index=True,
+    )
+    notes = models.TextField("Notas internas", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_corporate_groups",
+        verbose_name="Creado por",
+    )
+    dissolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="dissolved_corporate_groups",
+        verbose_name="Disuelto por",
+    )
+    dissolved_at = models.DateTimeField("Disuelto el", null=True, blank=True)
+    created_at = models.DateTimeField("Creado el", auto_now_add=True)
+    updated_at = models.DateTimeField("Actualizado", auto_now=True)
+
+    class Meta:
+        verbose_name = "Grupo corporativo"
+        verbose_name_plural = "Grupos corporativos"
+        ordering = ["-created_at"]
+
+    @property
+    def is_active(self):
+        return self.status == self.Status.ACTIVE
+
+    @property
+    def is_dissolved(self):
+        return self.status == self.Status.DISSOLVED
+
+    @property
+    def active_members(self):
+        """Queryset de CorporateGroupMember activos (excluye suscriptor)."""
+        return self.members.filter(is_active=True)
+
+    @property
+    def all_active_clients(self):
+        """Lista con suscriptor + todos los sub-afiliados activos."""
+        member_clients = list(
+            self.active_members.select_related("client").values_list("client", flat=True)
+        )
+        return Client.objects.filter(
+            pk__in=[self.subscriber_id] + member_clients
+        )
+
+    @property
+    def total_active_count(self):
+        """Suscriptor + sub-afiliados activos."""
+        return 1 + self.active_members.count()
+
+    @property
+    def capacity_remaining(self):
+        if self.plan.max_members is None:
+            return None
+        return self.plan.max_members - self.total_active_count
+
+    @property
+    def is_at_capacity(self):
+        if self.plan.max_members is None:
+            return False
+        return self.total_active_count >= self.plan.max_members
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse("billing:corporate_group_detail", kwargs={"pk": self.pk})
+
+    def __str__(self):
+        return "Grupo #{} — {} ({})".format(
+            self.pk,
+            self.subscriber.nombre,
+            self.plan.nombre,
+        )
+
+
+class CorporateGroupMember(models.Model):
+    """Tabla pivot que registra los sub-afiliados de un grupo corporativo.
+
+    El suscriptor principal **no** aparece aquí; su pertenencia al grupo
+    se infiere de ``CorporateGroup.subscriber``.
+    Se conserva el historial: ``is_active=False`` tras desvinculación.
+    """
+
+    group = models.ForeignKey(
+        CorporateGroup,
+        on_delete=models.CASCADE,
+        related_name="members",
+        verbose_name="Grupo",
+    )
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name="corporate_memberships",
+        verbose_name="Afiliado",
+    )
+    joined_at = models.DateTimeField("Ingresó el", auto_now_add=True)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="added_corporate_members",
+        verbose_name="Agregado por",
+    )
+    removed_at = models.DateTimeField("Salió el", null=True, blank=True)
+    removed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="removed_corporate_members",
+        verbose_name="Retirado por",
+    )
+    is_active = models.BooleanField("Activo en el grupo", default=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Miembro de grupo corporativo"
+        verbose_name_plural = "Miembros de grupos corporativos"
+        ordering = ["joined_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["client"],
+                condition=Q(is_active=True),
+                name="unique_active_corporate_member",
+            )
+        ]
+
+    def __str__(self):
+        status = "activo" if self.is_active else "retirado"
+        return "{} en {} ({})".format(
+            self.client.nombre,
+            self.group,
+            status,
+        )

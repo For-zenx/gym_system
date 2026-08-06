@@ -57,6 +57,9 @@
                 {% if 'plans.view' in user_permissions %}
                 <a href="{% url 'billing:plan_list' %}" class="nav-item {% if 'planes' in request.path %}active{% endif %}">Planes</a>
                 {% endif %}
+                {% if 'corporate.view' in user_permissions %}
+                <a href="{% url 'billing:corporate_group_list' %}" class="nav-item {% if 'corporativo' in request.path %}active{% endif %}">Grupos Corporativos</a>
+                {% endif %}
                 {% if 'products.view' in user_permissions %}
                 <a href="{% url 'billing:product_list' %}" class="nav-item {% if 'productos' in request.path %}active{% endif %}">Productos</a>
                 {% endif %}

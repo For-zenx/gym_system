@@ -110,6 +110,14 @@ PERMISSION_GROUPS = {
             ("reports.print_z", "Imprimir reporte Z (cierre fiscal)"),
         ],
     },
+    "corporate": {
+        "label": "Planes Corporativos",
+        "permissions": [
+            ("corporate.view", "Ver grupos corporativos"),
+            ("corporate.manage_groups", "Crear, disolver y gestionar grupos"),
+            ("corporate.manage_members", "Agregar o retirar miembros de grupos"),
+        ],
+    },
     "statistics": {
         "label": "Estadísticas",
         "permissions": [
@@ -176,6 +184,9 @@ CASHIER_PERMISSION_CODES = [
     "reports.view",
     "reports.send",
     "reports.print_x",
+    "corporate.view",
+    "corporate.manage_groups",
+    "corporate.manage_members",
 ]
 
 ADMINISTRATOR_PERMISSION_CODES = list(ALL_PERMISSION_CODES)

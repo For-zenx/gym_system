@@ -216,6 +216,13 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
             from apps.classes.services import get_client_class_registrations
 
             context["class_registrations"] = get_client_class_registrations(self.object)
+        
+        from apps.billing.corporate_services import get_group_for_client
+        corp_group = get_group_for_client(self.object)
+        if corp_group:
+            context['corp_group'] = corp_group
+            context['is_corp_owner'] = corp_group.subscriber_id == self.object.pk
+            
         can_view_phone = has_permission(self.request.user, "clients.view_phone")
         context['today'] = date.today()
         context.update(

@@ -199,7 +199,7 @@
 
             if (!periodDetail) return;
 
-            if (billingType === 'FIXED') {
+            if (billingType === 'FIXED' || billingType === 'CORPORATE') {
                 const cutDay = preview.cut_day != null ? preview.cut_day : getSelectedCutDay();
                 const storedCut = preview.stored_cut_day != null
                     ? preview.stored_cut_day
@@ -224,7 +224,7 @@
                 return;
             }
 
-            if (billingType !== 'FIXED') {
+            if (billingType !== 'FIXED' && billingType !== 'CORPORATE') {
                 applyPreviewData(planPreviews[planId] || {}, billingType);
                 return;
             }
@@ -319,7 +319,7 @@
             }
             if (priceVesEl) priceVesEl.textContent = formatVes(priceVes);
 
-            const isFixed = billingType === 'FIXED';
+            const isFixed = billingType === 'FIXED' || billingType === 'CORPORATE';
             if (cutDaySection) {
                 cutDaySection.style.display = isFixed ? 'block' : 'none';
             }

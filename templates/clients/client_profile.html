@@ -70,6 +70,29 @@
             <h3 class="profile-section-title">Caja</h3>
 
             <dl class="profile-caja-lines">
+                {% if corp_group %}
+                <div class="profile-caja-line {% if corp_group.status == 'ACTIVE' %}profile-caja-line-active{% elif corp_group.status == 'SUSPENDED' %}profile-caja-line-warn{% endif %}">
+                    <dt>Suscripción Corporativa</dt>
+                    <dd>
+                        {% if is_corp_owner %}
+                            <strong style="display: block; margin-bottom: 0.25rem;">Dueño del grupo</strong>
+                            {% if corp_group.status == 'ACTIVE' %}
+                                Grupo pagado y activo
+                            {% else %}
+                                Suspendida — requiere pago del grupo
+                            {% endif %}
+                        {% else %}
+                            <strong style="display: block; margin-bottom: 0.25rem;">Beneficiario</strong>
+                            {% if corp_group.status == 'ACTIVE' %}
+                                Grupo pagado (Depende del dueño)
+                            {% else %}
+                                Suspendida — requiere pago del dueño
+                            {% endif %}
+                        {% endif %}
+                        <a href="{% url 'billing:corporate_group_detail' corp_group.pk %}" class="profile-tab-link" style="display: block; margin-top: 0.5rem; font-size: 0.85rem;">Ver grupo corporativo</a>
+                    </dd>
+                </div>
+                {% else %}
                 {% if subscription_summary.fixed_line.kind == "active" %}
                 <div class="profile-caja-line">
                     <dt>Suscripción mensual</dt>
@@ -111,6 +134,7 @@
                     <dt>Suscripción mensual</dt>
                     <dd>Sin suscripción mensual</dd>
                 </div>
+                {% endif %}
                 {% endif %}
 
                 {% if subscription_summary.flexible_line %}

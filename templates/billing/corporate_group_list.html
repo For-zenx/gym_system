@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Grupos Corporativos - Perfect Line II{% endblock %}
+{% block page_title %}Grupos Corporativos{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem; flex-wrap:wrap; gap:1rem;">
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary">&larr; Volver</a>
+    {% if 'corporate.manage_groups' in user_permissions %}
+    <a href="{% url 'billing:corporate_group_create' %}" class="btn btn-primary">+ Nuevo Grupo Corporativo</a>
+    {% endif %}
+</div>
+
+{% if messages %}
+<div class="messages">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}"
+        style="padding:1rem; background:rgba(16,185,129,0.1); border-left:4px solid var(--success); color:var(--success); margin-bottom:1.5rem; border-radius:6px;">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width:60px;">#</th>
+                <th>Suscriptor</th>
+                <th>Plan</th>
+                <th style="width:120px;">Miembros</th>
+                <th style="width:110px;">Día Corte</th>
+                <th style="width:110px;">Estado</th>
+                <th style="text-align:right; width:120px;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for group in groups %}
+            <tr>
+                <td style="color:var(--text-muted);">#{{ group.id }}</td>
+                <td style="font-weight:500;">{{ group.subscriber.nombre }}</td>
+                <td>{{ group.plan.nombre }}</td>
+                <td>
+                    <span style="font-weight:600;">{{ group.total_active_count }}</span>
+                    <span style="color:var(--text-muted);">/ {{ group.plan.max_members }}</span>
+                </td>
+                <td style="color:var(--text-muted);">Día {{ group.fecha_corte_dia }}</td>
+                <td>
+                    {% if group.status == 'ACTIVE' %}
+                    <span class="badge badge-success">Activo</span>
+                    {% elif group.status == 'SUSPENDED' %}
+                    <span class="badge badge-warning">Suspendido</span>
+                    {% else %}
+                    <span class="badge badge-danger">Disuelto</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:right;">
+                    <a href="{% url 'billing:corporate_group_detail' group.id %}" class="btn btn-secondary"
+                        style="padding:0.4rem 0.8rem; font-size:0.85rem;">Ver</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" style="text-align:center; padding:3rem; color:var(--text-muted);">
+                    No hay grupos corporativos activos.
+                    {% if 'corporate.manage_groups' in user_permissions %}
+                    <a href="{% url 'billing:corporate_group_create' %}" style="color:var(--primary);">Crear uno</a>.
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+{% endblock %}

@@ -154,6 +154,13 @@
                     placeholder="Ej. 7">
             </div>
 
+            <div class="form-group" id="max-members-group">
+                <label for="id_max_members">Personas en el Plan</label>
+                <input type="number" name="max_members" id="id_max_members"
+                    value="{{ form.max_members.value|default:'' }}" min="1" class="form-control"
+                    placeholder="Ej. 6">
+            </div>
+
             <div class="form-group">
                 <label for="id_precio_usd">Precio (USD)</label>
                 <input type="number" name="precio_usd" id="id_precio_usd" value="{{ form.precio_usd.value|default:'' }}"
@@ -214,18 +221,28 @@
     var typeSelect = document.getElementById('id_billing_type');
     var diasGroup = document.getElementById('dias-duracion-group');
     var diasInput = document.getElementById('id_dias_duracion');
+    var maxMembersGroup = document.getElementById('max-members-group');
+    var maxMembersInput = document.getElementById('id_max_members');
     var hint = document.getElementById('billing-type-hint');
 
     function syncBillingTypeFields() {
         var isFlexible = typeSelect.value === 'FLEXIBLE';
+        var isCorporate = typeSelect.value === 'CORPORATE';
         diasGroup.style.display = isFlexible ? '' : 'none';
         diasInput.required = isFlexible;
-        if (!isFlexible) {
-            diasInput.value = '';
+        if (!isFlexible) diasInput.value = '';
+
+        maxMembersGroup.style.display = isCorporate ? '' : 'none';
+        maxMembersInput.required = isCorporate;
+        if (!isCorporate) maxMembersInput.value = '';
+
+        if (isFlexible) {
+            hint.textContent = 'Vence X días después del pago (pase de prueba, día, semana, etc.).';
+        } else if (isCorporate) {
+            hint.textContent = 'Plan grupal. Un suscriptor paga por todos los miembros del grupo.';
+        } else {
+            hint.textContent = 'Renueva cada mes en la fecha de corte del afiliado.';
         }
-        hint.textContent = isFlexible
-            ? 'Vence X días después del pago (pase de prueba, día, semana, etc.).'
-            : 'Renueva cada mes en la fecha de corte del afiliado.';
     }
 
     typeSelect.addEventListener('change', syncBillingTypeFields);

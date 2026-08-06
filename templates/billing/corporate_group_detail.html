@@ -1,0 +1,469 @@
+{% extends "base.html" %}
+
+{% block title %}Grupo #{{ group.id }} - Perfect Line II{% endblock %}
+{% block page_title %}Grupo Corporativo #{{ group.id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .group-header-card {
+        background: rgba(15,23,42,0.6);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        padding: 1.75rem 2rem;
+        margin-bottom: 2rem;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 1rem;
+        align-items: start;
+    }
+    .group-stat { text-align: center; }
+    .group-stat-value { font-size: 1.8rem; font-weight: 800; color: var(--primary); line-height: 1; }
+    .group-stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+    .stats-row { display: flex; gap: 2rem; margin-top: 1.25rem; }
+    .section-card {
+        background: rgba(15,23,42,0.5);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .section-title { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 1rem 0; }
+    .form-control { box-sizing: border-box; width: 100%; padding: 0.7rem 1rem; font-size: 0.9rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); }
+    .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16,185,129,0.15); }
+    .role-badge-sub { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: 0.3rem; font-weight: 600; }
+    .role-badge-owner { background: rgba(16,185,129,0.15); color: var(--primary); border: 1px solid rgba(16,185,129,0.3); font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: 0.3rem; font-weight: 600; }
+    .danger-zone { border: 1px solid rgba(239,68,68,0.3); border-radius: 0.75rem; padding: 1.25rem 1.5rem; margin-top: 1.5rem; }
+    .danger-zone-title { font-size: 0.8rem; font-weight: 700; color: var(--danger); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.75rem 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+    <a href="{% url 'billing:corporate_group_list' %}" class="btn btn-secondary">&larr; Volver a grupos</a>
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+        {% if can_charge and not group.is_dissolved %}
+        <a href="{% url 'billing:charge_checkout' group.subscriber.codigo_afiliado %}?origin=profile" class="btn btn-primary">Pagar Grupo</a>
+        {% endif %}
+    </div>
+</div>
+
+{% if messages %}
+{% for message in messages %}
+<div style="padding:1rem; {% if 'error' in message.tags %}background:rgba(239,68,68,0.1); border-left:4px solid var(--danger); color:var(--danger);{% elif 'warning' in message.tags %}background:rgba(245,158,11,0.1); border-left:4px solid var(--warning); color:var(--warning);{% else %}background:rgba(16,185,129,0.1); border-left:4px solid var(--success); color:var(--success);{% endif %} margin-bottom:1rem; border-radius:6px; font-size:0.92rem;">
+    {{ message }}
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- Header Card -->
+<div class="group-header-card">
+    <div>
+        <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <span style="font-size:1.5rem; font-weight:800;">{{ group.plan.nombre }}</span>
+            {% if group.status == 'ACTIVE' %}
+            <span class="badge badge-success">Activo</span>
+            {% elif group.status == 'SUSPENDED' %}
+            <span class="badge badge-warning">Suspendido — requiere pago</span>
+            {% else %}
+            <span class="badge badge-danger">Disuelto</span>
+            {% endif %}
+        </div>
+        <div style="margin-top:0.5rem; color:var(--text-muted); font-size:0.9rem;">
+            Suscriptor principal: <strong style="color:var(--text-main);">{{ group.subscriber.nombre }}</strong> ({{ group.subscriber.codigo_afiliado }})
+        </div>
+        <div class="stats-row">
+            <div class="group-stat">
+                <div class="group-stat-value">{{ group.total_active_count }}</div>
+                <div class="group-stat-label">Miembros activos</div>
+            </div>
+            <div class="group-stat">
+                <div class="group-stat-value">{{ group.plan.max_members }}</div>
+                <div class="group-stat-label">Capacidad máx.</div>
+            </div>
+            <div class="group-stat">
+                <div class="group-stat-value">{{ group.fecha_corte_dia }}</div>
+                <div class="group-stat-label">Día de corte</div>
+            </div>
+            <div class="group-stat">
+                <div class="group-stat-value">${{ group.plan.precio_usd }}</div>
+                <div class="group-stat-label">Precio / mes</div>
+            </div>
+        </div>
+        {% if billing_context.next_cut %}
+        <div style="margin-top:1rem; font-size:0.85rem; color:var(--text-muted);">
+            Próximo vencimiento: <strong style="color:var(--text-main);">{{ billing_context.next_cut_display }}</strong>
+            {% if billing_context.is_active %}
+                <span class="badge badge-success" style="margin-left:0.5rem;">Al día</span>
+            {% elif billing_context.is_initial_charge %}
+                <span class="badge badge-warning" style="margin-left:0.5rem;">Por cobrar</span>
+            {% else %}
+                <span class="badge badge-danger" style="margin-left:0.5rem;">Vencido</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Members Table -->
+<div class="section-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <p class="section-title" style="margin:0;">Miembros del Grupo</p>
+        {% if can_manage_members and not group.is_dissolved %}
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('add-member-form-modal').classList.add('show');" style="padding: 0.4rem 0.8rem; font-size:0.85rem;">
+            + Agregar Sub-Afiliado
+        </button>
+        {% endif %}
+    </div>
+    <div class="table-container" style="margin:0;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th style="width:130px;">Rol</th>
+                    <th style="width:110px;">Estado</th>
+                    {% if can_manage_members and not group.is_dissolved %}
+                    <th style="text-align:right; width:100px;">Acciones</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Subscriber row -->
+                <tr>
+                    <td style="color:var(--text-muted);">{{ group.subscriber.codigo_afiliado }}</td>
+                    <td style="font-weight:600;">{{ group.subscriber.nombre }}</td>
+                    <td><span class="role-badge-owner">Suscriptor</span></td>
+                    <td><span class="badge badge-success">Activo</span></td>
+                    {% if can_manage_groups and not group.is_dissolved %}
+                    <td style="text-align:right;">
+                        <form method="POST" action="{% url 'billing:corporate_group_dissolve' group.id %}"
+                            onsubmit="return confirm('⚠ El suscriptor principal sale del grupo. Esto DISOLVERÁ todo el grupo y cancelará las membresías de todos los miembros. ¿Continuar?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger" style="padding:0.35rem 0.7rem; font-size:0.8rem;">Disolver</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                <!-- Sub-members -->
+                {% for member in members %}
+                {% if member.is_active %}
+                <tr>
+                    <td style="color:var(--text-muted);">{{ member.client.codigo_afiliado }}</td>
+                    <td>{{ member.client.nombre }}</td>
+                    <td><span class="role-badge-sub">Sub-afiliado</span></td>
+                    <td><span class="badge badge-success">Activo</span></td>
+                    {% if can_manage_members and not group.is_dissolved %}
+                    <td style="text-align:right;">
+                        <form method="POST" action="{% url 'billing:corporate_group_remove_member' group.id %}"
+                            onsubmit="return confirm('¿Quitar a {{ member.client.nombre }} del grupo?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="client_id" value="{{ member.client.id }}">
+                            <button type="submit" class="btn btn-secondary" style="padding:0.35rem 0.7rem; font-size:0.8rem;">Quitar</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endif %}
+                {% endfor %}
+                {% if group.total_active_count == 1 %}
+                <tr>
+                    <td colspan="{% if can_manage_members and not group.is_dissolved %}5{% else %}4{% endif %}" style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.9rem;">
+                        Solo el suscriptor. Agrega sub-afiliados abajo.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        
+        {% if can_manage_members and not group.is_dissolved %}
+        <!-- Add member button moved to the top header of the table -->
+        {% endif %}
+    </div>
+
+    <!-- Historical members (inactive) -->
+    {% with historical=members|dictsort:"removed_at" %}
+    {% for member in members %}
+    {% if not member.is_active %}
+    {% if forloop.first %}
+    <p style="margin:1.5rem 0 0.5rem 0; font-size:0.8rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Historial (retirados)</p>
+    <div style="font-size:0.85rem;">
+    {% endif %}
+        <div style="padding:0.5rem 0; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--text-muted);">
+            {{ member.client.nombre }} ({{ member.client.codigo_afiliado }}) — retirado {% if member.removed_at %}{{ member.removed_at|date:"d/m/Y" }}{% endif %}
+        </div>
+    {% if forloop.last %}</div>{% endif %}
+    {% endif %}
+    {% endfor %}
+    {% endwith %}
+</div>
+
+<!-- Invoice history -->
+{% if invoices %}
+<div class="section-card">
+    <p class="section-title">Historial de Cobros</p>
+    <div class="table-container" style="margin:0;">
+        <table class="data-table">
+            <thead><tr>
+                <th>Factura</th>
+                <th>Fecha</th>
+                <th>Pagador</th>
+                <th style="text-align:right;">Total</th>
+                <th style="text-align:right;">Acción</th>
+            </tr></thead>
+            <tbody>
+                {% for inv in invoices %}
+                <tr>
+                    <td style="color:var(--text-muted);">{{ inv.nro_control }}</td>
+                    <td>{{ inv.fecha_emision|date:"d/m/Y" }}</td>
+                    <td>{{ inv.client_nombre_snapshot }}</td>
+                    <td style="text-align:right; font-weight:600; color:var(--success);">Bs {{ inv.monto_total }}</td>
+                    <td style="text-align:right;"><a href="{% url 'billing:invoice_detail' inv.id %}" style="color:var(--primary); font-size:0.85rem;">Ver</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Danger zone -->
+{% if can_manage_groups %}
+<div class="danger-zone">
+    <p class="danger-zone-title">Zona de peligro</p>
+    <form method="POST" action="{% url 'billing:corporate_group_dissolve' group.id %}"
+        onsubmit="return confirm('¿Eliminar el grupo por completo? Esto cancelará las membresías activas de TODOS los miembros, desligará sus cuentas y el grupo será eliminado permanentemente.');"
+        style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Eliminar Grupo Permanente</button>
+    </form>
+    <span style="font-size:0.82rem; color:var(--text-muted); margin-left:1rem;">Cancela membresías y elimina el grupo de la base de datos.</span>
+</div>
+{% endif %}
+
+<!-- Add member modal main form -->
+{% if can_manage_members and not group.is_dissolved %}
+<div class="modal-overlay" id="add-member-form-modal">
+    <div class="modal-content modal-content-search">
+        {% include "includes/modal_header.html" with modal_title="Agregar Sub-Afiliado" %}
+        <div class="modal-body">
+        {% if group.is_at_capacity %}
+        <div style="padding:1rem; background:rgba(245,158,11,0.1); border-left:4px solid var(--warning); color:var(--warning); border-radius:6px; font-size:0.9rem;">
+            El grupo ha alcanzado su capacidad máxima de {{ group.plan.max_members }} personas.
+        </div>
+        <div class="modal-footer" style="justify-content:flex-end;">
+            <button class="btn btn-secondary" data-modal-close>Cerrar</button>
+        </div>
+        {% else %}
+        <form method="POST" action="{% url 'billing:corporate_group_add_member' group.id %}" id="add-member-form">
+            {% csrf_token %}
+            <input type="hidden" name="confirmed" id="add-confirmed" value="0">
+            <input type="hidden" name="codigo_afiliado" id="add-codigo">
+            
+            <div class="quick-search-container">
+                <div class="search-input-wrapper">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="add-search-input" class="quick-search-input" placeholder="Buscar por nombre, cédula o código..." autocomplete="off">
+                </div>
+                <div id="add-results" class="quick-search-results" hidden></div>
+                <div id="add-search-empty" class="quick-search-empty" hidden>No se encontraron resultados.</div>
+            </div>
+
+            <div id="add-preview" style="display:none; margin-top:1rem; padding:0.75rem 1rem; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:0.5rem; align-items:center; gap:0.75rem;">
+                <div style="width:36px; height:36px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.95rem; flex-shrink:0; color:#fff;" id="add-preview-avatar">?</div>
+                <div style="flex-grow:1;">
+                    <div id="add-preview-name" style="font-weight:600; font-size:0.95rem;"></div>
+                    <div id="add-preview-code" style="font-size:0.8rem; color:var(--text-muted);"></div>
+                </div>
+                <button type="button" id="add-clear-btn" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem; line-height:1;">✕</button>
+            </div>
+
+            <p class="quick-search-help" style="margin-top:0.75rem;">
+                Cupos disponibles: <strong>{{ group.capacity_remaining }}</strong> de {{ group.plan.max_members }}
+            </p>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+                <button type="button" id="add-member-btn" class="btn btn-primary" style="display:none;">Agregar al grupo</button>
+            </div>
+        </form>
+        {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Add member warning modal -->
+<div class="modal-overlay" id="add-member-modal">
+    <div class="modal-content">
+        {% include "includes/modal_header.html" with modal_title="Aviso sobre el afiliado" %}
+        <div class="modal-body">
+            <div id="add-modal-body" style="font-size:0.9rem; color:var(--text-muted);"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-modal-close>Cancelar</button>
+            <button class="btn btn-primary" id="add-confirm-btn">Confirmar igualmente</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.closeAddMemberModal = function() {
+        document.getElementById('add-member-form-modal').classList.remove('show');
+        const addSearchInput = document.getElementById('add-search-input');
+        if(addSearchInput) { addSearchInput.value = ''; addSearchInput.style.display = 'block'; }
+        const addCodigo = document.getElementById('add-codigo');
+        if(addCodigo) addCodigo.value = '';
+        const addPreview = document.getElementById('add-preview');
+        if(addPreview) addPreview.style.display = 'none';
+        const addBtn = document.getElementById('add-member-btn');
+        if(addBtn) addBtn.style.display = 'none';
+        const resultsDiv = document.getElementById('add-results');
+        if(resultsDiv) { resultsDiv.innerHTML = ''; resultsDiv.hidden = true; }
+    };
+
+    // Wire standard close buttons
+    document.querySelectorAll('#add-member-form-modal [data-modal-close]').forEach(function(btn) {
+        btn.addEventListener('click', window.closeAddMemberModal);
+    });
+    document.getElementById('add-member-form-modal').addEventListener('click', function(e) {
+        if (e.target === this) window.closeAddMemberModal();
+    });
+    document.querySelectorAll('#add-member-modal [data-modal-close]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.getElementById('add-member-modal').classList.remove('show');
+        });
+    });
+    document.getElementById('add-member-modal').addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('show');
+    });
+
+(function () {
+    const addBtn = document.getElementById('add-member-btn');
+    const addForm = document.getElementById('add-member-form');
+    const addCodigo = document.getElementById('add-codigo');
+    const addSearchInput = document.getElementById('add-search-input');
+    const addPreview = document.getElementById('add-preview');
+    const addPreviewName = document.getElementById('add-preview-name');
+    const addPreviewCode = document.getElementById('add-preview-code');
+    const addPreviewAvatar = document.getElementById('add-preview-avatar');
+    const addClearBtn = document.getElementById('add-clear-btn');
+    const addConfirmed = document.getElementById('add-confirmed');
+    const addModal = document.getElementById('add-member-modal');
+    const addModalBody = document.getElementById('add-modal-body');
+    const addConfirmBtn = document.getElementById('add-confirm-btn');
+
+    if (!addBtn) return;
+    
+    // Add person search logic
+    let searchTimeout = null;
+    const resultsDiv = document.getElementById('add-results');
+    const emptyDiv = document.getElementById('add-search-empty');
+    
+    addSearchInput.addEventListener('input', function () {
+        clearTimeout(searchTimeout);
+        const q = addSearchInput.value.trim();
+        if (q.length < 2) {
+            resultsDiv.innerHTML = '';
+            resultsDiv.hidden = true;
+            if (emptyDiv) emptyDiv.hidden = true;
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            fetch(`{% url 'billing:person_search' %}?q=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(data => {
+                    resultsDiv.innerHTML = '';
+                    if (!data.results || data.results.length === 0) {
+                        resultsDiv.hidden = true;
+                        if (emptyDiv) emptyDiv.hidden = false;
+                        return;
+                    }
+                    if (emptyDiv) emptyDiv.hidden = true;
+                    data.results.forEach(person => {
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'quick-search-item';
+                        item.innerHTML = `<div class="info"><strong>${person.nombre}</strong><span class="meta">${person.codigo_afiliado} &middot; ${person.cedula}</span></div>`;
+                        item.addEventListener('click', () => {
+                            addCodigo.value = person.codigo_afiliado;
+                            addSearchInput.value = '';
+                            addSearchInput.closest('.quick-search-container').style.display = 'none';
+                            resultsDiv.innerHTML = '';
+                            resultsDiv.hidden = true;
+                            if (emptyDiv) emptyDiv.hidden = true;
+                            
+                            addPreviewName.textContent = person.nombre;
+                            addPreviewCode.textContent = `${person.codigo_afiliado} · CI: ${person.cedula}`;
+                            addPreviewAvatar.textContent = person.nombre.charAt(0).toUpperCase();
+                            addPreview.style.display = 'flex';
+                            addBtn.style.display = 'inline-block';
+                        });
+                        resultsDiv.appendChild(item);
+                    });
+                    resultsDiv.hidden = false;
+                });
+        }, 300);
+    });
+
+    if(addClearBtn) {
+        addClearBtn.addEventListener('click', function() {
+            addCodigo.value = '';
+            addPreview.style.display = 'none';
+            const searchContainer = addSearchInput.closest('.quick-search-container');
+            if (searchContainer) searchContainer.style.display = 'block';
+            addSearchInput.value = '';
+            addSearchInput.focus();
+            addBtn.style.display = 'none';
+        });
+    }
+    
+    // Hide results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (e.target !== addSearchInput && !resultsDiv.contains(e.target)) {
+            resultsDiv.hidden = true;
+            resultsDiv.innerHTML = '';
+        }
+    });
+
+    addBtn.addEventListener('click', async function () {
+        const codigo = addCodigo.value.trim();
+        if (!codigo) { alert('Ingrese el código del afiliado.'); return; }
+        try {
+            const resp = await fetch(`{% url 'billing:corporate_preview_reset' %}?codigo=${encodeURIComponent(codigo)}`);
+            if (!resp.ok) { addForm.submit(); return; }
+            const data = await resp.json();
+            const msgs = [];
+            if (data.memberships && data.memberships.length > 0) {
+                msgs.push(`<strong>${data.client_nombre}</strong> tiene membresías fijas activas que serán canceladas:<br>${data.memberships.map(m=>`📋 ${m.plan_nombre} hasta ${m.fecha_fin}`).join('<br>')}`);
+            }
+            if (data.already_in_group) {
+                msgs.push(`⚠ Este afiliado ya pertenece al grupo <strong>#${data.already_in_group}</strong> y será trasladado a este.`);
+            }
+            if (msgs.length > 0) {
+                addModalBody.innerHTML = msgs.join('<hr style="border-color:rgba(255,255,255,0.08); margin:0.75rem 0;">');
+                addModal.classList.add('show');
+            } else {
+                addForm.submit();
+            }
+        } catch (e) {
+            addForm.submit();
+        }
+    });
+
+    if (addConfirmBtn) {
+        addConfirmBtn.addEventListener('click', function () {
+            addConfirmed.value = '1';
+            addModal.classList.remove('show');
+            addForm.submit();
+        });
+    }
+
+})();
+</script>
+{% endblock %}

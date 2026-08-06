@@ -254,16 +254,34 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
             )
         origin = _normalize_checkout_origin(request.GET.get("origin", "profile"))
         next_url = _get_safe_next_url(request, request.GET.get("next", ""))
-        if client.can_purchase_membership and client.fixed_plan_id:
-            if client.fixed_plan and client.fixed_plan.is_active:
-                planes = Plan.objects.filter(pk=client.fixed_plan_id, is_active=True)
-            else:
+        from apps.billing.corporate_services import get_group_for_client
+        corp_group = get_group_for_client(client)
+        is_sub_affiliate = bool(corp_group and corp_group.subscriber_id != client.pk)
+
+        # Si tiene un plan corporativo asignado, pero no es dueño de ningún grupo (o es sub-afiliado),
+        # limpiamos esa referencia porque es un dato residual (dangling) o no le corresponde pagarlo.
+        if client.fixed_plan and client.fixed_plan.billing_type == Plan.BillingType.CORPORATE:
+            if not corp_group or is_sub_affiliate:
                 client.fixed_plan = None
-                Client.objects.filter(pk=client.pk).update(fixed_plan=None)
-                planes = Plan.objects.filter(is_active=True)
+                Client.objects.filter(pk=client.pk).update(fixed_plan=None, fecha_corte_dia=None)
+        
+        if client.can_purchase_membership and not is_sub_affiliate:
+            if client.fixed_plan_id:
+                if client.fixed_plan and client.fixed_plan.is_active:
+                    planes = Plan.objects.filter(pk=client.fixed_plan_id, is_active=True)
+                else:
+                    client.fixed_plan = None
+                    Client.objects.filter(pk=client.pk).update(fixed_plan=None, fecha_corte_dia=None)
+                    planes = Plan.objects.filter(is_active=True).exclude(billing_type=Plan.BillingType.CORPORATE)
+            else:
+                planes = Plan.objects.filter(is_active=True).exclude(billing_type=Plan.BillingType.CORPORATE)
         else:
-            planes = Plan.objects.filter(is_active=True) if client.can_purchase_membership else Plan.objects.none()
-        products_only = not client.can_purchase_membership
+            planes = Plan.objects.none()
+            
+        products_only = not client.can_purchase_membership or is_sub_affiliate
+
+        is_corp_owner = bool(corp_group and corp_group.subscriber_id == client.pk)
+        is_corp_member = bool(corp_group)
 
         context = {
             "client": client,
@@ -272,11 +290,15 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
             "next_url": next_url,
             "is_enrollment": origin == "enrollment",
             "products_only_checkout": products_only,
+            "is_corp_owner": is_corp_owner,
+            "is_corp_member": is_corp_member,
             "checkout_return_url": _checkout_return_path(client, origin, next_url),
             "page_heading": "Cobro inicial" if origin == "enrollment" else "Registrar cobro",
             "submit_label": "Cobrar e imprimir" if origin == "enrollment" else "Confirmar cobro",
             "review_label": "Revisar cobro e imprimir" if origin == "enrollment" else "Revisar cobro",
             "confirm_submit_label": "Confirmar y cobrar e imprimir" if origin == "enrollment" else "Confirmar y cobrar",
+            "corp_group": corp_group,
+            "is_sub_affiliate": is_sub_affiliate,
         }
         context.update(_checkout_back_context(client, origin, next_url))
         context.update(_charge_form_context(client, planes))
@@ -458,7 +480,7 @@ class PlanCreateView(PermissionRequiredMixin, CreateView):
     required_permission = "plans.create"
     model = Plan
     template_name = 'billing/plan_form.html'
-    fields = ['nombre', 'billing_type', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
+    fields = ['nombre', 'billing_type', 'dias_duracion', 'max_members', 'precio_usd', 'hora_inicio', 'hora_fin']
     success_url = reverse_lazy('billing:plan_list')
 
     def form_valid(self, form):
@@ -469,7 +491,7 @@ class PlanUpdateView(PermissionRequiredMixin, UpdateView):
     required_permission = "plans.edit"
     model = Plan
     template_name = 'billing/plan_form.html'
-    fields = ['nombre', 'billing_type', 'dias_duracion', 'precio_usd', 'hora_inicio', 'hora_fin']
+    fields = ['nombre', 'billing_type', 'dias_duracion', 'max_members', 'precio_usd', 'hora_inicio', 'hora_fin']
     success_url = reverse_lazy('billing:plan_list')
 
     def form_valid(self, form):
@@ -479,13 +501,17 @@ class PlanUpdateView(PermissionRequiredMixin, UpdateView):
 
         billing_type = form.cleaned_data['billing_type']
         dias_duracion = form.cleaned_data.get('dias_duracion')
-        if billing_type == Plan.BillingType.FIXED:
+        max_members = form.cleaned_data.get('max_members')
+        if billing_type in (Plan.BillingType.FIXED, Plan.BillingType.CORPORATE):
             dias_duracion = None
+        if billing_type != Plan.BillingType.CORPORATE:
+            max_members = None
 
         Plan.objects.create(
             nombre=form.cleaned_data['nombre'],
             billing_type=billing_type,
             dias_duracion=dias_duracion,
+            max_members=max_members,
             precio_usd=form.cleaned_data['precio_usd'],
             hora_inicio=form.cleaned_data['hora_inicio'],
             hora_fin=form.cleaned_data['hora_fin'],
@@ -1025,3 +1051,205 @@ class GlobalPersonSearchView(PermissionRequiredMixin, View):
             })
 
         return JsonResponse({"results": results})
+
+
+# ---------------------------------------------------------------------------
+# Corporate Group Views
+# ---------------------------------------------------------------------------
+
+class CorporateGroupListView(PermissionRequiredMixin, ListView):
+    required_permission = "corporate.view"
+    model = None  # dynamically loaded
+    template_name = "billing/corporate_group_list.html"
+    context_object_name = "groups"
+
+    def get_queryset(self):
+        from .models import CorporateGroup
+        return (
+            CorporateGroup.objects
+            .exclude(status=CorporateGroup.Status.DISSOLVED)
+            .select_related("plan", "subscriber")
+            .prefetch_related("members")
+            .order_by("-created_at")
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        return context
+
+
+class CorporateGroupCreateView(PermissionRequiredMixin, View):
+    required_permission = "corporate.manage_groups"
+
+    def get(self, request):
+        corporate_plans = Plan.objects.filter(
+            billing_type=Plan.BillingType.CORPORATE, is_active=True
+        ).order_by("nombre")
+        return render(request, "billing/corporate_group_create.html", {
+            "corporate_plans": corporate_plans,
+        })
+
+    def post(self, request):
+        from .corporate_services import create_corporate_group, get_hard_reset_preview
+        from .models import CorporateGroup
+
+        subscriber_id = (request.POST.get("subscriber_id") or "").strip()
+        plan_id = (request.POST.get("plan_id") or "").strip()
+        confirmed = request.POST.get("confirmed") == "1"
+
+        errors = []
+        if not subscriber_id:
+            errors.append("Debe seleccionar un suscriptor principal.")
+        if not plan_id:
+            errors.append("Debe seleccionar un plan corporativo.")
+        if errors:
+            for e in errors:
+                messages.error(request, e)
+            return redirect("billing:corporate_group_create")
+
+        subscriber = get_object_or_404(Client, pk=subscriber_id)
+        plan = get_object_or_404(Plan, pk=plan_id, billing_type=Plan.BillingType.CORPORATE, is_active=True)
+
+        try:
+            result = create_corporate_group(
+                plan=plan,
+                subscriber=subscriber,
+                created_by=request.user,
+            )
+            messages.success(
+                request,
+                "Grupo corporativo #{} creado. Ahora pague el plan para activarlo.".format(result.group.pk),
+            )
+            return redirect("billing:corporate_group_detail", pk=result.group.pk)
+        except ValidationError as e:
+            messages.error(request, str(e))
+            return redirect("billing:corporate_group_create")
+
+
+class CorporateGroupPreviewResetView(PermissionRequiredMixin, View):
+    """JSON: preview de qué membresías se cancelarían si se agrega este cliente."""
+    required_permission = "corporate.manage_groups"
+
+    def get(self, request):
+        from .corporate_services import get_hard_reset_preview
+        codigo = (request.GET.get("codigo") or "").strip()
+        if not codigo:
+            return JsonResponse({"memberships": [], "already_in_group": None})
+        client = Client.objects.filter(codigo_afiliado=codigo).first()
+        if not client:
+            return JsonResponse({"error": "Afiliado no encontrado."}, status=404)
+        from .corporate_services import _get_active_corporate_group_for_client
+        preview = get_hard_reset_preview(client)
+        existing_group = _get_active_corporate_group_for_client(client)
+        return JsonResponse({
+            "memberships": preview,
+            "already_in_group": existing_group.pk if existing_group else None,
+            "client_nombre": client.nombre,
+        })
+
+
+class CorporateGroupDetailView(PermissionRequiredMixin, View):
+    required_permission = "corporate.view"
+
+    def get(self, request, pk):
+        from .models import CorporateGroup
+        from .corporate_services import get_corporate_group_billing_context
+        group = get_object_or_404(
+            CorporateGroup.objects.select_related("plan", "subscriber"),
+            pk=pk,
+        )
+        members = group.members.select_related("client").order_by("joined_at")
+        billing_context = get_corporate_group_billing_context(group)
+        invoices = group.invoices.select_related("client").order_by("-fecha_emision")[:10]
+        can_manage_groups = has_permission(request.user, "corporate.manage_groups")
+        can_manage_members = has_permission(request.user, "corporate.manage_members")
+        can_charge = has_permission(request.user, "billing.charge")
+        return render(request, "billing/corporate_group_detail.html", {
+            "group": group,
+            "members": members,
+            "billing_context": billing_context,
+            "invoices": invoices,
+            "can_manage_groups": can_manage_groups,
+            "can_manage_members": can_manage_members,
+            "can_charge": can_charge,
+        })
+
+
+class CorporateGroupAddMemberView(PermissionRequiredMixin, View):
+    required_permission = "corporate.manage_members"
+
+    def post(self, request, pk):
+        from .models import CorporateGroup
+        from .corporate_services import add_member_to_group
+        group = get_object_or_404(CorporateGroup, pk=pk)
+        codigo = (request.POST.get("codigo_afiliado") or "").strip()
+        confirmed = request.POST.get("confirmed") == "1"
+
+        if not codigo:
+            messages.error(request, "Ingrese el código del afiliado.")
+            return redirect("billing:corporate_group_detail", pk=pk)
+
+        client = Client.objects.filter(codigo_afiliado=codigo).first()
+        if not client:
+            messages.error(request, "Afiliado no encontrado: {}".format(codigo))
+            return redirect("billing:corporate_group_detail", pk=pk)
+
+        try:
+            warnings = add_member_to_group(group, client, added_by=request.user)
+            for w in warnings:
+                if w["type"] == "memberships_cancelled":
+                    messages.warning(
+                        request,
+                        "{} fue agregado. Sus membresías fijas anteriores fueron canceladas: {}.".format(
+                            w["client_nombre"],
+                            ", ".join(m["plan_nombre"] for m in w["cancelled"]),
+                        ),
+                    )
+                elif w["type"] == "already_in_group":
+                    messages.warning(
+                        request,
+                        "{} fue trasladado desde el grupo #{} a este grupo.".format(
+                            w["client_nombre"], w["group_id"]
+                        ),
+                    )
+            messages.success(request, "{} agregado al grupo.".format(client.nombre))
+        except ValidationError as e:
+            messages.error(request, str(e))
+        return redirect("billing:corporate_group_detail", pk=pk)
+
+
+class CorporateGroupRemoveMemberView(PermissionRequiredMixin, View):
+    required_permission = "corporate.manage_members"
+
+    def post(self, request, pk):
+        from .models import CorporateGroup
+        from .corporate_services import remove_member_from_group
+        group = get_object_or_404(CorporateGroup, pk=pk)
+        client_id = (request.POST.get("client_id") or "").strip()
+        client = get_object_or_404(Client, pk=client_id)
+        try:
+            remove_member_from_group(group, client, removed_by=request.user)
+            messages.success(request, "{} ha sido desvinculado del grupo.".format(client.nombre))
+        except ValidationError as e:
+            messages.error(request, str(e))
+        return redirect("billing:corporate_group_detail", pk=pk)
+
+
+class CorporateGroupDissolveView(PermissionRequiredMixin, View):
+    required_permission = "corporate.manage_groups"
+
+    def post(self, request, pk):
+        from .models import CorporateGroup
+        from .corporate_services import dissolve_corporate_group
+        group = get_object_or_404(CorporateGroup, pk=pk)
+        try:
+            dissolve_corporate_group(group, dissolved_by=request.user)
+            # After hard resetting all members and deleting their corporate memberships,
+            # we eliminate the group to keep the DB clean.
+            group.delete()
+            messages.success(request, "Grupo corporativo eliminado permanentemente. Las membresías de los sub-afiliados fueron canceladas.")
+        except ValidationError as e:
+            messages.error(request, str(e))
+        return redirect("billing:corporate_group_list")
+
+

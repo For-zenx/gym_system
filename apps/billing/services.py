@@ -75,6 +75,21 @@ def change_client_cut_date(client, new_day, motivo, user=None):
     old_day = client.fecha_corte_dia
     client.fecha_corte_dia = new_day
     client.save(update_fields=["fecha_corte_dia"])
+    
+    # Propagar a grupo corporativo si el cliente es el dueño
+    from apps.billing.corporate_services import get_group_for_client
+    from apps.billing.models import CorporateGroup, CorporateGroupMember
+    corp_group = get_group_for_client(client)
+    if corp_group and corp_group.subscriber_id == client.pk:
+        corp_group.fecha_corte_dia = new_day
+        corp_group.save(update_fields=["fecha_corte_dia", "updated_at"])
+        
+        # Actualizar a los sub-afiliados activos
+        active_ids = list(CorporateGroupMember.objects.filter(
+            group=corp_group, is_active=True
+        ).values_list("client_id", flat=True))
+        if active_ids:
+            client.__class__.objects.filter(pk__in=active_ids).update(fecha_corte_dia=new_day)
 
     log_billing_event(
         client,
@@ -332,6 +347,48 @@ def get_profile_subscription_summary(client):
 
 def get_membership_feed_lines(client):
     """Líneas estructuradas para el bloque de membresía en inicio (feed en vivo)."""
+    # --- Soporte para grupos corporativos ---
+    # Si el cliente pertenece a un grupo corporativo, mostramos su estado
+    # corporativo en lugar de la lógica de fijo/flexible estándar.
+    from apps.billing.corporate_services import _get_active_corporate_group_for_client
+    corp_group = _get_active_corporate_group_for_client(client)
+    if corp_group:
+        today = timezone.localdate()
+        plan_name = corp_group.plan.nombre
+        is_owner = corp_group.subscriber_id == client.pk
+        role_suffix = " (Suscriptor)" if is_owner else " (Grupo)"
+
+        corp_membership = client.memberships.filter(
+            plan=corp_group.plan,
+            fecha_inicio__lte=today,
+            fecha_fin__gte=today,
+        ).order_by("-fecha_fin").first()
+
+        if corp_membership:
+            return [
+                {
+                    "status": "active",
+                    "title": "Plan Corporativo",
+                    "primary": "{}{} — Al día hasta {}".format(
+                        plan_name,
+                        role_suffix,
+                        corp_membership.fecha_fin.strftime("%d/%m/%Y"),
+                    ),
+                    "secondary": None,
+                }
+            ]
+        else:
+            # El grupo existe pero no hay membresía activa (suspendido/requiere pago)
+            group_status = corp_group.get_status_display() if hasattr(corp_group, "get_status_display") else corp_group.status
+            return [
+                {
+                    "status": "suspended",
+                    "title": "Plan Corporativo",
+                    "primary": "{}{} — {}".format(plan_name, role_suffix, group_status),
+                    "secondary": "Requiere pago del grupo" if not is_owner else None,
+                }
+            ]
+
     summary = get_profile_subscription_summary(client)
     lines = []
 
@@ -926,7 +983,59 @@ def register_checkout(
             if plan.is_flexible and was_suspended:
                 warnings.append("flexible_on_suspended_subscription")
 
-            if plan.is_fixed:
+            if plan.billing_type == Plan.BillingType.CORPORATE:
+                from apps.billing.corporate_services import get_group_for_client
+                from apps.billing.models import CorporateGroup
+                
+                corp_group = get_group_for_client(client)
+                if not corp_group or corp_group.subscriber_id != client.pk:
+                    raise ValidationError("Solo el suscriptor principal puede pagar este plan corporativo.")
+                if payment_cut_day is None:
+                    raise ValidationError("Debe indicar el día de corte para el plan.")
+                apply_cut_day_from_payment(
+                    client, payment_cut_day, acting_user, motivo=payment_cut_motivo
+                )
+                
+                period_start = billing_period_start(payment_cut_day, hoy)
+                fecha_inicio, fecha_fin = subscription_period_bounds(payment_cut_day, period_start)
+                
+                active_member_ids = list(corp_group.active_members.values_list("client_id", flat=True))
+                all_client_ids = [corp_group.subscriber_id] + active_member_ids
+                all_clients = list(client.__class__.objects.filter(pk__in=all_client_ids))
+                
+                for c in all_clients:
+                    m = Membership(client=c, plan=plan, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin)
+                    m.full_clean()
+                    m.save()
+                    if c.pk == client.pk:
+                        membership = m
+                    client.__class__.objects.filter(pk=c.pk).update(fixed_plan=plan, fecha_corte_dia=payment_cut_day)
+                    c.fixed_plan = plan
+                    c.fecha_corte_dia = payment_cut_day
+                
+                corp_group.fecha_corte_dia = payment_cut_day
+                if corp_group.status == CorporateGroup.Status.SUSPENDED:
+                    corp_group.status = CorporateGroup.Status.ACTIVE
+                corp_group.save(update_fields=["fecha_corte_dia", "status", "updated_at"])
+                
+                membership_ves = plan.precio_usd * tasa.tasa_ves
+                desc = "Cuota Corporativa {} — {} persona{} ({} al {})".format(
+                    plan.nombre, len(all_clients), "s" if len(all_clients) != 1 else "",
+                    fecha_inicio.strftime("%d/%m/%Y"), fecha_fin.strftime("%d/%m/%Y")
+                )
+                pending_lines.append(
+                    {
+                        "line_kind": InvoiceLine.LineKind.MEMBERSHIP,
+                        "description": desc,
+                        "quantity": 1,
+                        "unit_price_usd": plan.precio_usd,
+                        "amount_ves": membership_ves,
+                        "sale_item": None,
+                        "membership": membership,
+                        "metadata": {},
+                    }
+                )
+            elif plan.is_fixed:
                 if payment_cut_day is None:
                     raise ValidationError("Debe indicar el día de corte para el plan mensual.")
                 apply_cut_day_from_payment(
@@ -939,19 +1048,20 @@ def register_checkout(
             else:
                 membership = _create_flexible_membership(client, plan, hoy)
 
-            membership_ves = plan.precio_usd * tasa.tasa_ves
-            pending_lines.append(
-                {
-                    "line_kind": InvoiceLine.LineKind.MEMBERSHIP,
-                    "description": _membership_line_description(membership, plan),
-                    "quantity": 1,
-                    "unit_price_usd": plan.precio_usd,
-                    "amount_ves": membership_ves,
-                    "sale_item": None,
-                    "membership": membership,
-                    "metadata": {},
-                }
-            )
+            if plan.billing_type != Plan.BillingType.CORPORATE:
+                membership_ves = plan.precio_usd * tasa.tasa_ves
+                pending_lines.append(
+                    {
+                        "line_kind": InvoiceLine.LineKind.MEMBERSHIP,
+                        "description": _membership_line_description(membership, plan),
+                        "quantity": 1,
+                        "unit_price_usd": plan.precio_usd,
+                        "amount_ves": membership_ves,
+                        "sale_item": None,
+                        "membership": membership,
+                        "metadata": {},
+                    }
+                )
 
             if plan.is_fixed and was_suspended:
                 was_reactivation = True

@@ -9,7 +9,25 @@ from .models import (
     BillingSettings,
     ClientBillingEvent,
     ClientServicePeriod,
+    CorporateGroup,
+    CorporateGroupMember,
 )
+
+
+@admin.register(CorporateGroup)
+class CorporateGroupAdmin(admin.ModelAdmin):
+    list_display = ('id', 'plan', 'subscriber', 'fecha_corte_dia', 'status', 'created_at')
+    list_filter = ('status', 'plan', 'fecha_corte_dia')
+    search_fields = ('subscriber__nombre', 'subscriber__codigo_afiliado')
+    raw_id_fields = ('subscriber', 'plan')
+
+
+@admin.register(CorporateGroupMember)
+class CorporateGroupMemberAdmin(admin.ModelAdmin):
+    list_display = ('group', 'client', 'joined_at', 'removed_at')
+    list_filter = ('group',)
+    search_fields = ('client__nombre', 'client__codigo_afiliado')
+    raw_id_fields = ('group', 'client')
 
 
 @admin.register(SaleItem)

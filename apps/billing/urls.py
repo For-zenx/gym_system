@@ -27,6 +27,14 @@ from .views import (
     ReportView,
     ReportSendView,
     FiscalReportPrintView,
+    # Corporate
+    CorporateGroupListView,
+    CorporateGroupCreateView,
+    CorporateGroupDetailView,
+    CorporateGroupAddMemberView,
+    CorporateGroupRemoveMemberView,
+    CorporateGroupDissolveView,
+    CorporateGroupPreviewResetView,
 )
 
 app_name = 'billing'
@@ -59,4 +67,13 @@ urlpatterns = [
     path('reportes/enviar/', ReportSendView.as_view(), name='report_send'),
     path('cobro/<str:codigo_afiliado>/desvincular-plan/', UnbindFixedPlanView.as_view(), name='unbind_fixed_plan'),
     path('reportes/fiscal/', FiscalReportPrintView.as_view(), name='fiscal_report_print'),
+
+    # ---- Grupos Corporativos ----
+    path('corporativo/', CorporateGroupListView.as_view(), name='corporate_group_list'),
+    path('corporativo/nuevo/', CorporateGroupCreateView.as_view(), name='corporate_group_create'),
+    path('corporativo/preview-reset/', CorporateGroupPreviewResetView.as_view(), name='corporate_preview_reset'),
+    path('corporativo/<int:pk>/', CorporateGroupDetailView.as_view(), name='corporate_group_detail'),
+    path('corporativo/<int:pk>/agregar-miembro/', CorporateGroupAddMemberView.as_view(), name='corporate_group_add_member'),
+    path('corporativo/<int:pk>/quitar-miembro/', CorporateGroupRemoveMemberView.as_view(), name='corporate_group_remove_member'),
+    path('corporativo/<int:pk>/disolver/', CorporateGroupDissolveView.as_view(), name='corporate_group_dissolve'),
 ]
