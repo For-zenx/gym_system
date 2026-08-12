@@ -24,21 +24,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # max_members ya existe en billing_plan — solo actualizar estado ORM
-        migrations.SeparateDatabaseAndState(
-            state_operations=[
-                migrations.AddField(
-                    model_name='plan',
-                    name='max_members',
-                    field=models.PositiveIntegerField(
-                        blank=True,
-                        help_text='Solo para planes corporativos. Total de personas incluyendo el suscriptor principal.',
-                        null=True,
-                        verbose_name='Máximo de personas',
-                    ),
-                ),
-            ],
-            database_operations=[],
+        migrations.AddField(
+            model_name='plan',
+            name='max_members',
+            field=models.PositiveIntegerField(
+                blank=True,
+                help_text='Solo para planes corporativos. Total de personas incluyendo el suscriptor principal.',
+                null=True,
+                verbose_name='Máximo de personas',
+            ),
         ),
         # billing_type: ampliar choices para incluir CORPORATE
         migrations.AlterField(
@@ -105,22 +99,16 @@ class Migration(migrations.Migration):
                 'ordering': ['-created_at'],
             },
         ),
-        # corporate_group_id en billing_invoice YA existe — solo estado ORM
-        migrations.SeparateDatabaseAndState(
-            state_operations=[
-                migrations.AddField(
-                    model_name='invoice',
-                    name='corporate_group',
-                    field=models.ForeignKey(
-                        blank=True, null=True,
-                        on_delete=django.db.models.deletion.SET_NULL,
-                        related_name='invoices',
-                        to='billing.corporategroup',
-                        verbose_name='Grupo corporativo',
-                    ),
-                ),
-            ],
-            database_operations=[],
+        migrations.AddField(
+            model_name='invoice',
+            name='corporate_group',
+            field=models.ForeignKey(
+                blank=True, null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name='invoices',
+                to='billing.corporategroup',
+                verbose_name='Grupo corporativo',
+            ),
         ),
         # CorporateGroupMember: tabla fue eliminada → crear de nuevo
         migrations.CreateModel(
