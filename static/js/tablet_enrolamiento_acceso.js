@@ -100,13 +100,7 @@ function showWaitingScreen() {
 }
 
 function showTermsScreen() {
-    if (!termsOverlay) {
-        showWaitingScreen();
-        return;
-    }
-    hideWaitingScreen();
-    termsOverlay.classList.remove("hidden");
-    setStatus("connected", "Lea y acepte");
+    showWaitingScreen();
 }
 
 function isGrantedVariant(variant) {

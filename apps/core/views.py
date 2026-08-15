@@ -31,12 +31,14 @@ from apps.users.permissions import has_permission
 STAFF_ENROLLMENT_CATEGORIES = (
     PersonCategory.EMPLOYEE,
     PersonCategory.TRAINER,
+    PersonCategory.PARTNER,
 )
 
 ENROLLMENT_TIPO_MAP = {
     "afiliado": PersonCategory.MEMBER,
     "empleado": PersonCategory.EMPLOYEE,
     "entrenador": PersonCategory.TRAINER,
+    "socio": PersonCategory.PARTNER,
     "invitado": PersonCategory.GUEST,
 }
 
@@ -71,7 +73,7 @@ def _resolve_enrollment_category(request, post_data=None):
     if not raw:
         tipo = request.GET.get("tipo", "")
         raw = ENROLLMENT_TIPO_MAP.get(tipo)
-    if raw in (PersonCategory.MEMBER, PersonCategory.EMPLOYEE, PersonCategory.TRAINER, PersonCategory.GUEST):
+    if raw in (PersonCategory.MEMBER, PersonCategory.EMPLOYEE, PersonCategory.TRAINER, PersonCategory.GUEST, PersonCategory.PARTNER):
         if _user_can_enroll_category(request.user, raw):
             return raw
     if has_permission(request.user, "clients.enroll"):

@@ -69,14 +69,7 @@ function showWaitingScreen() {
 }
 
 function showTermsScreen() {
-    if (!termsOverlay) {
-        showWaitingScreen();
-        return;
-    }
-    hideWaitingScreen();
-    idleOverlay.classList.add('hidden');
-    termsOverlay.classList.remove('hidden');
-    setStatus('connected', 'Lea y acepte');
+    showWaitingScreen();
 }
 
 function completeEnrollmentIdle() {

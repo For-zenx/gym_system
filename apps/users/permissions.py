@@ -115,7 +115,8 @@ PERMISSION_GROUPS = {
         "permissions": [
             ("corporate.view", "Ver grupos corporativos"),
             ("corporate.manage_groups", "Crear, disolver y gestionar grupos"),
-            ("corporate.manage_members", "Agregar o retirar miembros de grupos"),
+            ("corporate.add_members", "Agregar miembros a grupos"),
+            ("corporate.remove_members", "Retirar miembros de grupos"),
         ],
     },
     "statistics": {
@@ -186,7 +187,8 @@ CASHIER_PERMISSION_CODES = [
     "reports.print_x",
     "corporate.view",
     "corporate.manage_groups",
-    "corporate.manage_members",
+    "corporate.add_members",
+    "corporate.remove_members",
 ]
 
 ADMINISTRATOR_PERMISSION_CODES = list(ALL_PERMISSION_CODES)

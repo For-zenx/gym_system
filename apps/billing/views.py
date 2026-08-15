@@ -1162,7 +1162,8 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
         billing_context = get_corporate_group_billing_context(group)
         invoices = group.invoices.select_related("client").order_by("-fecha_emision")[:10]
         can_manage_groups = has_permission(request.user, "corporate.manage_groups")
-        can_manage_members = has_permission(request.user, "corporate.manage_members")
+        can_add_members = has_permission(request.user, "corporate.add_members")
+        can_remove_members = has_permission(request.user, "corporate.remove_members")
         can_charge = has_permission(request.user, "billing.charge")
         return render(request, "billing/corporate_group_detail.html", {
             "group": group,
@@ -1170,13 +1171,14 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
             "billing_context": billing_context,
             "invoices": invoices,
             "can_manage_groups": can_manage_groups,
-            "can_manage_members": can_manage_members,
+            "can_add_members": can_add_members,
+            "can_remove_members": can_remove_members,
             "can_charge": can_charge,
         })
 
 
 class CorporateGroupAddMemberView(PermissionRequiredMixin, View):
-    required_permission = "corporate.manage_members"
+    required_permission = "corporate.add_members"
 
     def post(self, request, pk):
         from .models import CorporateGroup
@@ -1219,7 +1221,7 @@ class CorporateGroupAddMemberView(PermissionRequiredMixin, View):
 
 
 class CorporateGroupRemoveMemberView(PermissionRequiredMixin, View):
-    required_permission = "corporate.manage_members"
+    required_permission = "corporate.remove_members"
 
     def post(self, request, pk):
         from .models import CorporateGroup

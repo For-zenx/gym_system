@@ -77,6 +77,9 @@
                 <label class="enrollment-category-option{% if person_category == 'TRAINER' %} is-active{% endif %}">
                     <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
                 </label>
+                <label class="enrollment-category-option{% if person_category == 'PARTNER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="PARTNER" {% if person_category == 'PARTNER' %}checked{% endif %}> Socio
+                </label>
                 <label class="enrollment-category-option{% if person_category == 'GUEST' %} is-active{% endif %}">
                     <input type="radio" name="person_category" value="GUEST" {% if person_category == 'GUEST' %}checked{% endif %}> Invitado
                 </label>
@@ -91,6 +94,9 @@
                 </label>
                 <label class="enrollment-category-option{% if person_category == 'TRAINER' %} is-active{% endif %}">
                     <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'PARTNER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="PARTNER" {% if person_category == 'PARTNER' %}checked{% endif %}> Socio
                 </label>
             </div>
             {% elif can_enroll_member and can_enroll_guest %}
@@ -110,6 +116,9 @@
                 <label class="enrollment-category-option{% if person_category == 'TRAINER' %} is-active{% endif %}">
                     <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
                 </label>
+                <label class="enrollment-category-option{% if person_category == 'PARTNER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="PARTNER" {% if person_category == 'PARTNER' %}checked{% endif %}> Socio
+                </label>
                 <label class="enrollment-category-option{% if person_category == 'GUEST' %} is-active{% endif %}">
                     <input type="radio" name="person_category" value="GUEST" {% if person_category == 'GUEST' %}checked{% endif %}> Invitado
                 </label>
@@ -121,6 +130,9 @@
                 </label>
                 <label class="enrollment-category-option{% if person_category == 'TRAINER' %} is-active{% endif %}">
                     <input type="radio" name="person_category" value="TRAINER" {% if person_category == 'TRAINER' %}checked{% endif %}> Entrenador
+                </label>
+                <label class="enrollment-category-option{% if person_category == 'PARTNER' %} is-active{% endif %}">
+                    <input type="radio" name="person_category" value="PARTNER" {% if person_category == 'PARTNER' %}checked{% endif %}> Socio
                 </label>
             </div>
             {% elif can_enroll_guest %}
@@ -567,22 +579,9 @@
         imgElement.previousElementSibling.style.display = 'none';
         inputElement.value = e.detail.image;
         enrollmentPhotoReady = true;
-        if (isMemberEnrollment()) {
-            if (!enrollmentTermsMet) {
-                setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
-            }
-        } else {
-            enrollmentTermsMet = true;
-            setTermsStatus('accepted', 'Foto capturada');
-            syncTermsAcceptedInput();
-        }
-        updateEnrollmentSaveState();
-    });
-
-    window.addEventListener('enrollmentTermsAccepted', function () {
-        memberTermsAcceptedOnTablet = true;
         enrollmentTermsMet = true;
-        setTermsStatus('accepted', 'Términos aceptados en la tablet');
+        setTermsStatus('accepted', 'Foto capturada');
+        syncTermsAcceptedInput();
         updateEnrollmentSaveState();
     });
 

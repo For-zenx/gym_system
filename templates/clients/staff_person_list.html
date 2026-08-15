@@ -29,6 +29,7 @@
     <a href="{% url 'staff_persons:staff_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if not active_tipo %} is-active{% endif %}">Todos</a>
     <a href="{% url 'staff_persons:staff_list' %}?tipo=empleado{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if active_tipo == 'empleado' %} is-active{% endif %}">Empleados</a>
     <a href="{% url 'staff_persons:staff_list' %}?tipo=entrenador{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if active_tipo == 'entrenador' %} is-active{% endif %}">Entrenadores</a>
+    <a href="{% url 'staff_persons:staff_list' %}?tipo=socio{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if active_tipo == 'socio' %} is-active{% endif %}">Socios</a>
 </div>
 
 <div class="table-container">

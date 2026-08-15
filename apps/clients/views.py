@@ -51,6 +51,7 @@ from apps.users.permissions import has_permission
 STAFF_LIST_TYPES = {
     "empleado": PersonCategory.EMPLOYEE,
     "entrenador": PersonCategory.TRAINER,
+    "socio": PersonCategory.PARTNER,
 }
 
 

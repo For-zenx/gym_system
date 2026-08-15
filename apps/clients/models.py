@@ -9,6 +9,7 @@ class PersonCategory(models.TextChoices):
     EMPLOYEE = "EMPLOYEE", "Empleado"
     TRAINER = "TRAINER", "Entrenador"
     GUEST = "GUEST", "Invitado"
+    PARTNER = "PARTNER", "Socio"
 
 
 PERSON_CODE_PREFIX = {
@@ -16,11 +17,13 @@ PERSON_CODE_PREFIX = {
     PersonCategory.EMPLOYEE: "E",
     PersonCategory.TRAINER: "T",
     PersonCategory.GUEST: "G",
+    PersonCategory.PARTNER: "S",
 }
 
 STAFF_PERSON_CATEGORIES = frozenset({
     PersonCategory.EMPLOYEE,
     PersonCategory.TRAINER,
+    PersonCategory.PARTNER,
 })
 
 
