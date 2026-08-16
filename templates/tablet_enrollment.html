@@ -7,7 +7,14 @@
     <title>Perfect Line II — Enrolamiento</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=3.0">
+    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=3.1">
+    <!-- PWA configuration for tablet mode -->
+    <link rel="manifest" href="{% url 'manifest_json' %}">
+    <meta name="theme-color" content="#000000">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/icon-192.png' %}">
 </head>
 <body>
 
@@ -68,5 +75,16 @@
     <script src="{% static 'vendor/face-api.min.js' %}"></script>
     <script src="{% static 'js/tablet_face_utils.js' %}?v=1.1"></script>
     <script src="{% static 'js/tablet_enrollment.js' %}?v=2.3"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register("{% url 'service_worker_js' %}").then(function(reg) {
+                    console.log('ServiceWorker registrado con éxito: ', reg.scope);
+                }, function(err) {
+                    console.warn('Fallo registro ServiceWorker: ', err);
+                });
+            });
+        }
+    </script>
 </body>
 </html>

@@ -185,6 +185,21 @@ html, body {
     }
 }
 
+/* --- TASK-102: landscape layout for Fire 7 (1024x600) and other horizontal orientations --- */
+@media (orientation: landscape) {
+    .face-guide-oval {
+        width: min(38vw, 270px);
+        height: min(85vh, 480px);
+        top: 50%;
+    }
+    
+    .face-guide-access .access-guide-oval {
+        width: min(40vw, 300px);
+        height: min(88vh, 500px);
+        top: 50%;
+    }
+}
+
 .access-bottom-banner {
     position: fixed;
     left: 0;

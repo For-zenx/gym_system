@@ -41,7 +41,7 @@
             Tomar otra foto
         </button>
         <div id="enrollment-terms-status" class="enrollment-terms-status enrollment-terms-status--pending" role="status">
-            Esperando foto del afiliado en la tablet
+            Esperando foto en la tablet
         </div>
     </div>
 
@@ -430,37 +430,17 @@
     }
 
     function resetEnrollmentSessionState() {
-        if (isGuestEnrollment() || isStaffEnrollment()) {
-            enrollmentTermsMet = enrollmentPhotoReady;
-            if (enrollmentPhotoReady) {
-                setTermsStatus('accepted', 'Foto capturada');
-            } else {
-                setTermsStatus('pending', isGuestEnrollment() ? 'Esperando foto del invitado en la tablet' : 'Esperando foto en la tablet');
-            }
-            updateEnrollmentSaveState();
-            return;
-        }
-        enrollmentTermsMet = memberTermsAcceptedOnTablet;
+        enrollmentTermsMet = enrollmentPhotoReady;
         if (enrollmentPhotoReady) {
-            if (memberTermsAcceptedOnTablet) {
-                setTermsStatus('accepted', 'Términos aceptados en la tablet');
-            } else {
-                setTermsStatus('pending', 'Esperando aceptación de términos en la tablet');
-            }
+            setTermsStatus('accepted', 'Foto capturada');
         } else {
-            setTermsStatus('pending', 'Esperando foto del afiliado en la tablet');
+            setTermsStatus('pending', 'Esperando foto en la tablet');
         }
         updateEnrollmentSaveState();
     }
 
     function syncTabletForCategory(category) {
         if (!window.sendDashboardCommand) {
-            return;
-        }
-        if (category === 'MEMBER') {
-            if (enrollmentPhotoReady && !memberTermsAcceptedOnTablet) {
-                window.sendDashboardCommand({ type: 'ENROLLMENT_REQUIRE_TERMS' });
-            }
             return;
         }
         window.sendDashboardCommand({ type: 'ENROLLMENT_SKIP_TERMS' });
@@ -471,11 +451,9 @@
             return;
         }
         window.sendDashboardCommand({ type: 'ENROLLMENT_START' });
-        if (!isMemberEnrollment()) {
-            window.setTimeout(function () {
-                window.sendDashboardCommand({ type: 'ENROLLMENT_SKIP_TERMS' });
-            }, 150);
-        }
+        window.setTimeout(function () {
+            window.sendDashboardCommand({ type: 'ENROLLMENT_SKIP_TERMS' });
+        }, 150);
     }
 
     function setCedulaWarning(visible, reEnrollUrl, existingCategory) {
