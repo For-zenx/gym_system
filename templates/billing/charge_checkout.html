@@ -94,7 +94,7 @@
 <script src="{% static 'js/checkout_confirm.js' %}?v=1.1"></script>
 <script src="{% static 'js/checkout_products.js' %}?v=1.9"></script>
 <script src="{% static 'js/checkout_payment_method.js' %}?v=1.1"></script>
-<script src="{% static 'js/billing_payment.js' %}?v=3.2"></script>
+<script src="{% static 'js/billing_payment.js' %}?v=3.3"></script>
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
     const tasaDia = parseUsdAmount(tasaDiaStr);
@@ -201,10 +201,7 @@
     var unbindPlanName = document.getElementById('unbind-plan-name');
     if (unbindBtn && unbindModal && unbindForm) {
         unbindBtn.addEventListener('click', function () {
-            var sel = document.getElementById('plan_id');
-            if (sel && sel.options[sel.selectedIndex]) {
-                unbindPlanName.textContent = sel.options[sel.selectedIndex].text;
-            }
+            unbindPlanName.textContent = unbindBtn.getAttribute('data-plan-name') || 'el plan fijo';
             unbindForm.action = "{% url 'billing:unbind_fixed_plan' client.codigo_afiliado %}";
             unbindModal.classList.add('show');
         });

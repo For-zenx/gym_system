@@ -120,7 +120,7 @@ window.addEventListener('tabletModeChanged', function (e) {
     var banner = document.getElementById('global-enrollment-banner');
     if (!banner) return;
     var path = window.location.pathname;
-    if (path === '/enrolamiento/' || path.startsWith('/tablet/')) {
+    if (path.startsWith('/tablet/')) {
         banner.style.display = 'none';
         return;
     }

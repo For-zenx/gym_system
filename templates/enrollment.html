@@ -5,7 +5,7 @@
 {% block page_title %}Enrolamiento{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.0">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.1">
 {% endblock %}
 
 {% block content %}
@@ -40,6 +40,9 @@
         </div>
         <button type="button" class="btn btn-secondary enrollment-retake-btn" onclick="retakeEnrollmentPhoto()">
             Tomar otra foto
+        </button>
+        <button type="button" class="btn btn-secondary enrollment-reset-tablet-btn" onclick="reconnectTablet(this)" title="Reinicia la sesión de captura en la tablet">
+            ↻ Reiniciar tablet
         </button>
         <div id="enrollment-terms-status" class="enrollment-terms-status enrollment-terms-status--pending" role="status">
             Esperando foto en la tablet
