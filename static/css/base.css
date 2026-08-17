@@ -1003,6 +1003,27 @@ a.sidebar-brand-link:hover span {
     opacity: 0.9;
 }
 
+/* Navbar Subtle Action Buttons (F2 / Ctrl+K) */
+.btn-nav-subtle {
+    background-color: var(--bg-card);
+    border: 1px solid #334155;
+    color: var(--text-main);
+}
+
+.btn-nav-subtle:hover {
+    background-color: #243347;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.btn-nav-subtle svg {
+    color: var(--text-muted);
+}
+
+.btn-nav-subtle:hover svg {
+    color: var(--primary);
+}
+
 /* Quick Modal Styles */
 .quick-modal-footer {
     margin-top: 1.5rem;

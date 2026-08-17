@@ -1053,6 +1053,44 @@ class GlobalPersonSearchView(PermissionRequiredMixin, View):
         return JsonResponse({"results": results})
 
 
+class PersonProfileSearchView(View):
+    """Búsqueda de personas (incluye invitados) para navegar a su perfil.
+
+    Accesible a cualquier usuario autenticado (sin required_permission).
+    Cada resultado incluye profile_url calculado según la categoría.
+    """
+
+    def get(self, request, *args, **kwargs):
+        query = request.GET.get("q", "").strip()
+        if len(query) < 2:
+            return JsonResponse({"results": []})
+
+        persons = (
+            Client.objects.filter(
+                Q(cedula__icontains=query)
+                | Q(codigo_afiliado__icontains=query)
+                | Q(nombre__icontains=query)
+            )
+            .order_by("nombre")[:8]
+        )
+
+        results = []
+        for person in persons:
+            results.append({
+                "id": person.pk,
+                "nombre": person.nombre,
+                "cedula": person.cedula,
+                "codigo_afiliado": person.codigo_afiliado,
+                "categoria": person.get_person_category_display(),
+                "profile_url": reverse(
+                    get_person_profile_url_name(person),
+                    kwargs={"codigo_afiliado": person.codigo_afiliado},
+                ),
+            })
+
+        return JsonResponse({"results": results})
+
+
 # ---------------------------------------------------------------------------
 # Corporate Group Views
 # ---------------------------------------------------------------------------
