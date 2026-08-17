@@ -107,12 +107,25 @@ function connectDashboardWebSocket() {
                 }));
             } else if (data.type === 'NEW_ACCESS_LOG') {
                 window.dispatchEvent(new CustomEvent('newAccessLog', { detail: data }));
+            } else if (data.type === 'TABLET_MODE_CHANGED') {
+                window.dispatchEvent(new CustomEvent('tabletModeChanged', { detail: { mode: data.mode } }));
             }
         } catch (err) {
             console.error('[Dashboard] Error parseando mensaje:', event.data);
         }
     };
 }
+
+window.addEventListener('tabletModeChanged', function (e) {
+    var banner = document.getElementById('global-enrollment-banner');
+    if (!banner) return;
+    var path = window.location.pathname;
+    if (path === '/enrolamiento/' || path.startsWith('/tablet/')) {
+        banner.style.display = 'none';
+        return;
+    }
+    banner.style.display = e.detail.mode === 'enrollment' ? 'block' : 'none';
+});
 
 document.addEventListener('DOMContentLoaded', function () {
     initTabletStatusPopover();

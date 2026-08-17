@@ -503,6 +503,8 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
 
 class DashboardConsumer(AsyncWebsocketConsumer):
     """WebSocket pasivo para la interfaz administrativa (PC)."""
+    
+    _is_enrollment_mode = False
 
     async def connect(self):
         await self.accept()
@@ -511,6 +513,12 @@ class DashboardConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_send(TABLET_ACCESS_GROUP, {"type": "tablet_status_request"})
         await self.channel_layer.group_send(TABLET_ENROLLMENT_GROUP, {"type": "tablet_status_request"})
         await self.channel_layer.group_send(TABLET_COMBINED_GROUP, {"type": "tablet_status_request"})
+        
+        if DashboardConsumer._is_enrollment_mode:
+            await self.send(json.dumps({
+                "type": "TABLET_MODE_CHANGED",
+                "mode": "enrollment"
+            }))
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard(DASHBOARD_GROUP, self.channel_name)
@@ -528,6 +536,23 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             command = {"type": "enrollment_command", "data": payload}
             await self.channel_layer.group_send(TABLET_ENROLLMENT_GROUP, command)
             await self.channel_layer.group_send(TABLET_COMBINED_GROUP, command)
+            
+            if msg_type in ("ENROLLMENT_START", "ENROLLMENT_END"):
+                mode = "enrollment" if msg_type == "ENROLLMENT_START" else "access"
+                DashboardConsumer._is_enrollment_mode = (mode == "enrollment")
+                await self.channel_layer.group_send(
+                    DASHBOARD_GROUP,
+                    {
+                        "type": "tablet_mode_changed",
+                        "mode": mode
+                    }
+                )
+
+    async def tablet_mode_changed(self, event):
+        await self.send(json.dumps({
+            "type": "TABLET_MODE_CHANGED",
+            "mode": event.get("mode"),
+        }))
 
     async def tablet_status(self, event):
         await self.send(json.dumps({

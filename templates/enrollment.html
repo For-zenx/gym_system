@@ -19,7 +19,8 @@
             <p style="color: var(--text-muted); margin-bottom: 1.5rem; max-width: 350px;">
                 Se ha perdido la conexión con la tablet de enrolamiento o está apagada.
             </p>
-            <button type="button" class="btn btn-primary" onclick="reconnectTablet()" style="padding: 0.75rem 1.5rem;">Intentar Reconectar</button>
+            <div id="reconnect-error-box" style="display: none; background-color: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 0.75rem; border-radius: 0.375rem; margin-bottom: 1rem; border: 1px solid currentColor; font-size: 0.875rem; text-align: left; max-width: 350px; margin-left: auto; margin-right: auto; line-height: 1.4;"></div>
+            <button type="button" class="btn btn-primary" onclick="reconnectTablet(this)" style="padding: 0.75rem 1.5rem;">Intentar Reconectar</button>
         </div>
 
         <div style="text-align: center; z-index: 5;">
@@ -563,13 +564,43 @@
         updateEnrollmentSaveState();
     });
 
-    function reconnectTablet() {
+    function reconnectTablet(btn) {
+        const errorBox = document.getElementById('reconnect-error-box');
+        if (errorBox) {
+            errorBox.style.display = 'none';
+        }
+
+        if (btn) {
+            const originalText = btn.textContent;
+            btn.textContent = 'Comprobando...';
+            btn.disabled = true;
+
+            setTimeout(function() {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                
+                if (!offlineOverlay.classList.contains('hidden')) {
+                    if (errorBox) {
+                        let errorMsg = "La tablet no responde (Código: TAB-OFFLINE).\n\nAcciones requeridas:\n1. Asegúrese que la tablet está encendida.\n2. Compruebe que la tablet tiene abierta la aplicación.\n3. Verifique que la tablet está conectada al WiFi del gimnasio.";
+                        
+                        if (!dashboardSocket || dashboardSocket.readyState !== WebSocket.OPEN) {
+                            errorMsg = "La caja no tiene conexión con el servidor (Código: DASH-OFFLINE).\n\nAcción requerida:\n- Verifique la conexión de red o reinicie el PerfectLine Manager.";
+                        }
+                        
+                        errorBox.innerText = errorMsg;
+                        errorBox.style.display = 'block';
+                    }
+                }
+            }, 1500);
+        }
+
         clearEnrollmentPhoto();
         startEnrollmentTabletSession();
     }
 
     function retakeEnrollmentPhoto() {
-        reconnectTablet();
+        clearEnrollmentPhoto();
+        startEnrollmentTabletSession();
     }
 
     if (cedulaPrefixInput) {
