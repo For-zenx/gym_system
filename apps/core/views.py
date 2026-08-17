@@ -146,13 +146,18 @@ def enrollment_cedula_check(request):
             get_person_profile_url_name(client),
             kwargs={"codigo_afiliado": client.codigo_afiliado},
         )
-        re_enroll_url = reverse("clients:re_enroll", kwargs={"codigo_afiliado": client.codigo_afiliado})
+        # Route to the correct re-enroll URL depending on person type
+        if client.is_member:
+            re_enroll_url = reverse("clients:re_enroll", kwargs={"codigo_afiliado": client.codigo_afiliado})
+        elif client.is_staff_person:
+            re_enroll_url = reverse("staff_persons:re_enroll", kwargs={"codigo_afiliado": client.codigo_afiliado})
     return JsonResponse({
         "exists": bool(client),
         "profile_url": profile_url,
         "re_enroll_url": re_enroll_url,
         "person_category": client.person_category if client else None,
     })
+
 
 
 @login_required

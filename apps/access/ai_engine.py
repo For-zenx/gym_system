@@ -39,10 +39,16 @@ def generate_embedding(image_path: Path) -> list:
         raise FileNotFoundError(f"Imagen no encontrada: {image_path}")
 
     image = face_recognition.load_image_file(str(image_path))
-    encodings = face_recognition.face_encodings(image)
+    # Use the 'large' model for better accuracy in real-world conditions
+    # (varied lighting, angles, distance). Slower but more reliable than 'small'.
+    encodings = face_recognition.face_encodings(image, model="large")
 
     if not encodings:
-        raise ValueError(f"No se detectó ninguna cara en la imagen: {image_path.name}")
+        raise ValueError(
+            "No se detectó ninguna cara en la foto capturada. "
+            "Asegúrese de que la cara esté bien iluminada, centrada y sin obstáculos "
+            f"(archivo: {image_path.name})"
+        )
     if len(encodings) > 1:
         logger.warning("Se detectaron %d caras en %s. Se usará solo la primera.", len(encodings), image_path.name)
 

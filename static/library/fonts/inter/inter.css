@@ -9,6 +9,13 @@
 @font-face {
   font-family: 'Inter';
   font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('inter-500.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
   font-weight: 600;
   font-display: swap;
   src: url('inter-600.ttf') format('truetype');
