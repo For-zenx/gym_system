@@ -118,6 +118,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<!-- Chart.js v4.4.7 — self-hosted, no internet required -->
+<script src="{% static 'library/js/chart.umd.min.js' %}"></script>
 <script src="{% static 'js/stats.js' %}?v=2.0"></script>
 {% endblock %}
