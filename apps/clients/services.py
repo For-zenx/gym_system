@@ -184,18 +184,78 @@ def _content_file_from_b64(b64_str, filename_base):
 
 
 def apply_front_photo_from_b64(client, foto_frente_b64):
+    """Saves a new front photo and updates the facial embedding.
+
+    Uses a safe write-then-verify order:
+      1. Decode the b64 image into memory (no disk write yet).
+      2. Save it to a TEMP path (does not touch the current photo yet).
+      3. Ask the AI to validate the temp photo.
+      4a. SUCCESS → delete old photo → promote temp to the real path.
+      4b. FAILURE → archive temp to evidencia_fallos → old photo untouched → re-raise.
+    This guarantees the existing good photo is never destroyed by a bad capture.
+    """
+    import datetime
     from apps.access import ai_engine
 
-    frente_file = _content_file_from_b64(foto_frente_b64, f"{client.codigo_afiliado}_frente")
-    if not frente_file:
+    # Step 1: decode base64 into a ContentFile (memory only, no disk write)
+    new_file = _content_file_from_b64(foto_frente_b64, f"{client.codigo_afiliado}_frente")
+    if not new_file:
         raise ValueError("La foto capturada no es válida.")
 
-    if client.foto_frente:
-        client.foto_frente.delete(save=False)
+    # Step 2: save the new photo to a temporary path first
+    temp_filename = f"{client.codigo_afiliado}_frente_tmp.{new_file.name.rsplit('.', 1)[-1]}"
+    temp_storage_path = f"clients/enrollment/{temp_filename}"
+    if default_storage.exists(temp_storage_path):
+        default_storage.delete(temp_storage_path)
+    saved_temp_path = default_storage.save(temp_storage_path, new_file)
 
-    client.foto_frente = frente_file
+    # Step 3: validate with the AI using the temp file
+    try:
+        from django.conf import settings
+        from pathlib import Path
+        temp_abs_path = Path(settings.MEDIA_ROOT) / saved_temp_path
+        embedding = ai_engine.generate_embedding(temp_abs_path)
+    except Exception as exc:
+        # AI rejected the photo — archive it as evidence and leave old photo intact
+        try:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            failed_path = f"failure/{client.codigo_afiliado}_{timestamp}.jpeg"
+            with default_storage.open(saved_temp_path) as f:
+                default_storage.save(failed_path, f)
+        except Exception:
+            pass  # Archiving failure must never suppress the real error
+        finally:
+            # Always clean up the temp file
+            if default_storage.exists(saved_temp_path):
+                default_storage.delete(saved_temp_path)
+        raise  # Re-raise the original AI error to the caller
+
+    # Step 4a: AI approved — now it's safe to swap the photos
+    old_foto = client.foto_frente.name if client.foto_frente else None
+
+    # Promote temp to the real final path
+    final_filename = f"{client.codigo_afiliado}_frente.{new_file.name.rsplit('.', 1)[-1]}"
+    final_storage_path = f"clients/enrollment/{final_filename}"
+    if default_storage.exists(final_storage_path):
+        default_storage.delete(final_storage_path)
+
+    # Rename temp → final by saving the content again (Django FileSystemStorage)
+    with default_storage.open(saved_temp_path) as f:
+        from django.core.files import File
+        final_saved_path = default_storage.save(final_storage_path, File(f))
+    default_storage.delete(saved_temp_path)
+
+    # Delete old photo only after new one is confirmed on disk
+    if old_foto and old_foto != final_saved_path:
+        if default_storage.exists(old_foto):
+            default_storage.delete(old_foto)
+
+    # Update the model with the pre-validated embedding
+    from django.core.files.base import ContentFile as DjangoContentFile
+    client.foto_frente.name = final_saved_path
     client.save(update_fields=["foto_frente"])
-    ai_engine.update_client_embeddings(client)
+    client.face_id_embeddings = embedding
+    client.save(update_fields=["face_id_embeddings"])
     return client
 
 
