@@ -112,7 +112,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/billing_payment.js' %}?v=1.4"></script>
+<script src="{% static 'js/billing_payment.js' %}?v=1.6"></script>
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
     const tasaDia = parseFloat(tasaDiaStr);

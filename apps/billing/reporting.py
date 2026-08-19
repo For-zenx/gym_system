@@ -250,6 +250,7 @@ def _aggregate_report_totals_and_rows(invoices):
         totals["total_ves"] += inv.monto_total
         invoice_rows.append(
             {
+                "pk": inv.pk,
                 "number": inv.nro_control,
                 "date": timezone.localtime(inv.fecha_emision).strftime("%d/%m/%Y %H:%M"),
                 "client": _invoice_client_label(inv),

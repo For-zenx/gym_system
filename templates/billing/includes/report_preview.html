@@ -45,7 +45,7 @@
             </thead>
             <tbody>
                 {% for row in report.invoice_rows %}
-                <tr>
+                <tr{% if 'billing.view_invoice_detail' in user_permissions %} class="report-table-row-link" data-href="{% url 'billing:invoice_detail' pk=row.pk %}"{% endif %}>
                     <td>{{ row.date }}</td>
                     <td style="font-family: monospace;">{{ row.number }}</td>
                     <td style="font-family: monospace;">{{ row.client_code }}</td>

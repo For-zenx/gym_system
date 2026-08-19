@@ -34,7 +34,6 @@ from .validation import (
 )
 from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
 from apps.billing.services import (
-    CUT_DATE_CHANGE_REASONS,
     get_chargeable_plans,
     get_display_service_periods_for_client,
     get_recent_service_periods_for_client,
@@ -212,7 +211,6 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
         context['has_chargeable_plans'] = bool(
             get_chargeable_plans(self.object, active_plans)
         )
-        context['cut_date_change_reasons'] = CUT_DATE_CHANGE_REASONS
         if has_permission(self.request.user, "classes.view"):
             from apps.classes.services import get_client_class_registrations
 

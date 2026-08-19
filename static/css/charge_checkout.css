@@ -915,7 +915,8 @@
 }
 
 /* Estado inactivo (antes de editar): apariencia muted */
-.billing-cut-day-section.billing-cut-day-idle .billing-cut-day-input[disabled] {
+.billing-cut-day-section.billing-cut-day-idle .billing-cut-day-input[disabled],
+.billing-cut-day-section.billing-cut-day-idle .billing-cycle-select[disabled] {
     opacity: 0.5;
 }
 .billing-cut-day-section.billing-cut-day-idle .billing-cut-day-header label {

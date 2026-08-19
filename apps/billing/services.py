@@ -38,6 +38,8 @@ CUT_DATE_CHANGE_REASONS = (
     "Cambio de quincena de pago",
 )
 
+DEFAULT_CUT_DATE_MOTIVO = "Actualizado en cobro"
+
 CUT_DATE_MOTIVO_OTHER = "__other__"
 
 
@@ -64,13 +66,11 @@ def log_billing_event(client, event_type, payload=None, motivo="", user=None):
     )
 
 
-def change_client_cut_date(client, new_day, motivo, user=None):
+def change_client_cut_date(client, new_day, motivo=DEFAULT_CUT_DATE_MOTIVO, user=None):
     if not isinstance(new_day, int) or new_day < 1 or new_day > 31:
         raise ValidationError("La fecha de corte debe ser un día entre 1 y 31.")
 
-    motivo = (motivo or "").strip()
-    if not motivo:
-        raise ValidationError("Debe indicar un motivo para cambiar la fecha de corte.")
+    motivo = (motivo or DEFAULT_CUT_DATE_MOTIVO).strip()
 
     old_day = client.fecha_corte_dia
     client.fecha_corte_dia = new_day
@@ -526,7 +526,10 @@ def preview_membership_period(client, plan, cut_day_override=None, roll_forward=
         fecha_inicio = hoy
         fecha_fin = next_cut_on_or_after(hoy, cut_day)
     else:
-        _, period_start, _ = _resolve_fixed_period(client, hoy, cut_day=cut_day)
+        previous_cut_day = client.fecha_corte_dia if cut_day_override is not None else None
+        _, period_start, _ = _resolve_fixed_period(
+            client, hoy, cut_day=cut_day, previous_cut_day=previous_cut_day
+        )
         fecha_inicio, fecha_fin = subscription_period_bounds(cut_day, period_start, roll_forward=roll_forward)
     return {
         "fecha_inicio": fecha_inicio,
@@ -548,36 +551,9 @@ def parse_payment_cut_day_from_post(post):
     return day
 
 
-def resolve_cut_date_motivo(post, prefix=""):
-    preset = (post.get("{0}motivo_preset".format(prefix)) or "").strip()
-    custom = (post.get("{0}motivo_custom".format(prefix)) or "").strip()
-
-    if preset == CUT_DATE_MOTIVO_OTHER:
-        if not custom:
-            raise ValidationError("Debe describir el motivo del cambio.")
-        return custom
-    if not preset:
-        raise ValidationError("Debe seleccionar un motivo.")
-    return preset
-
-
 def parse_payment_cut_from_post(post):
     cut_day = parse_payment_cut_day_from_post(post)
-    editing = post.get("payment_cut_editing") == "1"
-    initial_raw = (post.get("payment_cut_initial") or "").strip()
-
-    initial_day = None
-    if initial_raw:
-        try:
-            initial_day = int(initial_raw)
-        except (ValueError, TypeError):
-            raise ValidationError("El día de corte inicial no es válido.")
-
-    motivo = ""
-    if editing and initial_day is not None and cut_day != initial_day:
-        motivo = resolve_cut_date_motivo(post, prefix="payment_cut_")
-
-    return cut_day, motivo
+    return cut_day, ""
 
 
 def _payment_method_choices():
@@ -1038,10 +1014,19 @@ def register_checkout(
             elif plan.is_fixed:
                 if payment_cut_day is None:
                     raise ValidationError("Debe indicar el día de corte para el plan mensual.")
+                previous_cut_day = client.fecha_corte_dia
+                membership = _create_fixed_membership(
+                    client,
+                    plan,
+                    hoy,
+                    roll_forward=roll_forward,
+                    cut_current_period_only=cut_current_period_only,
+                    cut_day_override=payment_cut_day,
+                    previous_cut_day=previous_cut_day,
+                )
                 apply_cut_day_from_payment(
                     client, payment_cut_day, acting_user, motivo=payment_cut_motivo
                 )
-                membership = _create_fixed_membership(client, plan, hoy, roll_forward=roll_forward, cut_current_period_only=cut_current_period_only)
                 if client.fixed_plan_id is None or client.fixed_plan_id != plan.pk:
                     client.fixed_plan = plan
                     client.__class__.objects.filter(pk=client.pk).update(fixed_plan=plan)
@@ -1300,7 +1285,7 @@ def _create_flexible_membership(client, plan, hoy):
     )
 
 
-def _resolve_fixed_period(client, hoy, cut_day=None):
+def _resolve_fixed_period(client, hoy, cut_day=None, previous_cut_day=None):
     if cut_day is None:
         cut_day = client.fecha_corte_dia or hoy.day
 
@@ -1311,7 +1296,12 @@ def _resolve_fixed_period(client, hoy, cut_day=None):
     )
 
     if latest_fixed and latest_fixed.fecha_fin >= hoy:
-        period_start = next_cut_on_or_after(latest_fixed.fecha_fin, cut_day)
+        if previous_cut_day is not None and previous_cut_day != cut_day:
+            # Cambio de día de corte: el período inicia al terminar la membresía
+            # vigente y cierra en el siguiente corte con el nuevo día (sin hueco).
+            period_start = latest_fixed.fecha_fin
+        else:
+            period_start = next_cut_on_or_after(latest_fixed.fecha_fin, cut_day)
     else:
         # Si no hay membresía activa, empezamos hoy (evita retroceder al mes pasado)
         period_start = hoy
@@ -1320,14 +1310,16 @@ def _resolve_fixed_period(client, hoy, cut_day=None):
     return cut_day, period_start, assigns_cut
 
 
-def _create_fixed_membership(client, plan, hoy, roll_forward=False, cut_current_period_only=False):
-    cut_day = client.fecha_corte_dia
+def _create_fixed_membership(client, plan, hoy, roll_forward=False, cut_current_period_only=False, cut_day_override=None, previous_cut_day=None):
+    cut_day = cut_day_override if cut_day_override is not None else client.fecha_corte_dia
 
     if cut_current_period_only:
         fecha_inicio = hoy
         fecha_fin = next_cut_on_or_after(hoy, cut_day)
     else:
-        cut_day, period_start, _ = _resolve_fixed_period(client, hoy, cut_day=cut_day)
+        cut_day, period_start, _ = _resolve_fixed_period(
+            client, hoy, cut_day=cut_day, previous_cut_day=previous_cut_day
+        )
         fecha_inicio, fecha_fin = subscription_period_bounds(cut_day, period_start, roll_forward=roll_forward)
 
     return Membership.objects.create(

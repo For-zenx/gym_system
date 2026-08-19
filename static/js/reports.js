@@ -371,4 +371,12 @@
             onClose: closeFiscalResult,
         });
     }
+
+    document.addEventListener("click", function (event) {
+        var target = event.target;
+        var row = target && target.closest ? target.closest("tr[data-href]") : null;
+        if (!row) return;
+        if (target.closest("a, button, input, select, textarea")) return;
+        window.location.href = row.getAttribute("data-href");
+    });
 })();

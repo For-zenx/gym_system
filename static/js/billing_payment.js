@@ -23,12 +23,8 @@
         const cutDayInitial = document.getElementById('payment_cut_initial');
         const cutDayEditing = document.getElementById('payment_cut_editing');
         const cutDayEditBtn = document.getElementById('payment_cut_day_edit_btn');
-        const cutMotivoSection = document.getElementById('payment-cut-motivo-section');
-        const cutMotivoPreset = document.getElementById('payment_cut_motivo_preset');
-        const cutMotivoCustom = document.getElementById('payment_cut_motivo_custom');
         const cycleSelector = document.getElementById('payment-cycle-selector');
         const periodTypeSelect = document.getElementById('payment_period_type');
-        let paymentCutMotivo = null;
 
         const tasaDia = config.tasaDia;
         const billingContext = config.billingContext || {};
@@ -37,18 +33,6 @@
         let lateFeeDefaultApplied = false;
         let previewRequestId = 0;
         let cutDayEditMode = false;
-
-        function toggleCurrentPeriodOption() {
-            if (!periodTypeSelect) return;
-            const currentOption = periodTypeSelect.querySelector('.period-type-current-option');
-            if (!currentOption) return;
-            // Solo se muestra si el cliente NO tiene membresía activa (nuevo / migración / reactivación)
-            const showCurrent = !billingContext.has_active_membership;
-            currentOption.hidden = !showCurrent;
-            if (!showCurrent && periodTypeSelect.value === 'current') {
-                periodTypeSelect.value = 'full';
-            }
-        }
 
         function getDefaultCutDay() {
             return billingContext.default_cut_day || billingContext.fecha_corte_dia || new Date().getDate();
@@ -70,65 +54,10 @@
             return periodTypeSelect ? periodTypeSelect.value : 'full';
         }
 
-        function ensurePaymentCutMotivo() {
-            if (paymentCutMotivo || !cutMotivoPreset || !window.initCutDateMotivoFields) {
-                return;
-            }
-            paymentCutMotivo = initCutDateMotivoFields({
-                presetId: 'payment_cut_motivo_preset',
-                customWrapId: 'payment_cut_motivo_custom_wrap',
-                customId: 'payment_cut_motivo_custom',
-            });
-        }
-
-        function isPaymentCutMotivoValid() {
-            if (!cutMotivoSection || cutMotivoSection.style.display === 'none') {
-                return true;
-            }
-            if (!cutMotivoPreset || !cutMotivoPreset.value) {
-                return false;
-            }
-            if (cutMotivoPreset.value === '__other__') {
-                return !!(cutMotivoCustom && cutMotivoCustom.value.trim());
-            }
-            return true;
-        }
-
-        window.checkoutPaymentCutMotivoValid = isPaymentCutMotivoValid;
-
-        window.collectCheckoutPaymentErrors = function () {
-            if (isPaymentCutMotivoValid()) {
-                return [];
-            }
-            if (!cutMotivoSection || cutMotivoSection.style.display === 'none') {
-                return [];
-            }
-            if (cutMotivoPreset && cutMotivoPreset.value === '__other__') {
-                return ['Describa el motivo del cambio de fecha de corte.'];
-            }
-            return ['Seleccione un motivo para el cambio de fecha de corte.'];
-        };
-
         function refreshCheckoutSubmit() {
             if (window.checkoutRefreshSubmit) {
                 window.checkoutRefreshSubmit();
             }
-        }
-
-        function updateCutMotivoVisibility() {
-            if (!cutMotivoSection || !cutDayDisplay || !cutDayInitial) return;
-            const changed = parseInt(cutDayDisplay.value, 10) !== parseInt(cutDayInitial.value, 10);
-            const showMotivo = cutDayEditMode && changed;
-            cutMotivoSection.style.display = showMotivo ? 'block' : 'none';
-            if (cutMotivoPreset) {
-                cutMotivoPreset.required = showMotivo;
-                if (!showMotivo && paymentCutMotivo) {
-                    paymentCutMotivo.reset();
-                } else if (showMotivo) {
-                    ensurePaymentCutMotivo();
-                }
-            }
-            refreshCheckoutSubmit();
         }
 
         function resetCutDayEditor() {
@@ -151,18 +80,7 @@
             if (cutDaySection) {
                 cutDaySection.classList.add('billing-cut-day-idle');
             }
-            if (cutMotivoPreset) {
-                cutMotivoPreset.required = false;
-            }
-            if (cutMotivoCustom) {
-                cutMotivoCustom.required = false;
-            }
-            if (paymentCutMotivo) {
-                paymentCutMotivo.reset();
-            }
-            if (cutMotivoSection) cutMotivoSection.style.display = 'none';
-            if (cycleSelector) cycleSelector.style.display = 'none';
-            toggleCurrentPeriodOption();
+            if (cycleSelector) cycleSelector.style.display = 'block';
         }
 
         function enableCutDayEditor() {
@@ -182,8 +100,6 @@
             if (cutDaySection) {
                 cutDaySection.classList.remove('billing-cut-day-idle');
             }
-            toggleCurrentPeriodOption();
-            updateCutMotivoVisibility();
             updatePrice();
         }
 
@@ -327,13 +243,9 @@
                 resetCutDayEditor();
                 if (cycleSelector) cycleSelector.style.display = 'none';
             } else {
-                // Selector de período solo visible durante edición (botón Modificar)
-                const showCycle = cutDayEditMode;
-
                 if (cycleSelector) {
-                    cycleSelector.style.display = showCycle ? 'block' : 'none';
+                    cycleSelector.style.display = 'block';
                 }
-                toggleCurrentPeriodOption();
             }
 
             fetchPeriodPreview(select.value, billingType);
@@ -402,8 +314,10 @@
             });
         }
         function onCutDayFieldChange() {
+            if (cutDayDisplay) {
+                cutDayDisplay.value = cutDayDisplay.value.replace(/\D/g, '').slice(0, 2);
+            }
             syncCutDayHidden();
-            updateCutMotivoVisibility();
             const option = select.options[select.selectedIndex];
             if (!option || !option.value) return;
             fetchPeriodPreview(option.value, option.getAttribute('data-billing-type'));
@@ -416,12 +330,6 @@
         if (cutDayEditBtn) {
             cutDayEditBtn.addEventListener('click', enableCutDayEditor);
         }
-        if (cutMotivoPreset) {
-            cutMotivoPreset.addEventListener('change', refreshCheckoutSubmit);
-        }
-        if (cutMotivoCustom) {
-            cutMotivoCustom.addEventListener('input', refreshCheckoutSubmit);
-        }
         if (periodTypeSelect) {
             periodTypeSelect.addEventListener('change', function() {
                 const option = select.options[select.selectedIndex];
@@ -429,8 +337,6 @@
                 fetchPeriodPreview(option.value, option.getAttribute('data-billing-type'));
             });
         }
-
-        ensurePaymentCutMotivo();
 
         updatePrice();
 

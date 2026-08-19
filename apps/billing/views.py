@@ -23,7 +23,6 @@ from .services import (
     parse_payment_method_from_post,
     parse_product_lines_from_post,
     preview_membership_period,
-    resolve_cut_date_motivo,
 )
 from .printer import (
     build_invoice_preview_lines,
@@ -49,7 +48,6 @@ def _charge_form_context(client, planes):
     from .services import (
         get_client_billing_context,
         get_chargeable_plans,
-        CUT_DATE_CHANGE_REASONS,
     )
 
     ctx = get_client_billing_context(client)
@@ -75,7 +73,6 @@ def _charge_form_context(client, planes):
         "billing_context": ctx,
         "planes": chargeable,
         "payment_cut_day_default": default_cut_day,
-        "cut_date_change_reasons": CUT_DATE_CHANGE_REASONS,
         "billing_context_json": json.dumps(
             {
                 "fixed_status": ctx["fixed_status"],
@@ -457,8 +454,7 @@ class ChangeCutDateView(PermissionRequiredMixin, View):
 
         try:
             new_day = int(request.POST.get("cut_day", ""))
-            motivo = resolve_cut_date_motivo(request.POST)
-            change_client_cut_date(client, new_day, motivo, user=request.user)
+            change_client_cut_date(client, new_day, user=request.user)
             messages.success(request, f"Fecha de corte actualizada al día {new_day}.")
         except (ValueError, TypeError):
             messages.error(request, "Debe indicar un día de corte válido (1-31).")

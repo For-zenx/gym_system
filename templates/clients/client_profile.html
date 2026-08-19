@@ -418,9 +418,8 @@
                 {% csrf_token %}
                 <div class="form-group">
                     <label for="cut_day">Nuevo día de corte (1-31)</label>
-                    <input type="number" name="cut_day" id="cut_day" min="1" max="31" required class="form-control" value="{{ client.fecha_corte_dia|default:'' }}">
+                    <input type="number" name="cut_day" id="cut_day" min="1" max="31" maxlength="2" required class="form-control" value="{{ client.fecha_corte_dia|default:'' }}">
                 </div>
-                {% include 'billing/includes/cut_date_motivo_fields.html' with field_prefix='' id_prefix='cut_' label='Motivo del cambio' %}
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeCutDateModal()">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Guardar</button>
@@ -565,18 +564,7 @@
 
 {% block extra_js %}
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
-<script src="{% static 'js/cut_date_motivo.js' %}?v=1.0"></script>
 <script>
-    let cutDateMotivo = null;
-
-    {% if 'billing.change_cut_date' in user_permissions %}
-    cutDateMotivo = initCutDateMotivoFields({
-        presetId: 'cut_motivo_preset',
-        customWrapId: 'cut_motivo_custom_wrap',
-        customId: 'cut_motivo_custom',
-    });
-    {% endif %}
-
     {% if 'billing.change_cut_date' in user_permissions %}
     function openCutDateModal() {
         document.getElementById('cutDateModal').classList.add('show');
@@ -584,8 +572,11 @@
 
     function closeCutDateModal() {
         document.getElementById('cutDateModal').classList.remove('show');
-        if (cutDateMotivo) cutDateMotivo.reset();
     }
+
+    document.getElementById('cut_day').addEventListener('input', function () {
+        this.value = this.value.replace(/\D/g, '').slice(0, 2);
+    });
     {% endif %}
 
     {% if 'clients.block' in user_permissions %}

@@ -221,6 +221,18 @@
     margin-top: 0.75rem;
 }
 
+.report-table tbody tr.report-table-row-link {
+    cursor: pointer;
+}
+
+.report-table tbody tr.report-table-row-link:hover td {
+    color: var(--primary);
+}
+
+.report-table tbody tr.report-table-row-link:hover td:first-child {
+    text-decoration: underline;
+}
+
 .report-table tfoot .report-table-total td {
     border-top: 2px solid var(--border-color);
     padding-top: 0.85rem;

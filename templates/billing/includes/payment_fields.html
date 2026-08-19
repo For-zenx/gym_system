@@ -26,7 +26,7 @@
     <input type="hidden" name="payment_cut_initial" id="payment_cut_initial" value="{{ payment_cut_day_default }}">
     <input type="hidden" name="payment_cut_editing" id="payment_cut_editing" value="0">
     <div class="billing-cut-day-row">
-        <input type="number" id="payment_cut_day_display" min="1" max="31" value="{{ payment_cut_day_default }}" disabled class="billing-cut-day-input">
+        <input type="number" id="payment_cut_day_display" min="1" max="31" maxlength="2" value="{{ payment_cut_day_default }}" disabled class="billing-cut-day-input">
         <div id="payment-cycle-selector" class="billing-cycle-selector-inline" style="display: none;">
             <select name="payment_period_type" id="payment_period_type" disabled class="billing-cycle-select">
                 <option value="full" selected>Período completo (1 mes)</option>
@@ -40,9 +40,6 @@
             {% if client.fecha_corte_dia %}Corte actual del afiliado: día <strong>{{ client.fecha_corte_dia }}</strong>.{% else %}Sin corte asignado; el día indicado quedará como corte del afiliado.{% endif %}
         </span>
     </p>
-    <div id="payment-cut-motivo-section" class="billing-cut-motivo-section" style="display: none;">
-        {% include 'billing/includes/cut_date_motivo_fields.html' with field_prefix='payment_cut_' id_prefix='payment_cut_' label='Motivo del cambio de corte' %}
-    </div>
 </div>
 
 <div id="payment-period-box" class="checkout-period-preview" style="display: none;" aria-live="polite">
