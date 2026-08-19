@@ -448,6 +448,40 @@ a.sidebar-brand-link:hover span {
     white-space: nowrap;
 }
 
+.tablet-status-popover-footer {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.tablet-reload-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.4rem;
+    background-color: transparent;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.tablet-reload-btn:hover {
+    background-color: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.tablet-reload-btn:active {
+    background-color: rgba(239, 68, 68, 0.15);
+}
+
 /* --- Data Tables Reusable Component --- */
 .table-container {
     width: 100%;

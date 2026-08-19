@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Perfect Line II{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=3.4">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=3.5">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -169,6 +169,15 @@
                                 <span class="tablet-status-popover-label">Tablet de enrolamiento</span>
                                 <span class="tablet-status-popover-text status-text">Offline</span>
                             </div>
+                            <div class="tablet-status-popover-footer">
+                                <button type="button" class="tablet-reload-btn" id="tabletReloadBtn" onclick="window.reloadTablet()" title="Fuerza una recarga del navegador en la tablet">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                    </svg>
+                                    Reiniciar tablet
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -242,7 +251,7 @@
         }
     </script>
     <script src="{% static 'js/modal.js' %}?v=1.0"></script>
-    <script src="{% static 'js/dashboard_ws.js' %}?v=2.0"></script>
+    <script src="{% static 'js/dashboard_ws.js' %}?v=2.1"></script>
     <script src="{% static 'js/profile_search.js' %}?v=1.0"></script>
     {% if 'billing.charge' in user_permissions %}
     <script src="{% static 'js/quick_charge.js' %}?v=1.0"></script>

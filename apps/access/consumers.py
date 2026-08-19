@@ -213,6 +213,9 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
     async def tablet_status_request(self, event):
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
 
+    async def tablet_reload(self, event):
+        await self.send(json.dumps({"type": "TABLET_RELOAD"}))
+
     async def _notify_dashboard(self, role, online):
         await self.channel_layer.group_send(
             DASHBOARD_GROUP,
@@ -261,6 +264,9 @@ class EnrollmentTabletConsumer(AsyncWebsocketConsumer):
 
     async def tablet_status_request(self, event):
         await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, True)
+
+    async def tablet_reload(self, event):
+        await self.send(json.dumps({"type": "TABLET_RELOAD"}))
 
     async def _notify_dashboard(self, role, online):
         await self.channel_layer.group_send(
@@ -494,6 +500,9 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
         await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, True)
 
+    async def tablet_reload(self, event):
+        await self.send(json.dumps({"type": "TABLET_RELOAD"}))
+
     async def _notify_dashboard(self, role, online):
         await self.channel_layer.group_send(
             DASHBOARD_GROUP,
@@ -532,11 +541,16 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             return
 
         msg_type = payload.get("type")
-        if msg_type in ENROLLMENT_COMMAND_TYPES:
+        if msg_type == "TABLET_RELOAD":
+            reload_event = {"type": "tablet_reload"}
+            await self.channel_layer.group_send(TABLET_ACCESS_GROUP, reload_event)
+            await self.channel_layer.group_send(TABLET_ENROLLMENT_GROUP, reload_event)
+            await self.channel_layer.group_send(TABLET_COMBINED_GROUP, reload_event)
+        elif msg_type in ENROLLMENT_COMMAND_TYPES:
             command = {"type": "enrollment_command", "data": payload}
             await self.channel_layer.group_send(TABLET_ENROLLMENT_GROUP, command)
             await self.channel_layer.group_send(TABLET_COMBINED_GROUP, command)
-            
+
             if msg_type in ("ENROLLMENT_START", "ENROLLMENT_END"):
                 mode = "enrollment" if msg_type == "ENROLLMENT_START" else "access"
                 DashboardConsumer._is_enrollment_mode = (mode == "enrollment")

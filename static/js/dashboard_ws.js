@@ -143,3 +143,7 @@ window.sendDashboardCommand = function (commandData) {
         console.warn('[Dashboard] Imposible enviar comando. WebSocket no está abierto.');
     }
 };
+
+window.reloadTablet = function () {
+    window.sendDashboardCommand({ type: 'TABLET_RELOAD' });
+};

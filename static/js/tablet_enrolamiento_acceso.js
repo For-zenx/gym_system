@@ -794,6 +794,10 @@ function handleAccessResponse(data) {
 }
 
 function handleServerMessage(data) {
+    if (data.type === "TABLET_RELOAD") {
+        window.location.reload();
+        return;
+    }
     if (data.type && String(data.type).indexOf("ENROLLMENT_") === 0) {
         handleEnrollmentCommand(data);
         return;
@@ -809,7 +813,7 @@ function connectWebSocket() {
         if (currentMode === MODE_ENROLLMENT && !isEnrollmentCaptureActive && !enrollmentCaptureCompleted) {
             enterAccessMode();
         } else if (currentMode === MODE_ACCESS) {
-            setStatus("connected", "Conectado");
+            enterAccessMode();
         }
     };
 
@@ -828,10 +832,38 @@ function connectWebSocket() {
     };
 }
 
+function scheduleDailyReload() {
+    const now = new Date();
+    const reloadTime = new Date();
+    reloadTime.setHours(4, 0, 0, 0); // 4:00 AM
+
+    // Si ya pasaron las 4:00 AM de hoy, programar para mañana
+    if (now.getTime() > reloadTime.getTime()) {
+        reloadTime.setDate(reloadTime.getDate() + 1);
+    }
+
+    const msUntilReload = reloadTime.getTime() - now.getTime();
+    
+    setTimeout(function() {
+        window.location.reload();
+    }, msUntilReload);
+}
+
 document.addEventListener("DOMContentLoaded", function () {
+    scheduleDailyReload();
+    
     if (termsAcceptBtn) {
         termsAcceptBtn.addEventListener("click", acceptTermsOnTablet);
     }
+    document.addEventListener("visibilitychange", function () {
+        if (
+            document.visibilityState === "visible" &&
+            (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)
+        ) {
+            clearTimeout(reconnectTimer);
+            connectWebSocket();
+        }
+    });
     loadModels()
         .then(function () {
             return enterAccessMode();
