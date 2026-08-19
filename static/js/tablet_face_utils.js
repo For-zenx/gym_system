@@ -2,7 +2,7 @@
 
 const TabletFaceUtils = (function () {
     const MIN_DETECTION_SCORE = 0.60;
-    const STABILITY_MS = 200;
+    const STABILITY_MS = 800;
     const OVAL_MIN_FACE_WIDTH_RATIO = 0.32;
     const OVAL_MAX_FACE_WIDTH_RATIO = 0.98;
 
