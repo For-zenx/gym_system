@@ -5,16 +5,7 @@ import logging
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-from apps.access import ai_engine
-from apps.access.services import (
-    build_cooldown_denied_payload,
-    build_tablet_access_payload,
-    check_access_integrity,
-    get_client_cooldown_remaining,
-    log_cooldown_denial,
-    log_unknown_access,
-    pulse_turnstile_if_granted,
-)
+from apps.access.frame_processing import process_biometric_access_frame
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +23,16 @@ ENROLLMENT_COMMAND_TYPES = (
     "ENROLLMENT_SKIP_TERMS",
     "ENROLLMENT_REQUIRE_TERMS",
 )
+
+
+async def _send_access_frame_result(consumer, result):
+    if result["dashboard_event"] is not None:
+        event = {"type": "new_access_log"}
+        event.update(result["dashboard_event"])
+        await consumer.channel_layer.group_send(DASHBOARD_GROUP, event)
+
+    await consumer.send(json.dumps(result["tablet_response"]))
+    return result["unknown_log_time"]
 
 
 class AccessTabletConsumer(AsyncWebsocketConsumer):
@@ -69,146 +70,11 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
             await self.send(json.dumps({"status": "ERROR", "reason": "Campo 'image' vacío."}))
             return
 
-        client = await database_sync_to_async(ai_engine.recognize_face)(base64_image)
-
-        if client is None:
-            now = datetime.datetime.now()
-            should_log = False
-            if (
-                AccessTabletConsumer.last_unknown_log_time is None
-                or (now - AccessTabletConsumer.last_unknown_log_time).total_seconds()
-                >= 10
-            ):
-                AccessTabletConsumer.last_unknown_log_time = now
-                should_log = True
-
-            if should_log:
-                await database_sync_to_async(log_unknown_access)()
-                await self.channel_layer.group_send(
-                    DASHBOARD_GROUP,
-                    {
-                        "type": "new_access_log",
-                        "name": "No reconocido",
-                        "cedula": "",
-                        "codigo": "—",
-                        "telefono": "",
-                        "fecha_ingreso": "—",
-                        "photo_url": "",
-                        "granted": False,
-                        "detail": "No reconocido",
-                        "is_staff_person": False,
-                        "is_guest_person": False,
-                        "is_unknown": True,
-                        "membership_lines": [],
-                        "timestamp": now.strftime("%d/%m/%Y - %H:%M:%S"),
-                    },
-                )
-
-            await self.send(
-                json.dumps(
-                    {
-                        "status": "DENIED",
-                        "variant": "denied_unknown",
-                        "name": "",
-                        "detail": "No reconocido",
-                    }
-                )
-            )
-            return
-
-        remaining = await database_sync_to_async(get_client_cooldown_remaining)(client)
-        if remaining is not None:
-            await database_sync_to_async(log_cooldown_denial)(client, remaining)
-            tablet_payload = await database_sync_to_async(build_cooldown_denied_payload)(
-                client, remaining
-            )
-            await self.send(json.dumps(tablet_payload))
-
-            photo_url = client.foto_frente.url if client.foto_frente else ""
-            if client.is_guest:
-                from apps.clients.services import get_guest_feed_lines
-
-                membership_lines = await database_sync_to_async(get_guest_feed_lines)(client)
-            else:
-                from apps.billing.services import get_membership_feed_lines
-
-                membership_lines = await database_sync_to_async(get_membership_feed_lines)(client)
-
-            await self.channel_layer.group_send(
-                DASHBOARD_GROUP,
-                {
-                    "type": "new_access_log",
-                    "name": client.nombre,
-                    "cedula": client.cedula or "",
-                    "codigo": client.codigo_afiliado,
-                    "telefono": client.telefono,
-                    "fecha_ingreso": client.fecha_ingreso.strftime('%d/%m/%Y'),
-                    "photo_url": photo_url,
-                    "granted": False,
-                    "detail": tablet_payload["detail"],
-                    "is_staff_person": client.is_staff_person,
-                    "is_guest_person": client.is_guest,
-                    "membership_lines": membership_lines,
-                    "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S'),
-                },
-            )
-            return
-
-        def get_membership_data(client_obj):
-            from django.utils import timezone
-
-            active_mems = client_obj.active_memberships
-            if not active_mems.exists():
-                return None
-
-            current_time = timezone.localtime().time()
-            valid_now = [m for m in active_mems if m.is_valid_now(current_time)]
-            mem = valid_now[0] if valid_now else active_mems.order_by('-fecha_fin').first()
-
-            return {
-                "plan_name": mem.plan.nombre,
-                "fecha_fin": mem.fecha_fin.strftime('%d/%m/%Y'),
-                "days_left": (mem.fecha_fin - datetime.date.today()).days,
-            }
-
-        mem_data = await database_sync_to_async(get_membership_data)(client)
-        granted, detail = await database_sync_to_async(check_access_integrity)(client)
-
-        await database_sync_to_async(pulse_turnstile_if_granted)(granted)
-
-        tablet_payload = await database_sync_to_async(build_tablet_access_payload)(
-            client, granted, detail, mem_data
+        result = await database_sync_to_async(process_biometric_access_frame)(
+            base64_image,
+            AccessTabletConsumer.last_unknown_log_time,
         )
-        await self.send(json.dumps(tablet_payload))
-
-        photo_url = client.foto_frente.url if client.foto_frente else ""
-        if client.is_guest:
-            from apps.clients.services import get_guest_feed_lines
-
-            membership_lines = await database_sync_to_async(get_guest_feed_lines)(client)
-        else:
-            from apps.billing.services import get_membership_feed_lines
-
-            membership_lines = await database_sync_to_async(get_membership_feed_lines)(client)
-
-        await self.channel_layer.group_send(
-            DASHBOARD_GROUP,
-            {
-                "type": "new_access_log",
-                "name": client.nombre,
-                "cedula": client.cedula or "",
-                "codigo": client.codigo_afiliado,
-                "telefono": client.telefono,
-                "fecha_ingreso": client.fecha_ingreso.strftime('%d/%m/%Y'),
-                "photo_url": photo_url,
-                "granted": granted,
-                "detail": detail,
-                "is_staff_person": client.is_staff_person,
-                "is_guest_person": client.is_guest,
-                "membership_lines": membership_lines,
-                "timestamp": datetime.datetime.now().strftime('%d/%m/%Y - %H:%M:%S'),
-            },
-        )
+        AccessTabletConsumer.last_unknown_log_time = await _send_access_frame_result(self, result)
 
     async def tablet_status_request(self, event):
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
@@ -346,152 +212,16 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
             )
 
     async def _handle_frame(self, payload):
-        # Reutilizar la misma lógica que AccessTabletConsumer
         base64_image = payload.get("image", "")
         if not base64_image:
             await self.send(json.dumps({"status": "ERROR", "reason": "Campo 'image' vacío."}))
             return
 
-        client = await database_sync_to_async(ai_engine.recognize_face)(base64_image)
-
-        if client is None:
-            now = datetime.datetime.now()
-            should_log = False
-            if (
-                CombinedTabletConsumer.last_unknown_log_time is None
-                or (now - CombinedTabletConsumer.last_unknown_log_time).total_seconds()
-                >= 10
-            ):
-                CombinedTabletConsumer.last_unknown_log_time = now
-                should_log = True
-
-            if should_log:
-                await database_sync_to_async(log_unknown_access)()
-                await self.channel_layer.group_send(
-                    DASHBOARD_GROUP,
-                    {
-                        "type": "new_access_log",
-                        "name": "No reconocido",
-                        "cedula": "",
-                        "codigo": "—",
-                        "telefono": "",
-                        "fecha_ingreso": "—",
-                        "photo_url": "",
-                        "granted": False,
-                        "detail": "No reconocido",
-                        "is_staff_person": False,
-                        "is_guest_person": False,
-                        "is_unknown": True,
-                        "membership_lines": [],
-                        "timestamp": now.strftime("%d/%m/%Y - %H:%M:%S"),
-                    },
-                )
-
-            await self.send(
-                json.dumps(
-                    {
-                        "status": "DENIED",
-                        "variant": "denied_unknown",
-                        "name": "",
-                        "detail": "No reconocido",
-                    }
-                )
-            )
-            return
-
-        remaining = await database_sync_to_async(get_client_cooldown_remaining)(client)
-        if remaining is not None:
-            await database_sync_to_async(log_cooldown_denial)(client, remaining)
-            tablet_payload = await database_sync_to_async(build_cooldown_denied_payload)(
-                client, remaining
-            )
-            await self.send(json.dumps(tablet_payload))
-
-            photo_url = client.foto_frente.url if client.foto_frente else ""
-            if client.is_guest:
-                from apps.clients.services import get_guest_feed_lines
-
-                membership_lines = await database_sync_to_async(get_guest_feed_lines)(client)
-            else:
-                from apps.billing.services import get_membership_feed_lines
-
-                membership_lines = await database_sync_to_async(get_membership_feed_lines)(client)
-
-            await self.channel_layer.group_send(
-                DASHBOARD_GROUP,
-                {
-                    "type": "new_access_log",
-                    "name": client.nombre,
-                    "cedula": client.cedula or "",
-                    "codigo": client.codigo_afiliado,
-                    "telefono": client.telefono,
-                    "fecha_ingreso": client.fecha_ingreso.strftime("%d/%m/%Y"),
-                    "photo_url": photo_url,
-                    "granted": False,
-                    "detail": tablet_payload["detail"],
-                    "is_staff_person": client.is_staff_person,
-                    "is_guest_person": client.is_guest,
-                    "membership_lines": membership_lines,
-                    "timestamp": datetime.datetime.now().strftime("%d/%m/%Y - %H:%M:%S"),
-                },
-            )
-            return
-
-        def get_membership_data(client_obj):
-            from django.utils import timezone
-
-            active_mems = client_obj.active_memberships
-            if not active_mems.exists():
-                return None
-
-            current_time = timezone.localtime().time()
-            valid_now = [m for m in active_mems if m.is_valid_now(current_time)]
-            mem = valid_now[0] if valid_now else active_mems.order_by("-fecha_fin").first()
-
-            return {
-                "plan_name": mem.plan.nombre,
-                "fecha_fin": mem.fecha_fin.strftime("%d/%m/%Y"),
-                "days_left": (mem.fecha_fin - datetime.date.today()).days,
-            }
-
-        mem_data = await database_sync_to_async(get_membership_data)(client)
-        granted, detail = await database_sync_to_async(check_access_integrity)(client)
-
-        await database_sync_to_async(pulse_turnstile_if_granted)(granted)
-
-        tablet_payload = await database_sync_to_async(build_tablet_access_payload)(
-            client, granted, detail, mem_data
+        result = await database_sync_to_async(process_biometric_access_frame)(
+            base64_image,
+            CombinedTabletConsumer.last_unknown_log_time,
         )
-        await self.send(json.dumps(tablet_payload))
-
-        photo_url = client.foto_frente.url if client.foto_frente else ""
-        if client.is_guest:
-            from apps.clients.services import get_guest_feed_lines
-
-            membership_lines = await database_sync_to_async(get_guest_feed_lines)(client)
-        else:
-            from apps.billing.services import get_membership_feed_lines
-
-            membership_lines = await database_sync_to_async(get_membership_feed_lines)(client)
-
-        await self.channel_layer.group_send(
-            DASHBOARD_GROUP,
-            {
-                "type": "new_access_log",
-                "name": client.nombre,
-                "cedula": client.cedula or "",
-                "codigo": client.codigo_afiliado,
-                "telefono": client.telefono,
-                "fecha_ingreso": client.fecha_ingreso.strftime("%d/%m/%Y"),
-                "photo_url": photo_url,
-                "granted": granted,
-                "detail": detail,
-                "is_staff_person": client.is_staff_person,
-                "is_guest_person": client.is_guest,
-                "membership_lines": membership_lines,
-                "timestamp": datetime.datetime.now().strftime("%d/%m/%Y - %H:%M:%S"),
-            },
-        )
+        CombinedTabletConsumer.last_unknown_log_time = await _send_access_frame_result(self, result)
 
     async def enrollment_command(self, event):
         await self.send(json.dumps(event.get("data", {})))

@@ -36,4 +36,10 @@ HERRAMIENTAS DE SOPORTE
 mostrar_machine_id.bat     - ID de esta computadora (para generar licencia)
 crear_superusuario.bat     - crear usuario admin (BD vacia o nueva instalacion)
 actualizar.bat             - backup de BD + migraciones
+regenerar_embeddings.bat   - regenerar embeddings faciales (detener Manager antes)
 debug\liberar_puerto_8000.bat - si el puerto 8000 queda ocupado
+
+LOGS DE BIOMETRIA (acceso en puerta)
+------------------------------------
+logs\biometria_acceso_YYYYMMDD.txt - distancias de match por intento (tuning tolerancia)
+logs\regenerar_embeddings_*.txt  - reporte del script de regeneracion
