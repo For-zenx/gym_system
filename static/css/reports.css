@@ -373,3 +373,100 @@
     font-size: 1.35rem;
     color: var(--primary);
 }
+
+/* --- TASK-110: Cierre fiscal y Resumen --- */
+.report-fiscal-date-form {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    background: var(--bg-surface);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 0.75rem;
+}
+
+.report-fiscal-date-form label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-main);
+}
+
+.report-fiscal-date-form input[type="date"] {
+    padding: 0.55rem 0.85rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.95rem;
+    min-width: 12rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.report-fiscal-date-form input[type="date"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.report-fiscal-date-form input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 0.15s ease;
+}
+
+.report-fiscal-date-form input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+.report-period-form input[type="date"] {
+    padding: 0.55rem 0.85rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.95rem;
+    min-width: 12rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.report-period-form input[type="date"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.report-period-form input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 0.15s ease;
+}
+
+.report-period-form input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+.report-period-form label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.report-fiscal-note {
+    margin: 0.85rem 0 0;
+    line-height: 1.5;
+    font-size: 0.85rem;
+}
+
+.report-send-subtle-btn {
+    font-size: 0.875rem;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.85rem;
+    font-size: 0.875rem;
+}

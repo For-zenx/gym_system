@@ -879,13 +879,76 @@ class VoidInvoiceView(PermissionRequiredMixin, View):
         return redirect("billing:invoice_detail", pk=pk)
 
 
+def _parse_target_date(raw_date):
+    from datetime import date
+
+    try:
+        return date.fromisoformat((raw_date or "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
 class ReportView(PermissionRequiredMixin, View):
+    """DEPRECATED: reemplazado por billing:fiscal_report y billing:summary_report.
+
+    Conservado únicamente para enlaces antiguos; redirige a la nueva página
+    de resumen.
+    """
+
+    required_permission = "reports.view"
+
+    def get(self, request):
+        return redirect("{}?period={}".format(reverse("billing:summary_report"), request.GET.get("period", 7)))
+
+
+class FiscalReportView(PermissionRequiredMixin, View):
+    """Página de cierre fiscal: referencia del sistema por fecha + impresión X/Z actual."""
+
+    required_permission = "reports.view"
+
+    def get(self, request):
+        from .reporting import build_report_context_for_date, can_send_report_today, daily_send_count, is_smtp_configured
+        from .models import ReportEmailSettings
+
+        target_date = _parse_target_date(request.GET.get("fecha")) or timezone.localdate()
+        can_print_x = has_permission(request.user, "reports.print_x")
+        can_print_z = has_permission(request.user, "reports.print_z")
+        show_fiscal_reports = can_print_x or can_print_z
+        report = build_report_context_for_date(target_date)
+        cfg = ReportEmailSettings.get_settings()
+        can_send, send_block_reason = can_send_report_today()
+
+        return render(
+            request,
+            "billing/fiscal_report.html",
+            {
+                "report": report,
+                "target_date": target_date,
+                "can_print_x": can_print_x,
+                "can_print_z": can_print_z,
+                "show_fiscal_reports": show_fiscal_reports,
+                "fiscal_report_url": reverse("billing:fiscal_report_print"),
+                "recipient_emails": cfg.recipient_emails_list,
+                "recipient_emails_display": cfg.recipient_emails_display,
+                "daily_send_limit": cfg.daily_send_limit,
+                "daily_send_count": daily_send_count(),
+                "can_send": can_send,
+                "send_block_reason": send_block_reason,
+                "smtp_configured": is_smtp_configured(),
+            },
+        )
+
+
+class SummaryReportView(PermissionRequiredMixin, View):
+    """Página de resumen: período o día específico + envío por correo."""
+
     required_permission = "reports.view"
 
     def get(self, request):
         from .reporting import (
             REPORT_PERIOD_CHOICES,
             build_report_context,
+            build_report_context_for_date,
             can_send_report_today,
             daily_send_count,
             is_smtp_configured,
@@ -894,30 +957,23 @@ class ReportView(PermissionRequiredMixin, View):
         from .models import ReportEmailSettings
 
         period_days = normalize_period_days(request.GET.get("period", 7))
-        can_print_x = has_permission(request.user, "reports.print_x")
-        can_print_z = has_permission(request.user, "reports.print_z")
-        show_fiscal_reports = can_print_x or can_print_z
-
-        tab = (request.GET.get("tab") or "").strip().lower()
-        if tab not in ("fiscal", "email"):
-            tab = "fiscal" if show_fiscal_reports else "email"
-        if tab == "fiscal" and not show_fiscal_reports:
-            tab = "email"
-
-        report = build_report_context(period_days)
-        today_report = build_report_context(1) if tab == "fiscal" else None
+        target_date = _parse_target_date(request.GET.get("fecha"))
+        report = (
+            build_report_context_for_date(target_date)
+            if target_date is not None
+            else build_report_context(period_days)
+        )
         cfg = ReportEmailSettings.get_settings()
         can_send, send_block_reason = can_send_report_today()
 
         return render(
             request,
-            "billing/report.html",
+            "billing/summary_report.html",
             {
                 "report": report,
-                "today_report": today_report,
-                "active_tab": tab,
                 "period_choices": REPORT_PERIOD_CHOICES,
                 "period_days": period_days,
+                "target_date": target_date,
                 "recipient_emails": cfg.recipient_emails_list,
                 "recipient_emails_display": cfg.recipient_emails_display,
                 "daily_send_limit": cfg.daily_send_limit,
@@ -925,10 +981,7 @@ class ReportView(PermissionRequiredMixin, View):
                 "can_send": can_send,
                 "send_block_reason": send_block_reason,
                 "smtp_configured": is_smtp_configured(),
-                "can_print_x": can_print_x,
-                "can_print_z": can_print_z,
-                "show_fiscal_reports": show_fiscal_reports,
-                "fiscal_report_url": reverse("billing:fiscal_report_print"),
+                "send_url": reverse("billing:report_send"),
             },
         )
 
@@ -942,6 +995,9 @@ class FiscalReportPrintView(PermissionRequiredMixin, View):
         "X": "reports.print_x",
         "Z": "reports.print_z",
     }
+
+    def _redirect_url(self):
+        return reverse("billing:fiscal_report")
 
     def post(self, request):
         report_type = (request.POST.get("report_type") or "").strip().upper()
@@ -957,7 +1013,7 @@ class FiscalReportPrintView(PermissionRequiredMixin, View):
             if is_ajax:
                 return JsonResponse(payload, status=400)
             messages.error(request, payload["message"])
-            return redirect("{}?tab=fiscal".format(reverse("billing:report")))
+            return redirect(self._redirect_url())
 
         if not has_permission(request.user, required):
             payload = {
@@ -968,7 +1024,7 @@ class FiscalReportPrintView(PermissionRequiredMixin, View):
             if is_ajax:
                 return JsonResponse(payload, status=403)
             messages.error(request, payload["message"])
-            return redirect("{}?tab=fiscal".format(reverse("billing:report")))
+            return redirect(self._redirect_url())
 
         result = execute_fiscal_report(
             report_type,
@@ -985,7 +1041,7 @@ class FiscalReportPrintView(PermissionRequiredMixin, View):
             messages.success(request, result.message)
         else:
             messages.error(request, result.message)
-        return redirect("{}?tab=fiscal".format(reverse("billing:report")))
+        return redirect(self._redirect_url())
 
 
 class ReportSendView(PermissionRequiredMixin, View):
@@ -994,8 +1050,17 @@ class ReportSendView(PermissionRequiredMixin, View):
     def post(self, request):
         from .reporting import normalize_period_days, send_report_email
 
-        period_days = normalize_period_days(request.POST.get("period_days", 7))
-        result = send_report_email(period_days=period_days, user=request.user)
+        target_date = _parse_target_date(request.POST.get("fecha"))
+        if target_date is not None:
+            result = send_report_email(target_date=target_date, user=request.user)
+            redirect_url = "{}?fecha={}".format(
+                reverse("billing:summary_report"),
+                target_date.isoformat(),
+            )
+        else:
+            period_days = normalize_period_days(request.POST.get("period_days", 7))
+            result = send_report_email(period_days=period_days, user=request.user)
+            redirect_url = "{}?period={}".format(reverse("billing:summary_report"), period_days)
 
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return JsonResponse(result)
@@ -1005,7 +1070,7 @@ class ReportSendView(PermissionRequiredMixin, View):
         else:
             failed = next((item["text"] for item in result["items"] if not item["ok"]), None)
             messages.error(request, failed or "No se pudo enviar el reporte.")
-        return redirect(f"{reverse('billing:report')}?tab=email&period={period_days}")
+        return redirect(redirect_url)
 
 
 class UnbindFixedPlanView(PermissionRequiredMixin, View):

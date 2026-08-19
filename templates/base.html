@@ -77,7 +77,8 @@
                 <a href="{% url 'access:access_log_list' %}" class="nav-item {% if request.resolver_match.url_name == 'access_log_list' %}active{% endif %}">Historial de acceso</a>
                 {% endif %}
                 {% if 'reports.view' in user_permissions %}
-                <a href="{% url 'billing:report' %}" class="nav-item {% if request.resolver_match.url_name == 'report' %}active{% endif %}">Reportes</a>
+                <a href="{% url 'billing:fiscal_report' %}" class="nav-item {% if request.resolver_match.url_name == 'fiscal_report' %}active{% endif %}">Cierre fiscal</a>
+                <a href="{% url 'billing:summary_report' %}" class="nav-item {% if request.resolver_match.url_name == 'summary_report' %}active{% endif %}">Resumen</a>
                 {% endif %}
                 {% if 'stats.view' in user_permissions %}
                 <a href="{% url 'stats:entry_hours' %}" class="nav-item {% if '/estadisticas/' in request.path %}active{% endif %}">Estadísticas</a>

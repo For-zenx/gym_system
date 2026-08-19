@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Resumen — Perfect Line II{% endblock %}
+{% block page_title %}Resumen{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1.8">
+{% endblock %}
+
+{% block content %}
+<div class="report-page" id="report-page" data-send-url="{{ send_url }}">
+    {% csrf_token %}
+
+    <div id="report-offline-banner" class="report-offline-banner" hidden>
+        Sin conexión a internet. Puedes ver la vista previa, pero no enviar el correo hasta recuperar la red.
+    </div>
+
+    <div class="card report-email-section">
+        <div class="report-section-header" style="padding: 1rem 1.25rem 0;">
+            <h2>Resumen</h2>
+            <p class="report-muted" style="margin: 0.35rem 0 0;">
+                Vista previa operativa de cobros en Perfect Line.
+            </p>
+        </div>
+
+        <div class="report-toolbar">
+            <form method="get" action="{% url 'billing:summary_report' %}" class="report-period-form">
+                <label for="period">Período</label>
+                <select name="period" id="period" onchange="this.form.submit()">
+                    {% for days in period_choices %}
+                    <option value="{{ days }}" {% if period_days == days and not target_date %}selected{% endif %}>
+                        {% if days == 1 %}Último día{% else %}Últimos {{ days }} días{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <form method="get" action="{% url 'billing:summary_report' %}" class="report-period-form">
+                <label for="fecha">Día específico</label>
+                <input type="date" name="fecha" id="fecha" value="{{ target_date|date:'Y-m-d' }}">
+                <button type="submit" class="btn btn-secondary btn-sm">Ver</button>
+            </form>
+
+            <div class="report-toolbar-meta">
+                <p><strong>{{ report.period_label }}</strong> — {{ report.date_range }}</p>
+                <p class="report-muted" id="report-send-count">Envíos hoy: {{ daily_send_count }} / {{ daily_send_limit }}</p>
+            </div>
+
+            {% if 'reports.send' in user_permissions %}
+            <form method="post" action="{{ send_url }}" class="report-send-form" id="report-send-form">
+                {% csrf_token %}
+                <input type="hidden" name="period_days" value="{{ period_days }}">
+                {% if target_date %}
+                <input type="hidden" name="fecha" value="{{ target_date|date:'Y-m-d' }}">
+                {% endif %}
+                <button
+                    type="submit"
+                    class="btn-f2 btn-nav-subtle report-send-subtle-btn"
+                    id="report-send-btn"
+                    {% if not can_send %}disabled title="{{ send_block_reason }}"{% endif %}
+                >
+                    Enviar por correo
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="report-preview-card">
+            {% include "billing/includes/report_preview.html" with report=report %}
+        </div>
+    </div>
+</div>
+
+{% if 'reports.send' in user_permissions %}
+<div id="report-send-modal" class="modal-overlay report-send-modal" aria-hidden="true">
+    <div class="modal-content modal-content-narrow report-send-card" role="dialog" aria-modal="true">
+        <div class="modal-header">
+            <h2 id="report-send-modal-title">Enviando reporte</h2>
+            <button type="button" class="modal-close" data-modal-close id="report-send-modal-close" aria-label="Cerrar" hidden>&times;</button>
+        </div>
+
+        <div id="report-send-loading" class="report-send-state">
+            <div class="report-send-spinner" aria-hidden="true"></div>
+            <p class="report-send-text">Preparando y enviando el correo…</p>
+        </div>
+
+        <div id="report-send-result" class="report-send-state hidden">
+            <div id="report-send-result-icon" class="report-send-result-icon" aria-hidden="true"></div>
+            <h3 id="report-send-result-title" class="report-send-result-title"></h3>
+            <ul id="report-send-checklist" class="report-send-checklist"></ul>
+            <button type="button" class="btn btn-primary report-send-close-btn" id="report-send-close-btn">Entendido</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
+<script src="{% static 'js/reports.js' %}?v=1.5"></script>
+{% endblock %}

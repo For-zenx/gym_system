@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Cierre fiscal — Perfect Line II{% endblock %}
+{% block page_title %}Cierre fiscal{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1.8">
+{% endblock %}
+
+{% block content %}
+<div class="report-page" id="report-page" data-fiscal-url="{{ fiscal_report_url }}">
+    {% csrf_token %}
+
+    <div id="report-offline-banner" class="report-offline-banner" hidden>
+        Sin conexión a internet. Puedes ver la vista previa, pero no enviar el correo hasta recuperar la red.
+    </div>
+
+    <div class="card report-fiscal-card">
+        <div class="report-section-header">
+            <h2>Cierre fiscal</h2>
+            <p class="report-muted" style="margin: 0.35rem 0 0;">
+                Imprime el reporte X o Z en la impresora DT-230.
+            </p>
+        </div>
+
+        <form method="get" action="{% url 'billing:fiscal_report' %}" class="report-period-form report-fiscal-date-form">
+            <label for="fecha">Fecha de referencia</label>
+            <input type="date" name="fecha" id="fecha" value="{{ target_date|date:'Y-m-d' }}">
+            <button type="submit" class="btn btn-secondary btn-sm">Ver</button>
+        </form>
+
+        <p class="report-muted report-warn report-fiscal-note">
+            Los reportes X/Z se imprimen de los acumuladores actuales de la impresora (jornada en curso).
+            La fecha seleccionada solo afecta la "Referencia del sistema" que se muestra abajo.
+        </p>
+
+        <div class="report-fiscal-actions">
+            {% if can_print_x %}
+            <button type="button" class="btn btn-secondary" id="report-print-x-btn" data-report-type="X">
+                Imprimir reporte X
+            </button>
+            {% endif %}
+            {% if can_print_z %}
+            <button type="button" class="btn btn-primary" id="report-print-z-btn" data-report-type="Z">
+                Imprimir reporte Z
+            </button>
+            {% endif %}
+        </div>
+
+        {% if report %}
+        <div class="report-fiscal-reference">
+            <h3>Referencia del sistema — {{ target_date|date:'d/m/Y' }}</h3>
+            {% include "billing/includes/report_preview.html" with report=report %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if show_fiscal_reports %}
+<div id="report-fiscal-confirm-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-content modal-content-narrow" role="dialog" aria-modal="true">
+        <div class="modal-header">
+            <h2 id="report-fiscal-confirm-title">Confirmar impresión</h2>
+            <button type="button" class="modal-close" data-modal-close aria-label="Cerrar">&times;</button>
+        </div>
+        <p id="report-fiscal-confirm-message" style="margin-top: 0; color: var(--text-muted); line-height: 1.5;"></p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="report-fiscal-confirm-cancel">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="report-fiscal-confirm-ok">Imprimir</button>
+        </div>
+    </div>
+</div>
+
+<div id="report-fiscal-result-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-content modal-content-narrow" role="dialog" aria-modal="true">
+        {% include "includes/modal_header.html" with modal_title="Resultado fiscal" %}
+        <p id="report-fiscal-result-message" style="margin-top: 0; line-height: 1.5;"></p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-primary" id="report-fiscal-result-close">Aceptar</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
+<script src="{% static 'js/reports.js' %}?v=1.5"></script>
+{% endblock %}

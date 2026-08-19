@@ -38,6 +38,7 @@
                 <tr>
                     <th>Fecha</th>
                     <th>Nro. control</th>
+                    <th>COD.</th>
                     <th>Afiliado</th>
                     <th style="text-align: right;">Total</th>
                 </tr>
@@ -47,12 +48,13 @@
                 <tr>
                     <td>{{ row.date }}</td>
                     <td style="font-family: monospace;">{{ row.number }}</td>
+                    <td style="font-family: monospace;">{{ row.client_code }}</td>
                     <td>{{ row.client }}</td>
                     <td style="text-align: right;">{{ row.total_ves }}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="4" class="report-muted" style="text-align: center; padding: 1.5rem;">
+                    <td colspan="5" class="report-muted" style="text-align: center; padding: 1.5rem;">
                         No hay facturas en este período.
                     </td>
                 </tr>
@@ -60,7 +62,7 @@
             </tbody>
             <tfoot>
                 <tr class="report-table-total">
-                    <td colspan="3">Total generado</td>
+                    <td colspan="4">Total generado</td>
                     <td style="text-align: right;">{{ report.totals.total_ves_fmt }}</td>
                 </tr>
             </tfoot>

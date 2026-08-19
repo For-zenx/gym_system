@@ -28,6 +28,8 @@ from .views import (
     ReportView,
     ReportSendView,
     FiscalReportPrintView,
+    FiscalReportView,
+    SummaryReportView,
     # Corporate
     CorporateGroupListView,
     CorporateGroupCreateView,
@@ -65,7 +67,10 @@ urlpatterns = [
     path('facturas/<int:pk>/imprimir/', PrintInvoiceActionView.as_view(), name='print_invoice'),
     path('facturas/<int:pk>/anular/', VoidInvoiceView.as_view(), name='invoice_void'),
     path('facturas/<int:pk>/eliminar/', InvoiceDeleteView.as_view(), name='invoice_delete'),
+    # DEPRECATED: reemplazado por cierre-fiscal/ y resumen/ (TASK-110)
     path('reportes/', ReportView.as_view(), name='report'),
+    path('cierre-fiscal/', FiscalReportView.as_view(), name='fiscal_report'),
+    path('resumen/', SummaryReportView.as_view(), name='summary_report'),
     path('reportes/enviar/', ReportSendView.as_view(), name='report_send'),
     path('cobro/<str:codigo_afiliado>/desvincular-plan/', UnbindFixedPlanView.as_view(), name='unbind_fixed_plan'),
     path('reportes/fiscal/', FiscalReportPrintView.as_view(), name='fiscal_report_print'),

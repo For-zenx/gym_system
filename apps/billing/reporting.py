@@ -232,9 +232,7 @@ def _period_invoices(period_days: int):
     return period_days, start_date, end_date, invoices
 
 
-def build_report_context(period_days: int) -> dict:
-    period_days, start_date, end_date, invoices = _period_invoices(period_days)
-
+def _aggregate_report_totals_and_rows(invoices):
     totals = {
         "invoice_count": 0,
         "total_ves": Decimal("0"),
@@ -255,6 +253,7 @@ def build_report_context(period_days: int) -> dict:
                 "number": inv.nro_control,
                 "date": timezone.localtime(inv.fecha_emision).strftime("%d/%m/%Y %H:%M"),
                 "client": _invoice_client_label(inv),
+                "client_code": inv.receptor_codigo,
                 "total_ves": _fmt_ves(inv.monto_total),
             }
         )
@@ -285,6 +284,13 @@ def build_report_context(period_days: int) -> dict:
                 totals["product_count"] += 1
                 totals["product_ves"] += inv.monto_total
 
+    return totals, invoice_rows
+
+
+def build_report_context(period_days: int) -> dict:
+    period_days, start_date, end_date, invoices = _period_invoices(period_days)
+    totals, invoice_rows = _aggregate_report_totals_and_rows(invoices)
+
     new_clients = Client.objects.filter(
         fecha_ingreso__gte=start_date,
         fecha_ingreso__lte=end_date,
@@ -305,16 +311,57 @@ def build_report_context(period_days: int) -> dict:
     }
 
 
-def build_report_email_context(period_days: int) -> dict:
-    period_days, start_date, end_date, invoices = _period_invoices(period_days)
-    payment_rows, total_ves, total_usd = _aggregate_payment_totals(invoices)
+def _date_bounds(target_date):
+    start = timezone.make_aware(datetime.combine(target_date, time.min))
+    end = timezone.make_aware(datetime.combine(target_date, time.max))
+    return start, end
 
+
+def _report_meta_for_date(target_date):
+    gym_name = getattr(settings, "GYM_NAME", "Perfect Line II")
+    day_label = target_date.strftime("%d/%m/%Y")
+    return {
+        "gym_name": gym_name,
+        "period_days": 1,
+        "period_label": day_label,
+        "date_range": day_label,
+        "generated_at": timezone.localtime().strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+def build_report_context_for_date(target_date) -> dict:
+    start, end = _date_bounds(target_date)
+    invoices = (
+        Invoice.objects.filter(
+            fecha_emision__gte=start, fecha_emision__lte=end, esta_anulada=False
+        )
+        .prefetch_related("lines")
+        .order_by("-fecha_emision")
+    )
+    totals, invoice_rows = _aggregate_report_totals_and_rows(invoices)
+    new_clients = Client.objects.filter(fecha_ingreso=target_date).count()
+
+    return {
+        **_report_meta_for_date(target_date),
+        "new_clients": new_clients,
+        "totals": {
+            **totals,
+            "total_ves_fmt": _fmt_ves(totals["total_ves"]),
+            "membership_ves_fmt": _fmt_ves(totals["membership_ves"]),
+            "product_ves_fmt": _fmt_ves(totals["product_ves"]),
+            "late_fee_ves_fmt": _fmt_ves(totals["late_fee_ves"]),
+        },
+        "invoice_rows": invoice_rows[:50],
+        "invoice_rows_truncated": len(invoice_rows) > 50,
+    }
+
+
+def _build_email_context(meta: dict, invoices, start_date, end_date) -> dict:
+    payment_rows, total_ves, total_usd = _aggregate_payment_totals(invoices)
     new_clients = Client.objects.filter(
         fecha_ingreso__gte=start_date,
         fecha_ingreso__lte=end_date,
     ).count()
-
-    meta = _report_meta(period_days, start_date, end_date)
     cfg = ReportEmailSettings.get_settings()
 
     return {
@@ -330,6 +377,23 @@ def build_report_email_context(period_days: int) -> dict:
             "total_usd_fmt": _fmt_usd(total_usd),
         },
     }
+
+
+def build_report_email_context(period_days: int) -> dict:
+    period_days, start_date, end_date, invoices = _period_invoices(period_days)
+    return _build_email_context(_report_meta(period_days, start_date, end_date), invoices, start_date, end_date)
+
+
+def build_report_email_context_for_date(target_date) -> dict:
+    start, end = _date_bounds(target_date)
+    invoices = (
+        Invoice.objects.filter(
+            fecha_emision__gte=start, fecha_emision__lte=end, esta_anulada=False
+        )
+        .prefetch_related("lines")
+        .order_by("-fecha_emision")
+    )
+    return _build_email_context(_report_meta_for_date(target_date), invoices, target_date, target_date)
 
 
 def is_smtp_configured() -> bool:
@@ -363,11 +427,16 @@ def _send_result(*, success: bool, items: list, daily_send_count_value: int | No
     return payload
 
 
-def send_report_email(*, period_days: int, user) -> dict:
-    period_days = normalize_period_days(period_days)
+def send_report_email(*, user, period_days: int | None = None, target_date=None) -> dict:
     cfg = ReportEmailSettings.get_settings()
     recipients = cfg.recipient_emails_list
     items: list[dict] = []
+
+    if target_date is not None:
+        context = build_report_email_context_for_date(target_date)
+    else:
+        period_days = normalize_period_days(period_days if period_days is not None else 7)
+        context = build_report_email_context(period_days)
 
     if not recipients:
         items.append({"ok": False, "text": "Destinatarios configurados"})
@@ -394,14 +463,13 @@ def send_report_email(*, period_days: int, user) -> dict:
 
     items.append({"ok": True, "text": "Servicio de correo disponible"})
 
-    context = build_report_email_context(period_days)
     html_body = render_to_string("billing/emails/report.html", context)
     subject = context["subject_line"]
     items.append({"ok": True, "text": f"Reporte generado ({context['period_label']})"})
 
     recipients_display = ", ".join(recipients)
     log = ReportSendLog(
-        period_days=period_days,
+        period_days=context["period_days"],
         recipient_email=recipients_display,
         sent_by=user if getattr(user, "is_authenticated", False) else None,
         success=False,

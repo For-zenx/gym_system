@@ -19,7 +19,7 @@
     <div class="billing-cut-day-header">
         <label for="payment_cut_day_display">Día de corte (1-31)</label>
         {% if 'billing.change_cut_date' in user_permissions %}
-        <button type="button" class="btn-link-muted billing-cut-day-edit-btn btn-edit-primary" id="payment_cut_day_edit_btn">Modificar</button>
+        <button type="button" class="btn-link-muted billing-cut-day-edit-btn btn-edit-primary" id="payment_cut_day_edit_btn">Modificar fecha de corte</button>
         {% endif %}
     </div>
     <input type="hidden" name="payment_cut_day" id="payment_cut_day" value="{{ payment_cut_day_default }}">
