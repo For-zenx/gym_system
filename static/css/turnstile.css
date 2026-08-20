@@ -123,7 +123,9 @@
 
 .turnstile-search-item {
     width: 100%;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     text-align: left;
     padding: 0.75rem 0.9rem;
     border: none;
@@ -147,6 +149,11 @@
     margin-bottom: 0.2rem;
 }
 
+.turnstile-search-item-text {
+    min-width: 0;
+    flex: 1;
+}
+
 .turnstile-search-empty {
     padding: 0.85rem 0.9rem;
     color: var(--text-muted);
@@ -162,6 +169,14 @@
     border-radius: 0.75rem;
     border: 1px solid var(--border-color);
     background: rgba(255, 255, 255, 0.02);
+}
+
+.turnstile-selected-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    flex: 1;
 }
 
 .turnstile-selected-actions {

@@ -19,6 +19,7 @@
     var noClientBtn = document.getElementById("turnstile-no-client-btn");
     var noClientFromSelectedBtn = document.getElementById("turnstile-no-client-from-selected-btn");
     var selectedBlock = document.getElementById("turnstile-selected-client");
+    var selectedAvatar = document.getElementById("turnstile-selected-avatar");
     var selectedName = document.getElementById("turnstile-selected-name");
     var selectedMeta = document.getElementById("turnstile-selected-meta");
     var changeClientBtn = document.getElementById("turnstile-change-client-btn");
@@ -52,11 +53,31 @@
         }
     }
 
+    function fillAvatar(slot, photoUrl) {
+        if (!slot) {
+            return;
+        }
+        if (photoUrl) {
+            slot.innerHTML = '<img class="search-result-avatar" src="' + photoUrl + '" alt="">';
+        } else {
+            slot.innerHTML =
+                '<span class="search-result-avatar search-result-avatar-placeholder" aria-hidden="true">?</span>';
+        }
+    }
+
+    function avatarHtml(photoUrl) {
+        if (photoUrl) {
+            return '<img class="search-result-avatar" src="' + photoUrl + '" alt="">';
+        }
+        return '<span class="search-result-avatar search-result-avatar-placeholder" aria-hidden="true">?</span>';
+    }
+
     function selectClient(client) {
         clientInput.value = String(client.id);
         personInput.value = "";
+        fillAvatar(selectedAvatar, client.photo_url);
         selectedName.textContent = client.nombre;
-        selectedMeta.textContent = client.cedula + " · " + client.codigo_afiliado;
+        selectedMeta.textContent = (client.cedula || "—") + " · " + client.codigo_afiliado;
         setAccessWarning(client.access_warning || "");
         hide(searchBlock);
         hide(clientActions);
@@ -116,8 +137,15 @@
             button.type = "button";
             button.className = "turnstile-search-item";
             button.innerHTML =
-                "<strong>" + client.nombre + "</strong>" +
-                '<span class="turnstile-subtext">' + client.cedula + " · " + client.codigo_afiliado + "</span>";
+                avatarHtml(client.photo_url) +
+                '<span class="turnstile-search-item-text"><strong>' +
+                client.nombre +
+                "</strong>" +
+                '<span class="turnstile-subtext">' +
+                (client.cedula || "—") +
+                " · " +
+                client.codigo_afiliado +
+                "</span></span>";
             button.addEventListener("click", function () {
                 selectClient(client);
             });

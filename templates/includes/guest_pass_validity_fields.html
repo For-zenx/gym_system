@@ -1,0 +1,25 @@
+<div class="form-group guest-pass-validity-group">
+    <label>Vigencia del pase</label>
+    <div class="guest-pass-presets" id="guest-pass-presets" role="group" aria-label="Duración del pase">
+        <button type="button" class="guest-pass-preset is-active" data-days="1">1 día</button>
+        <button type="button" class="guest-pass-preset" data-days="3">3 días</button>
+        <button type="button" class="guest-pass-preset" data-days="7">7 días</button>
+    </div>
+
+    {% if can_set_custom_pass_expiry %}
+    <div class="guest-pass-custom-block" id="guest-pass-custom-block">
+        <label class="guest-pass-custom-toggle">
+            <input type="checkbox" id="guest_pass_custom_toggle" name="guest_pass_custom" value="1">
+            <span>Vigencia personalizada</span>
+        </label>
+        <div class="guest-pass-custom-date">
+            <label for="custom_valid_until">Válido hasta</label>
+            <input type="date" id="custom_valid_until" name="custom_valid_until" disabled>
+        </div>
+    </div>
+    {% endif %}
+
+    <p id="guest-pass-validity-text" class="guest-pass-validity-text" aria-live="polite"></p>
+    <input type="hidden" name="valid_from" id="valid_from" value="{{ default_valid_from }}">
+    <input type="hidden" name="valid_until" id="valid_until" value="{{ default_valid_until }}">
+</div>

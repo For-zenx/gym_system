@@ -92,9 +92,14 @@
             item.className = 'quick-search-item';
 
             item.innerHTML = `
-                <div class="info">
-                    <strong>${person.nombre}</strong>
-                    <span class="meta">${person.cedula} · ${person.codigo_afiliado}</span>
+                <div class="search-result-main">
+                    ${person.photo_url
+                        ? `<img class="search-result-avatar" src="${person.photo_url}" alt="">`
+                        : '<span class="search-result-avatar search-result-avatar-placeholder" aria-hidden="true">?</span>'}
+                    <div class="info">
+                        <strong>${person.nombre}</strong>
+                        <span class="meta">${person.cedula || "—"} · ${person.codigo_afiliado}</span>
+                    </div>
                 </div>
                 <span class="category-badge">${person.categoria}</span>
             `;

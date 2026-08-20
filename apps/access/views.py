@@ -193,8 +193,9 @@ class TurnstileClientSearchView(PermissionRequiredMixin, View):
             results.append({
                 "id": client.pk,
                 "nombre": client.nombre,
-                "cedula": client.cedula,
+                "cedula": client.cedula or "",
                 "codigo_afiliado": client.codigo_afiliado,
+                "photo_url": client.foto_frente.url if client.foto_frente else "",
                 "access_warning": "" if granted else detail,
             })
 

@@ -31,6 +31,7 @@ from .validation import (
     client_form_context,
     validate_client_data,
     validate_guest_pass_dates,
+    guest_pass_custom_mode_enabled,
 )
 from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
 from apps.billing.services import (
@@ -609,6 +610,9 @@ class GuestProfileView(PermissionRequiredMixin, DetailView):
         context["default_valid_from"] = today.isoformat()
         context["default_valid_until"] = (today + timedelta(days=1)).isoformat()
         context["today"] = today
+        context["can_set_custom_pass_expiry"] = has_permission(
+            self.request.user, "guests.set_custom_pass_expiry"
+        )
         return context
 
 
@@ -635,6 +639,10 @@ class GuestIssuePassView(PermissionRequiredMixin, View):
         pass_errors, pass_cleaned = validate_guest_pass_dates(
             request.POST.get("valid_from"),
             request.POST.get("valid_until"),
+            allow_custom_expiry=has_permission(
+                request.user, "guests.set_custom_pass_expiry"
+            ),
+            custom_mode=guest_pass_custom_mode_enabled(request.POST.get("guest_pass_custom")),
         )
         sponsor_id = (request.POST.get("sponsor_id") or "").strip()
         sponsor = None

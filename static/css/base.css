@@ -1494,6 +1494,7 @@ a.sidebar-brand-link:hover span {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 0.75rem;
     text-align: left;
     background: none;
     border: none;
@@ -1514,6 +1515,42 @@ a.sidebar-brand-link:hover span {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    min-width: 0;
+}
+
+.search-result-main {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.search-result-avatar-slot {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+}
+
+.search-result-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    flex-shrink: 0;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+}
+
+.search-result-avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .quick-search-item strong {
@@ -1590,9 +1627,9 @@ a.sidebar-brand-link:hover span {
     width: 100%;
     padding: 0.75rem 1rem;
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.2rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
     text-align: left;
     background: none;
     border: none;
@@ -1607,6 +1644,14 @@ a.sidebar-brand-link:hover span {
 
 .quick-turnstile-search-item:hover {
     background-color: rgba(255, 255, 255, 0.05);
+}
+
+.quick-turnstile-search-item > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    flex: 1;
 }
 
 .quick-turnstile-search-empty {
@@ -1639,6 +1684,7 @@ a.sidebar-brand-link:hover span {
     flex-direction: column;
     gap: 0.2rem;
     min-width: 0;
+    flex: 1;
 }
 
 .quick-turnstile-warning {

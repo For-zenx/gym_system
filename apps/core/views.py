@@ -14,6 +14,7 @@ from apps.clients.validation import (
     validate_client_data,
     validate_guest_enrollment_data,
     validate_guest_pass_dates,
+    guest_pass_custom_mode_enabled,
     client_form_context,
     build_cedula,
 )
@@ -91,6 +92,9 @@ def _enrollment_page_context(request, post_data=None, person_category=None):
     context["can_enroll_member"] = has_permission(request.user, "clients.enroll")
     context["can_enroll_staff"] = has_permission(request.user, "staff_persons.enroll")
     context["can_enroll_guest"] = has_permission(request.user, "guests.register")
+    context["can_set_custom_pass_expiry"] = has_permission(
+        request.user, "guests.set_custom_pass_expiry"
+    )
     today = date.today()
     context["default_valid_from"] = today.isoformat()
     context["default_valid_until"] = (today + timedelta(days=1)).isoformat()
@@ -186,9 +190,14 @@ def enrollment(request):
 
         if person_category == PersonCategory.GUEST:
             errors, cleaned = validate_guest_enrollment_data(request.POST.get("nombre"))
+            custom_mode = guest_pass_custom_mode_enabled(request.POST.get("guest_pass_custom"))
             pass_errors, pass_cleaned = validate_guest_pass_dates(
                 request.POST.get("valid_from"),
                 request.POST.get("valid_until"),
+                allow_custom_expiry=has_permission(
+                    request.user, "guests.set_custom_pass_expiry"
+                ),
+                custom_mode=custom_mode,
             )
             errors.update(pass_errors)
             if errors:

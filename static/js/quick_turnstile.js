@@ -18,6 +18,7 @@
     const searchResults = document.getElementById("quick-search-results");
     const noClientBtn = document.getElementById("quick-no-client-btn");
     const selectedBlock = document.getElementById("quick-selected-client");
+    const selectedAvatar = document.getElementById("quick-selected-avatar");
     const selectedName = document.getElementById("quick-selected-name");
     const selectedMeta = document.getElementById("quick-selected-meta");
     const changeClientBtn = document.getElementById("quick-change-client-btn");
@@ -50,9 +51,27 @@
         }
     }
 
+    function fillAvatar(slot, photoUrl) {
+        if (!slot) return;
+        if (photoUrl) {
+            slot.innerHTML = '<img class="search-result-avatar" src="' + photoUrl + '" alt="">';
+        } else {
+            slot.innerHTML =
+                '<span class="search-result-avatar search-result-avatar-placeholder" aria-hidden="true">?</span>';
+        }
+    }
+
+    function avatarHtml(photoUrl) {
+        if (photoUrl) {
+            return '<img class="search-result-avatar" src="' + photoUrl + '" alt="">';
+        }
+        return '<span class="search-result-avatar search-result-avatar-placeholder" aria-hidden="true">?</span>';
+    }
+
     function selectClient(client) {
         clientInput.value = String(client.id);
         personInput.value = "";
+        fillAvatar(selectedAvatar, client.photo_url);
         selectedName.textContent = client.nombre;
         selectedMeta.textContent =
             (client.cedula || "—") + " · " + client.codigo_afiliado;
@@ -113,6 +132,8 @@
             button.type = "button";
             button.className = "quick-turnstile-search-item";
             button.innerHTML =
+                avatarHtml(client.photo_url) +
+                "<div>" +
                 "<strong>" +
                 client.nombre +
                 "</strong>" +
@@ -120,7 +141,7 @@
                 (client.cedula || "—") +
                 " · " +
                 client.codigo_afiliado +
-                "</span>";
+                "</span></div>";
             button.addEventListener("click", function () {
                 selectClient(client);
             });

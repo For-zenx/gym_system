@@ -38,6 +38,7 @@ PERMISSION_GROUPS = {
             ("guests.view_list", "Ver lista de invitados"),
             ("guests.view_profile", "Ver perfil de invitado"),
             ("guests.register", "Registrar invitados y emitir pases"),
+            ("guests.set_custom_pass_expiry", "Fijar vigencia personalizada del pase"),
             ("guests.revoke_pass", "Revocar pase de invitado"),
             ("guests.delete", "Eliminar invitados"),
         ],

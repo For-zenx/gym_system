@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.7">
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=2.8">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.3">
 {% endblock %}
 
 {% block content %}
@@ -57,17 +57,7 @@
             <h3 class="profile-section-title">Emitir pase</h3>
             <form method="POST" action="{% url 'guests:issue_pass' client.codigo_afiliado %}" id="guest-issue-pass-form">
                 {% csrf_token %}
-                <div class="form-group">
-                    <label>Vigencia del pase</label>
-                    <div class="guest-pass-presets" role="group" aria-label="Duración del pase">
-                        <button type="button" class="guest-pass-preset is-active" data-days="1">1 día</button>
-                        <button type="button" class="guest-pass-preset" data-days="3">3 días</button>
-                        <button type="button" class="guest-pass-preset" data-days="7">7 días</button>
-                    </div>
-                    <p id="guest-pass-validity-text" class="guest-pass-validity-text" aria-live="polite"></p>
-                    <input type="hidden" name="valid_from" id="valid_from" value="{{ default_valid_from }}">
-                    <input type="hidden" name="valid_until" id="valid_until" value="{{ default_valid_until }}">
-                </div>
+                {% include "includes/guest_pass_validity_fields.html" %}
                 <div class="form-group">
                     <label for="notes">Notas (opcional)</label>
                     <input type="text" id="notes" name="notes" maxlength="500" placeholder="Opcional">
@@ -182,45 +172,13 @@
 
 {% block extra_js %}
 {% if 'guests.register' in user_permissions and not active_pass %}
+<script src="{% static 'js/guest_pass_validity.js' %}?v=1.0"></script>
 <script>
-(function () {
-    const validFromInput = document.getElementById('valid_from');
-    const validUntilInput = document.getElementById('valid_until');
-    const validityText = document.getElementById('guest-pass-validity-text');
-
-    function formatGuestDate(isoDate) {
-        if (!isoDate) return '';
-        const parts = isoDate.split('-');
-        if (parts.length !== 3) return isoDate;
-        return parts[2] + '/' + parts[1] + '/' + parts[0];
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof window.initGuestPassValidity === 'function') {
+        window.initGuestPassValidity({ canCustom: {{ can_set_custom_pass_expiry|yesno:"true,false" }} });
     }
-
-    function updateValidityText() {
-        if (!validityText || !validFromInput || !validUntilInput) return;
-        validityText.textContent = 'Válido desde ' + formatGuestDate(validFromInput.value) +
-            ' hasta ' + formatGuestDate(validUntilInput.value);
-    }
-
-    function applyPreset(days, button) {
-        const from = new Date();
-        const until = new Date(from);
-        until.setDate(until.getDate() + parseInt(days, 10));
-        validFromInput.value = from.toISOString().slice(0, 10);
-        validUntilInput.value = until.toISOString().slice(0, 10);
-        document.querySelectorAll('.guest-pass-preset').forEach(function (btn) {
-            btn.classList.toggle('is-active', btn === button);
-        });
-        updateValidityText();
-    }
-
-    document.querySelectorAll('.guest-pass-preset').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            applyPreset(btn.getAttribute('data-days'), btn);
-        });
-    });
-
-    document.addEventListener('DOMContentLoaded', updateValidityText);
-})();
+});
 </script>
 {% endif %}
 {% endblock %}

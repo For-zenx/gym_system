@@ -1106,9 +1106,10 @@ class GlobalPersonSearchView(PermissionRequiredMixin, View):
             results.append({
                 "id": person.pk,
                 "nombre": person.nombre,
-                "cedula": person.cedula,
+                "cedula": person.cedula or "",
                 "codigo_afiliado": person.codigo_afiliado,
                 "categoria": person.get_person_category_display(),
+                "photo_url": person.foto_frente.url if person.foto_frente else "",
             })
 
         return JsonResponse({"results": results})
@@ -1140,9 +1141,10 @@ class PersonProfileSearchView(View):
             results.append({
                 "id": person.pk,
                 "nombre": person.nombre,
-                "cedula": person.cedula,
+                "cedula": person.cedula or "",
                 "codigo_afiliado": person.codigo_afiliado,
                 "categoria": person.get_person_category_display(),
+                "photo_url": person.foto_frente.url if person.foto_frente else "",
                 "profile_url": reverse(
                     get_person_profile_url_name(person),
                     kwargs={"codigo_afiliado": person.codigo_afiliado},

@@ -5,7 +5,7 @@
 {% block page_title %}Enrolamiento{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.1">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.3">
 {% endblock %}
 
 {% block content %}
@@ -186,17 +186,7 @@
             </div>
 
             <div id="enrollment-guest-fields" class="enrollment-guest-fields" hidden>
-                <div class="form-group">
-                    <label>Vigencia del pase</label>
-                    <div class="guest-pass-presets" role="group" aria-label="Duración del pase">
-                        <button type="button" class="guest-pass-preset is-active" data-days="1">1 día</button>
-                        <button type="button" class="guest-pass-preset" data-days="3">3 días</button>
-                        <button type="button" class="guest-pass-preset" data-days="7">7 días</button>
-                    </div>
-                    <p id="guest-pass-validity-text" class="guest-pass-validity-text" aria-live="polite"></p>
-                    <input type="hidden" name="valid_from" id="valid_from" value="{{ default_valid_from }}">
-                    <input type="hidden" name="valid_until" id="valid_until" value="{{ default_valid_until }}">
-                </div>
+                {% include "includes/guest_pass_validity_fields.html" %}
 
                 <div class="form-group">
                     <label for="notes">Notas (opcional)</label>
@@ -244,6 +234,7 @@
 
 {% block extra_js %}
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
+<script src="{% static 'js/guest_pass_validity.js' %}?v=1.0"></script>
 <script>
     const offlineOverlay = document.getElementById('tablet-offline-overlay');
     const ENROLLMENT_TABLET_ROLE = 'enrollment';
@@ -265,7 +256,8 @@
     const guestFieldsEl = document.getElementById('enrollment-guest-fields');
     const validFromInput = document.getElementById('valid_from');
     const validUntilInput = document.getElementById('valid_until');
-    const guestPassValidityText = document.getElementById('guest-pass-validity-text');
+    const guestPassCustomToggle = document.getElementById('guest_pass_custom_toggle');
+    const customValidUntilInput = document.getElementById('custom_valid_until');
     let enrollmentPhotoReady = false;
     let enrollmentTermsMet = false;
     let memberTermsAcceptedOnTablet = false;
@@ -294,39 +286,6 @@
         return category === 'EMPLOYEE' || category === 'TRAINER';
     }
 
-    function formatGuestDate(isoDate) {
-        if (!isoDate) {
-            return '';
-        }
-        const parts = isoDate.split('-');
-        if (parts.length !== 3) {
-            return isoDate;
-        }
-        return parts[2] + '/' + parts[1] + '/' + parts[0];
-    }
-
-    function updateGuestPassValidityText() {
-        if (!guestPassValidityText || !validFromInput || !validUntilInput) {
-            return;
-        }
-        guestPassValidityText.textContent = 'Válido desde ' + formatGuestDate(validFromInput.value) +
-            ' hasta ' + formatGuestDate(validUntilInput.value);
-    }
-
-    function applyGuestPassPreset(days, button) {
-        const from = new Date();
-        const until = new Date(from);
-        until.setDate(until.getDate() + parseInt(days, 10));
-        const fromIso = from.toISOString().slice(0, 10);
-        const untilIso = until.toISOString().slice(0, 10);
-        validFromInput.value = fromIso;
-        validUntilInput.value = untilIso;
-        document.querySelectorAll('.guest-pass-preset').forEach(function (btn) {
-            btn.classList.toggle('is-active', btn === button);
-        });
-        updateGuestPassValidityText();
-    }
-
     function setEnrollmentSection(el, visible) {
         if (!el) {
             return;
@@ -337,11 +296,14 @@
 
     function setGuestFieldEnabled(enabled) {
         const notesInput = document.getElementById('notes');
-        [validFromInput, validUntilInput, notesInput].forEach(function (input) {
+        [validFromInput, validUntilInput, notesInput, guestPassCustomToggle].forEach(function (input) {
             if (input) {
                 input.disabled = !enabled;
             }
         });
+        if (!enabled && customValidUntilInput) {
+            customValidUntilInput.disabled = true;
+        }
     }
 
     function syncCategoryPickerStyles() {
@@ -395,9 +357,6 @@
             } else {
                 cedulaNumeroInput.setAttribute('required', 'required');
             }
-        }
-        if (isGuest) {
-            updateGuestPassValidityText();
         }
         resetEnrollmentSessionState();
         syncCategoryPickerStyles();
@@ -614,12 +573,6 @@
         cedulaNumeroInput.addEventListener('blur', scheduleCedulaCheck);
     }
 
-    document.querySelectorAll('.guest-pass-preset').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            applyGuestPassPreset(btn.getAttribute('data-days'), btn);
-        });
-    });
-
     document.querySelectorAll('#enrollment-form input[name="person_category"]').forEach(function (input) {
         input.addEventListener('change', function () {
             applyCategoryUi({ syncTablet: true });
@@ -629,7 +582,9 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         applyCategoryUi();
-        updateGuestPassValidityText();
+        if (typeof window.initGuestPassValidity === 'function') {
+            window.initGuestPassValidity({ canCustom: {{ can_set_custom_pass_expiry|yesno:"true,false" }} });
+        }
         updateEnrollmentSaveState();
         setTimeout(startEnrollmentTabletSession, 500);
     });

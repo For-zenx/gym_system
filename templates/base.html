@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Perfect Line II{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=3.5">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}?v=3.6">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -252,12 +252,12 @@
     </script>
     <script src="{% static 'js/modal.js' %}?v=1.0"></script>
     <script src="{% static 'js/dashboard_ws.js' %}?v=2.1"></script>
-    <script src="{% static 'js/profile_search.js' %}?v=1.0"></script>
+    <script src="{% static 'js/profile_search.js' %}?v=1.1"></script>
     {% if 'billing.charge' in user_permissions %}
-    <script src="{% static 'js/quick_charge.js' %}?v=1.0"></script>
+    <script src="{% static 'js/quick_charge.js' %}?v=1.1"></script>
     {% endif %}
     {% if 'access.open_turnstile' in user_permissions %}
-    <script src="{% static 'js/quick_turnstile.js' %}?v=1.1"></script>
+    <script src="{% static 'js/quick_turnstile.js' %}?v=1.2"></script>
     {% endif %}
 
     {% block extra_js %}{% endblock %}

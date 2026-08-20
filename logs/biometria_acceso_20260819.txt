@@ -1,0 +1,13 @@
+timestamp	outcome	best_codigo	best_nombre	best_distance	second_codigo	second_distance	margin	tolerance	model	access_status	access_variant
+2026-08-19 21:04:51	MATCH	G-00002-00	Hola soy yo el chico de las poesias	0.2644	G-00001-00	0.2972	0.0328	0.5000	large	GRANTED	granted_guest
+2026-08-19 21:08:00	MATCH	G-00002-00	Hola soy yo el chico de las poesias	0.2704	G-00001-00	0.3139	0.0435	0.5000	large	GRANTED	granted_guest
+2026-08-19 21:08:08	MATCH	G-00002-00	Hola soy yo el chico de las poesias	0.2147	G-00001-00	0.2615	0.0468	0.5000	large	GRANTED	granted_guest
+2026-08-19 21:08:27	MATCH	G-00001-00	Francisco Rivas	0.4347	G-00002-00	0.5038	0.0691	0.5000	large	DENIED	denied_other
+2026-08-19 21:08:34	MATCH	G-00001-00	Francisco Rivas	0.2035	M-00001-00	0.2244	0.0209	0.5000	large	DENIED	denied_other
+2026-08-19 21:08:40	MATCH	G-00001-00	Francisco Rivas	0.2087	G-00002-00	0.2311	0.0223	0.5000	large	DENIED	denied_other
+2026-08-19 21:08:46	MATCH	G-00001-00	Francisco Rivas	0.2004	M-00001-00	0.2095	0.0092	0.5000	large	DENIED	denied_other
+2026-08-19 21:08:52	MATCH	G-00002-00	Hola soy yo el chico de las poesias	0.1583	G-00001-00	0.2022	0.0439	0.5000	large	GRANTED	granted_guest
+2026-08-19 21:30:22	MATCH	G-00002-00	Hola soy yo el chico de las poesias	0.3367	M-00002-00	0.3406	0.0039	0.5000	large	GRANTED	granted_guest
+2026-08-19 21:31:03	NO_FACE	—	—	—	—	—	—	0.5000	large	DENIED	denied_unknown
+2026-08-19 21:31:08	MATCH	M-00003-00	rrewqrew	0.3321	S-00001-00	0.3619	0.0298	0.5000	large	DENIED	denied_suspended
+2026-08-19 21:31:34	MATCH	G-00002-00	Hola soy yo el chico de las poesias	0.2712	M-00002-00	0.2753	0.0041	0.5000	large	GRANTED	granted_guest

@@ -1,5 +1,5 @@
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 CEDULA_PREFIXES = ('V-', 'J-')
 CEDULA_PATTERN = re.compile(r'^[VJ]-\d{6,10}$')
@@ -225,12 +225,33 @@ def validate_guest_enrollment_data(nombre):
     return errors, cleaned
 
 
-def validate_guest_pass_dates(valid_from_raw, valid_until_raw):
+GUEST_PASS_PRESET_MAX_DAYS = 7
+
+
+def guest_pass_custom_mode_enabled(raw_value):
+    return str(raw_value or '').lower() in ('1', 'true', 'on', 'yes')
+
+
+def validate_guest_pass_dates(
+    valid_from_raw,
+    valid_until_raw,
+    *,
+    allow_custom_expiry=False,
+    custom_mode=False,
+):
     errors = {}
     cleaned = {}
     today = date.today()
 
-    if not (valid_from_raw or '').strip():
+    if custom_mode and not allow_custom_expiry:
+        errors['valid_until'] = (
+            'No tienes permiso para fijar una vigencia personalizada del pase.'
+        )
+        return errors, cleaned
+
+    if custom_mode:
+        cleaned['valid_from'] = today
+    elif not (valid_from_raw or '').strip():
         cleaned['valid_from'] = today
     else:
         try:
@@ -249,6 +270,16 @@ def validate_guest_pass_dates(valid_from_raw, valid_until_raw):
             valid_from = cleaned.get('valid_from', today)
             if valid_until < valid_from:
                 errors['valid_until'] = 'La fecha de vencimiento no puede ser anterior al inicio del pase.'
+            elif not custom_mode:
+                max_until = valid_from + timedelta(days=GUEST_PASS_PRESET_MAX_DAYS)
+                if valid_until > max_until:
+                    errors['valid_until'] = (
+                        'Sin permiso de vigencia personalizada, el pase no puede superar {} días.'.format(
+                            GUEST_PASS_PRESET_MAX_DAYS
+                        )
+                    )
+                else:
+                    cleaned['valid_until'] = valid_until
             else:
                 cleaned['valid_until'] = valid_until
 

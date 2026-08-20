@@ -662,6 +662,71 @@
     line-height: 1.5;
 }
 
+.guest-pass-custom-block {
+    margin: 0.75rem 0;
+    padding: 0.85rem 1rem;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+
+.guest-pass-custom-block.is-active {
+    opacity: 1;
+}
+
+.guest-pass-custom-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: fit-content;
+}
+
+.guest-pass-validity-group .guest-pass-custom-toggle {
+    display: flex;
+}
+
+.guest-pass-validity-group .guest-pass-custom-toggle input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    min-width: 1rem;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: #3b82f6;
+}
+
+.guest-pass-custom-date {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.guest-pass-custom-date label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.guest-pass-custom-date input[type="date"] {
+    max-width: 220px;
+}
+
+.guest-pass-custom-date input[type="date"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.guest-pass-presets.is-disabled .guest-pass-preset {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .guest-minor-toggle {
     display: inline-flex;
     align-items: center;
