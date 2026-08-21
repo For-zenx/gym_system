@@ -4,6 +4,7 @@ const WS_URL = window.TABLET_WS_URL;
 const RECONNECT_DELAY_MS = 3000;
 const CAPTURE_COOLDOWN_MS = 2000;
 const CONFIRM_CAPTURE_COOLDOWN_MS = 700;
+const ACCESS_FIRST_STABILITY_MS = 450;
 const RESULT_DISPLAY_MS = 4000;
 const RESULT_DISPLAY_DENIED_MS = 3200;
 const RESULT_DISPLAY_DENIED_UNKNOWN_MS = 1600;
@@ -37,6 +38,11 @@ let reconnectTimer = null;
 let canvasCtx = overlayCanvas.getContext('2d');
 let isModelsLoaded = false;
 let lastCaptureTime = 0;
+let accessStableSince = null;
+
+function resetAccessStability() {
+    accessStableSince = null;
+}
 
 async function loadModels() {
     const MODEL_URL = '/static/models';
@@ -133,6 +139,7 @@ function enterQuickRetryMode() {
 function clearAccessResult() {
     exitQuickRetryMode();
     isConfirmingIdentity = false;
+    resetAccessStability();
     hideProcessingOverlay();
     clearTimeout(resultTimeout);
     clearTimeout(quickRetryTimeout);
@@ -265,6 +272,7 @@ function showConfirmingIdentity(data) {
     isConfirmingIdentity = true;
     isProcessingAccess = false;
     isCooldown = false;
+    resetAccessStability();
     hudInstruction.classList.add('hidden');
     setFaceGuideVariant('processing');
     const name = data.name ? data.name + ' — ' : '';
@@ -347,22 +355,43 @@ async function detectFaceLoop() {
         }
 
         if (detection && cooldownOk && !isProcessingAccess && !isCooldown && meetsCriteria) {
-            showAccessProcessing();
-            sendAccessFrame();
-            lastCaptureTime = now;
-        } else if (detection && !isProcessingAccess && isConfirmingIdentity) {
-            updateBottomBannerSubtitle('Mantenga la cara quieta');
-        } else if (detection && !isProcessingAccess && !isQuickRetryMode) {
-            setHud('Coloque su rostro en el óvalo');
-        } else if (detection && !isProcessingAccess && isQuickRetryMode) {
-            updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
-        } else if (!detection && !isProcessingAccess) {
-            if (isConfirmingIdentity) {
-                updateBottomBannerSubtitle('Mantenga la cara quieta');
-            } else if (isQuickRetryMode) {
-                updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
+            let readyToCapture = true;
+            if (!isConfirmingIdentity) {
+                if (accessStableSince === null) {
+                    accessStableSince = now;
+                }
+                readyToCapture = (now - accessStableSince) >= ACCESS_FIRST_STABILITY_MS;
+                if (!readyToCapture) {
+                    setHud('Mantenga la cara quieta…');
+                }
             } else {
+                resetAccessStability();
+            }
+
+            if (readyToCapture) {
+                resetAccessStability();
+                showAccessProcessing();
+                sendAccessFrame();
+                lastCaptureTime = now;
+            }
+        } else {
+            if (!isConfirmingIdentity) {
+                resetAccessStability();
+            }
+            if (detection && !isProcessingAccess && isConfirmingIdentity) {
+                updateBottomBannerSubtitle('Mantenga la cara quieta');
+            } else if (detection && !isProcessingAccess && !isQuickRetryMode) {
                 setHud('Coloque su rostro en el óvalo');
+            } else if (detection && !isProcessingAccess && isQuickRetryMode) {
+                updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
+            } else if (!detection && !isProcessingAccess) {
+                if (isConfirmingIdentity) {
+                    updateBottomBannerSubtitle('Mantenga la cara quieta');
+                } else if (isQuickRetryMode) {
+                    updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
+                } else {
+                    setHud('Coloque su rostro en el óvalo');
+                }
             }
         }
 
