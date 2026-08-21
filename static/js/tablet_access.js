@@ -3,6 +3,7 @@
 const WS_URL = window.TABLET_WS_URL;
 const RECONNECT_DELAY_MS = 3000;
 const CAPTURE_COOLDOWN_MS = 2000;
+const CONFIRM_CAPTURE_COOLDOWN_MS = 700;
 const RESULT_DISPLAY_MS = 4000;
 const RESULT_DISPLAY_DENIED_MS = 3200;
 const RESULT_DISPLAY_DENIED_UNKNOWN_MS = 1600;
@@ -25,6 +26,7 @@ const accessProcessingLabel = document.getElementById('access-processing-label')
 
 let isProcessingAccess = false;
 let isCooldown = false;
+let isConfirmingIdentity = false;
 let isQuickRetryMode = false;
 let resultTimeout = null;
 let quickRetryTimeout = null;
@@ -130,6 +132,7 @@ function enterQuickRetryMode() {
 
 function clearAccessResult() {
     exitQuickRetryMode();
+    isConfirmingIdentity = false;
     hideProcessingOverlay();
     clearTimeout(resultTimeout);
     clearTimeout(quickRetryTimeout);
@@ -257,8 +260,25 @@ function scheduleFullResultClear() {
     }, RESULT_DISPLAY_DENIED_MS);
 }
 
+function showConfirmingIdentity(data) {
+    cancelQuickRetryIdleReset();
+    isConfirmingIdentity = true;
+    isProcessingAccess = false;
+    isCooldown = false;
+    hudInstruction.classList.add('hidden');
+    setFaceGuideVariant('processing');
+    const name = data.name ? data.name + ' — ' : '';
+    showBottomBanner(
+        'processing',
+        'Confirmando…',
+        name + (data.detail || 'Mantenga la cara quieta')
+    );
+    showProcessingOverlay('Confirmando…');
+}
+
 function showAccessResult(data) {
     const variant = data.variant || (data.status === 'GRANTED' ? 'granted' : 'denied_unknown');
+    isConfirmingIdentity = false;
     hideProcessingOverlay();
     isProcessingAccess = false;
     setFaceGuideVariant(variant);
@@ -306,7 +326,8 @@ async function detectFaceLoop() {
     }
 
     const now = Date.now();
-    const cooldownOk = isQuickRetryMode || (now - lastCaptureTime) > CAPTURE_COOLDOWN_MS;
+    const captureCooldownMs = isConfirmingIdentity ? CONFIRM_CAPTURE_COOLDOWN_MS : CAPTURE_COOLDOWN_MS;
+    const cooldownOk = isQuickRetryMode || isConfirmingIdentity || (now - lastCaptureTime) > captureCooldownMs;
 
     try {
         const detection = await faceapi.detectSingleFace(
@@ -329,12 +350,16 @@ async function detectFaceLoop() {
             showAccessProcessing();
             sendAccessFrame();
             lastCaptureTime = now;
+        } else if (detection && !isProcessingAccess && isConfirmingIdentity) {
+            updateBottomBannerSubtitle('Mantenga la cara quieta');
         } else if (detection && !isProcessingAccess && !isQuickRetryMode) {
             setHud('Coloque su rostro en el óvalo');
         } else if (detection && !isProcessingAccess && isQuickRetryMode) {
             updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
         } else if (!detection && !isProcessingAccess) {
-            if (isQuickRetryMode) {
+            if (isConfirmingIdentity) {
+                updateBottomBannerSubtitle('Mantenga la cara quieta');
+            } else if (isQuickRetryMode) {
                 updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
             } else {
                 setHud('Coloque su rostro en el óvalo');
@@ -429,6 +454,11 @@ function handleServerMessage(data) {
             variant: 'denied_unknown',
             detail: data.reason || 'Error',
         });
+        return;
+    }
+
+    if (data.status === 'PENDING' || data.variant === 'confirming') {
+        showConfirmingIdentity(data);
         return;
     }
 

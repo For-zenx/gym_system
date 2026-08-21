@@ -12,6 +12,8 @@ from apps.access.services import (
     pulse_turnstile_if_granted,
 )
 
+PENDING_CONFIRM_TIMEOUT_SECONDS = 7.0
+
 
 def _membership_data(client_obj):
     from django.utils import timezone
@@ -77,18 +79,100 @@ def _dashboard_event(client, granted, detail, membership_lines, is_unknown=False
     }
 
 
-def process_biometric_access_frame(base64_image: str, last_unknown_log_time):
+def _pending_expired(pending_client_id, pending_since, now):
+    if pending_client_id is None or pending_since is None:
+        return True
+    return (now - pending_since).total_seconds() > PENDING_CONFIRM_TIMEOUT_SECONDS
+
+
+def _finalize_matched_client(client, match_result, last_unknown_log_time, confirm_stage):
+    remaining = get_client_cooldown_remaining(client)
+    if remaining is not None:
+        log_cooldown_denial(client, remaining)
+        tablet_response = build_cooldown_denied_payload(client, remaining)
+        write_access_biometrics_log(
+            match_result,
+            tablet_response.get("status", "DENIED"),
+            tablet_response.get("variant", "denied_cooldown"),
+            confirm_stage=confirm_stage,
+        )
+        membership_lines = _membership_lines(client)
+        dashboard_event = _dashboard_event(
+            client,
+            False,
+            tablet_response["detail"],
+            membership_lines,
+        )
+        return {
+            "tablet_response": tablet_response,
+            "dashboard_event": dashboard_event,
+            "should_log_unknown": False,
+            "match_result": match_result,
+            "unknown_log_time": last_unknown_log_time,
+            "pending_client_id": None,
+            "pending_since": None,
+        }
+
+    mem_data = _membership_data(client)
+    granted, detail = check_access_integrity(client)
+    pulse_turnstile_if_granted(granted)
+
+    tablet_response = build_tablet_access_payload(client, granted, detail, mem_data)
+    write_access_biometrics_log(
+        match_result,
+        tablet_response.get("status", "GRANTED" if granted else "DENIED"),
+        tablet_response.get("variant", "granted" if granted else "denied_other"),
+        confirm_stage=confirm_stage,
+    )
+    membership_lines = _membership_lines(client)
+    dashboard_event = _dashboard_event(client, granted, detail, membership_lines)
+
+    return {
+        "tablet_response": tablet_response,
+        "dashboard_event": dashboard_event,
+        "should_log_unknown": False,
+        "match_result": match_result,
+        "unknown_log_time": last_unknown_log_time,
+        "pending_client_id": None,
+        "pending_since": None,
+    }
+
+
+def process_biometric_access_frame(
+    base64_image: str,
+    last_unknown_log_time,
+    pending_client_id=None,
+    pending_since=None,
+):
     """
     Procesa un frame de acceso biométrico (sync).
-    Retorna dict: tablet_response, dashboard_event (o None), should_log_unknown, match_result.
+    Requiere 2 MATCH consecutivos de la misma persona antes de GRANT.
+    Durante pendiente, NO_MATCH/NO_FACE no cancelan (retry suave).
     """
     match_result = ai_engine.match_face(base64_image)
     client = match_result.client
+    now = datetime.datetime.now()
+
+    if _pending_expired(pending_client_id, pending_since, now):
+        pending_client_id = None
+        pending_since = None
 
     if client is None:
-        write_access_biometrics_log(match_result, "DENIED", "denied_unknown")
+        if pending_client_id is not None:
+            return _soft_pending_retry(
+                match_result,
+                last_unknown_log_time,
+                pending_client_id,
+                pending_since,
+            )
 
-        now = datetime.datetime.now()
+        write_access_biometrics_log(
+            match_result,
+            "DENIED",
+            "denied_unknown",
+            confirm_stage="n/a",
+        )
+
         should_log_unknown = (
             last_unknown_log_time is None
             or (now - last_unknown_log_time).total_seconds() >= 10
@@ -109,49 +193,70 @@ def process_biometric_access_frame(base64_image: str, last_unknown_log_time):
             "should_log_unknown": should_log_unknown,
             "match_result": match_result,
             "unknown_log_time": now if should_log_unknown else last_unknown_log_time,
+            "pending_client_id": None,
+            "pending_since": None,
         }
 
-    remaining = get_client_cooldown_remaining(client)
-    if remaining is not None:
-        log_cooldown_denial(client, remaining)
-        tablet_response = build_cooldown_denied_payload(client, remaining)
+    if pending_client_id is None or pending_client_id != client.pk:
         write_access_biometrics_log(
             match_result,
-            tablet_response.get("status", "DENIED"),
-            tablet_response.get("variant", "denied_cooldown"),
+            "PENDING",
+            "confirming",
+            confirm_stage="pending",
         )
-        membership_lines = _membership_lines(client)
-        dashboard_event = _dashboard_event(
-            client,
-            False,
-            tablet_response["detail"],
-            membership_lines,
-        )
+        tablet_response = {
+            "status": "PENDING",
+            "variant": "confirming",
+            "name": client.nombre,
+            "detail": "Mantenga la cara quieta",
+        }
         return {
             "tablet_response": tablet_response,
-            "dashboard_event": dashboard_event,
+            "dashboard_event": None,
             "should_log_unknown": False,
             "match_result": match_result,
             "unknown_log_time": last_unknown_log_time,
+            "pending_client_id": client.pk,
+            "pending_since": now,
         }
 
-    mem_data = _membership_data(client)
-    granted, detail = check_access_integrity(client)
-    pulse_turnstile_if_granted(granted)
+    return _finalize_matched_client(
+        client,
+        match_result,
+        last_unknown_log_time,
+        confirm_stage="confirmed",
+    )
 
-    tablet_response = build_tablet_access_payload(client, granted, detail, mem_data)
+
+def _soft_pending_retry(match_result, last_unknown_log_time, pending_client_id, pending_since):
+    """Keep confirmation alive on a weak second frame (NO_MATCH / NO_FACE)."""
+    from apps.clients.models import Client
+
+    pending_name = match_result.best_nombre or ""
+    if not pending_name:
+        try:
+            pending_name = Client.objects.get(pk=pending_client_id).nombre
+        except Client.DoesNotExist:
+            pending_name = ""
+
     write_access_biometrics_log(
         match_result,
-        tablet_response.get("status", "GRANTED" if granted else "DENIED"),
-        tablet_response.get("variant", "granted" if granted else "denied_other"),
+        "PENDING",
+        "confirming",
+        confirm_stage="retry",
     )
-    membership_lines = _membership_lines(client)
-    dashboard_event = _dashboard_event(client, granted, detail, membership_lines)
-
+    tablet_response = {
+        "status": "PENDING",
+        "variant": "confirming",
+        "name": pending_name,
+        "detail": "Mantenga la cara quieta",
+    }
     return {
         "tablet_response": tablet_response,
-        "dashboard_event": dashboard_event,
+        "dashboard_event": None,
         "should_log_unknown": False,
         "match_result": match_result,
         "unknown_log_time": last_unknown_log_time,
+        "pending_client_id": pending_client_id,
+        "pending_since": pending_since,
     }

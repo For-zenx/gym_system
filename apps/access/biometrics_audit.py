@@ -38,7 +38,12 @@ def _format_field(value) -> str:
     return text
 
 
-def write_access_biometrics_log(match_result, access_status: str, access_variant: str) -> None:
+def write_access_biometrics_log(
+    match_result,
+    access_status: str,
+    access_variant: str,
+    confirm_stage="n/a",
+) -> None:
     """Append una línea TSV al log diario. Nunca lanza excepciones al caller."""
     try:
         now = datetime.datetime.now()
@@ -60,6 +65,7 @@ def write_access_biometrics_log(match_result, access_status: str, access_variant
                 _format_field(match_result.model),
                 _format_field(access_status),
                 _format_field(access_variant),
+                _format_field(confirm_stage),
             ]
         )
 
@@ -69,7 +75,7 @@ def write_access_biometrics_log(match_result, access_status: str, access_variant
                 audit_file.write(
                     "timestamp\toutcome\tbest_codigo\tbest_nombre\tbest_distance\t"
                     "second_codigo\tsecond_distance\tmargin\ttolerance\tmodel\t"
-                    "access_status\taccess_variant\n"
+                    "access_status\taccess_variant\tconfirm_stage\n"
                 )
             audit_file.write(line + "\n")
     except Exception as exc:

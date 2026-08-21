@@ -35,11 +35,37 @@ async def _send_access_frame_result(consumer, result):
     return result["unknown_log_time"]
 
 
+async def _handle_access_frame(consumer, payload, last_unknown_log_time_attr):
+    base64_image = payload.get("image", "")
+    if not base64_image:
+        await consumer.send(json.dumps({"status": "ERROR", "reason": "Campo 'image' vacío."}))
+        return
+
+    pending_client_id = getattr(consumer, "pending_client_id", None)
+    pending_since = getattr(consumer, "pending_since", None)
+
+    result = await database_sync_to_async(process_biometric_access_frame)(
+        base64_image,
+        getattr(type(consumer), last_unknown_log_time_attr),
+        pending_client_id=pending_client_id,
+        pending_since=pending_since,
+    )
+    consumer.pending_client_id = result.get("pending_client_id")
+    consumer.pending_since = result.get("pending_since")
+    setattr(
+        type(consumer),
+        last_unknown_log_time_attr,
+        await _send_access_frame_result(consumer, result),
+    )
+
+
 class AccessTabletConsumer(AsyncWebsocketConsumer):
     last_unknown_log_time = None
 
     async def connect(self):
         await self.accept()
+        self.pending_client_id = None
+        self.pending_since = None
         await self.channel_layer.group_add(TABLET_ACCESS_GROUP, self.channel_name)
         logger.info("Tablet de acceso conectada. Canal: %s", self.channel_name)
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
@@ -65,16 +91,7 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
             await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{message_type}'"}))
 
     async def _handle_frame(self, payload):
-        base64_image = payload.get("image", "")
-        if not base64_image:
-            await self.send(json.dumps({"status": "ERROR", "reason": "Campo 'image' vacío."}))
-            return
-
-        result = await database_sync_to_async(process_biometric_access_frame)(
-            base64_image,
-            AccessTabletConsumer.last_unknown_log_time,
-        )
-        AccessTabletConsumer.last_unknown_log_time = await _send_access_frame_result(self, result)
+        await _handle_access_frame(self, payload, "last_unknown_log_time")
 
     async def tablet_status_request(self, event):
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
@@ -151,6 +168,8 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         await self.accept()
+        self.pending_client_id = None
+        self.pending_since = None
         await self.channel_layer.group_add(TABLET_COMBINED_GROUP, self.channel_name)
         logger.info("Tablet enrolamiento_acceso conectada. Canal: %s", self.channel_name)
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
@@ -212,16 +231,7 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
             )
 
     async def _handle_frame(self, payload):
-        base64_image = payload.get("image", "")
-        if not base64_image:
-            await self.send(json.dumps({"status": "ERROR", "reason": "Campo 'image' vacío."}))
-            return
-
-        result = await database_sync_to_async(process_biometric_access_frame)(
-            base64_image,
-            CombinedTabletConsumer.last_unknown_log_time,
-        )
-        CombinedTabletConsumer.last_unknown_log_time = await _send_access_frame_result(self, result)
+        await _handle_access_frame(self, payload, "last_unknown_log_time")
 
     async def enrollment_command(self, event):
         await self.send(json.dumps(event.get("data", {})))

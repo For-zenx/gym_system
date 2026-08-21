@@ -10,7 +10,12 @@ echo ============================================
 echo.
 echo Este script regenera los embeddings desde foto_frente.
 echo Si falla en alguien, conserva el embedding anterior.
-echo Detenga el Manager antes de ejecutar.
+echo.
+echo IMPORTANTE:
+echo  - Detenga el Manager antes de ejecutar.
+echo  - Puede tardar varios minutos. NO cierre esta ventana.
+echo  - Primero hace una SIMULACION (no guarda).
+echo  - Solo si responde S se aplica a la base de datos.
 echo.
 
 if not exist "%PYTHON%" (
@@ -24,7 +29,9 @@ cd /d "%APP%"
 set "DJANGO_SETTINGS_MODULE=config.settings_production"
 set "PERFECTLINE_ROOT=%ROOT%"
 
-echo Modo simulacion (--dry-run):
+echo.
+echo === PASO 1/2: SIMULACION (dry-run, no guarda) ===
+echo.
 "%PYTHON%" manage.py regenerate_face_embeddings --dry-run
 if errorlevel 1 (
   echo.
@@ -34,15 +41,23 @@ if errorlevel 1 (
 )
 
 echo.
-set /p CONFIRM=Desea aplicar los cambios en la base de datos? (S/N):
+echo ============================================
+echo Simulacion terminada. AUN NO se guardo nada en la BD.
+echo En el reporte de arriba debe decir DRY_RUN=True / DRY_OK.
+echo ============================================
+echo.
+set /p CONFIRM=Desea APLICAR los cambios en la base de datos? (S/N):
 if /I not "%CONFIRM%"=="S" (
-  echo Operacion cancelada.
+  echo.
+  echo Operacion cancelada. La BD no fue modificada por este paso.
   pause
   exit /b 0
 )
 
 echo.
-echo Regenerando embeddings...
+echo === PASO 2/2: APLICACION REAL (guarda en BD) ===
+echo Puede tardar varios minutos. NO cierre esta ventana.
+echo.
 "%PYTHON%" manage.py regenerate_face_embeddings
 if errorlevel 1 (
   echo.
@@ -52,6 +67,11 @@ if errorlevel 1 (
 )
 
 echo.
-echo Proceso completado. Revise el reporte en %ROOT%\logs\
+echo ============================================
+echo Proceso completado.
+echo Revise el reporte NUEVO en: %ROOT%\logs\
+echo Debe decir DRY_RUN=False y filas con estado OK (no DRY_OK).
+echo Luego reinicie el Manager.
+echo ============================================
 pause
 endlocal

@@ -32,9 +32,15 @@ class Command(BaseCommand):
             default="",
             help="Ruta del reporte .txt (default: logs/regenerar_embeddings_<timestamp>.txt).",
         )
+        parser.add_argument(
+            "--self-check",
+            action="store_true",
+            help="Recodifica cada foto para medir distancia_self (mas lento; ~2x tiempo).",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
+        do_self_check = options["self_check"]
         codigo_filter = (options["codigo"] or "").strip()
         report_path = self._resolve_report_path(options["report_path"])
 
@@ -42,10 +48,20 @@ class Command(BaseCommand):
         if codigo_filter:
             clients = clients.filter(codigo_afiliado=codigo_filter)
 
-        clients = clients.order_by("codigo_afiliado")
-        if not clients.exists():
+        clients = list(clients.order_by("codigo_afiliado"))
+        total = len(clients)
+        if total == 0:
             self.stdout.write(self.style.WARNING("No hay afiliados con foto frontal para procesar."))
             return
+
+        mode_label = "SIMULACION (dry-run, no guarda)" if dry_run else "APLICACION REAL (guarda en BD)"
+        self.stdout.write(self.style.NOTICE("Modo: {0}".format(mode_label)))
+        self.stdout.write(
+            "Procesando {0} afiliado(s). No cierre esta ventana.".format(total)
+        )
+        if do_self_check:
+            self.stdout.write("Self-check activo (mas lento).")
+        self.stdout.write("")
 
         report_path.parent.mkdir(parents=True, exist_ok=True)
         lines = [
@@ -55,13 +71,15 @@ class Command(BaseCommand):
         fail_count = 0
         skip_count = 0
 
-        for client in clients:
+        for index, client in enumerate(clients, start=1):
             codigo = client.codigo_afiliado or "—"
             nombre = client.nombre or "—"
+            prefix = "[{0}/{1}]".format(index, total)
 
             if not client.foto_frente:
                 skip_count += 1
                 lines.append("{0}\t{1}\tSKIP\tSin foto frontal\t—".format(codigo, nombre))
+                self.stdout.write("{0} SKIP {1} ({2})".format(prefix, codigo, nombre))
                 continue
 
             image_path = Path(settings.MEDIA_ROOT) / client.foto_frente.name
@@ -72,16 +90,29 @@ class Command(BaseCommand):
                         codigo, nombre, client.foto_frente.name
                     )
                 )
+                self.stderr.write(
+                    self.style.ERROR(
+                        "{0} FAIL {1} ({2}): archivo no encontrado".format(
+                            prefix, codigo, nombre
+                        )
+                    )
+                )
                 continue
 
             try:
                 embedding = ai_engine.generate_embedding(image_path)
-                distancia_self = self._self_distance(image_path, embedding)
+                distancia_self = (
+                    self._self_distance(image_path, embedding)
+                    if do_self_check
+                    else float("nan")
+                )
             except Exception as exc:
                 fail_count += 1
                 lines.append("{0}\t{1}\tFAIL\t{2}\t—".format(codigo, nombre, exc))
                 self.stderr.write(
-                    self.style.ERROR("FAIL {0} ({1}): {2}".format(codigo, nombre, exc))
+                    self.style.ERROR(
+                        "{0} FAIL {1} ({2}): {3}".format(prefix, codigo, nombre, exc)
+                    )
                 )
                 continue
 
@@ -90,6 +121,11 @@ class Command(BaseCommand):
                 lines.append(
                     "{0}\t{1}\tDRY_OK\tEmbedding generado (sin guardar)\t{2}".format(
                         codigo, nombre, self._format_distance(distancia_self)
+                    )
+                )
+                self.stdout.write(
+                    "{0} DRY_OK {1} ({2}) — aun no guardado".format(
+                        prefix, codigo, nombre
                     )
                 )
                 continue
@@ -102,18 +138,27 @@ class Command(BaseCommand):
                     codigo, nombre, self._format_distance(distancia_self)
                 )
             )
-            self.stdout.write(self.style.SUCCESS("OK {0} ({1})".format(codigo, nombre)))
+            self.stdout.write(
+                self.style.SUCCESS("{0} OK {1} ({2})".format(prefix, codigo, nombre))
+            )
 
         report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+        self.stdout.write("")
         summary = "Resumen: OK={0} FAIL={1} SKIP={2} DRY_RUN={3}".format(
             ok_count,
             fail_count,
             skip_count,
             dry_run,
         )
-        self.stdout.write(summary)
+        self.stdout.write(self.style.NOTICE(summary))
         self.stdout.write("Reporte: {0}".format(report_path))
+        if dry_run:
+            self.stdout.write(
+                self.style.WARNING(
+                    "ATENCION: esto fue solo simulacion. En el reporte veras DRY_OK, no OK."
+                )
+            )
 
     def _resolve_report_path(self, report_path_option: str) -> Path:
         if report_path_option:
@@ -132,7 +177,9 @@ class Command(BaseCommand):
 
     def _self_distance(self, image_path: Path, embedding: list) -> float:
         image = face_recognition.load_image_file(str(image_path))
-        live_encodings = face_recognition.face_encodings(image, model=ai_engine.FACE_ENCODING_MODEL)
+        live_encodings = face_recognition.face_encodings(
+            image, model=ai_engine.FACE_ENCODING_MODEL
+        )
         if not live_encodings:
             return float("nan")
         return float(np.linalg.norm(np.array(embedding) - live_encodings[0]))
