@@ -13,6 +13,11 @@ const RESULT_DISPLAY_DENIED_UNKNOWN_MS = 1600;
 const COOLDOWN_RELEASE_MS = 300;
 const QUICK_RETRY_IDLE_MS = 4000;
 const JPEG_QUALITY = 0.9;
+const WS_PING_MS = 20000;
+const WS_PONG_TIMEOUT_MS = 45000;
+const LONG_DISCONNECT_RELOAD_MS = 5 * 60 * 1000;
+const CONFIRMING_MAX_MS = 12000;
+const DETECT_WATCHDOG_MS = 15000;
 
 const MODE_ACCESS = "access";
 const MODE_ENROLLMENT = "enrollment";
@@ -52,9 +57,189 @@ let quickRetryNoValidFaceSince = null;
 let serverTimeoutTimer = null;
 let lastAccessCaptureTime = 0;
 let accessStableSince = null;
+let disconnectedSince = null;
+let pendingSoftReload = false;
+let softReloadDoneForThisDown = false;
+let pingTimer = null;
+let pongTimer = null;
+let confirmingWatchdogTimer = null;
+let lastDetectTick = Date.now();
+let detectWatchdogTimer = null;
+let detectRestartCount = 0;
+let cameraRetrying = false;
 
 function resetAccessStability() {
     accessStableSince = null;
+}
+
+function isAccessUiIdle() {
+    return (
+        currentMode === MODE_ACCESS &&
+        !isProcessingAccess &&
+        !isConfirmingIdentity &&
+        !isEnrollmentCaptureActive &&
+        accessBottomBanner.classList.contains("hidden")
+    );
+}
+
+function clearConfirmingWatchdog() {
+    clearTimeout(confirmingWatchdogTimer);
+    confirmingWatchdogTimer = null;
+}
+
+function startConfirmingWatchdog() {
+    clearConfirmingWatchdog();
+    confirmingWatchdogTimer = setTimeout(function () {
+        confirmingWatchdogTimer = null;
+        if (isConfirmingIdentity && currentMode === MODE_ACCESS) {
+            clearAccessResult();
+            setHud("Coloque su rostro en el óvalo");
+            isCooldown = false;
+        }
+    }, CONFIRMING_MAX_MS);
+}
+
+function stopHeartbeat() {
+    clearInterval(pingTimer);
+    clearTimeout(pongTimer);
+    pingTimer = null;
+    pongTimer = null;
+}
+
+function notePongReceived() {
+    clearTimeout(pongTimer);
+    pongTimer = null;
+}
+
+function startHeartbeat() {
+    stopHeartbeat();
+    pingTimer = setInterval(function () {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            return;
+        }
+        try {
+            socket.send(JSON.stringify({ type: "PING" }));
+        } catch (err) {
+            return;
+        }
+        clearTimeout(pongTimer);
+        pongTimer = setTimeout(function () {
+            if (socket) {
+                try {
+                    socket.close();
+                } catch (e) { /* ignore */ }
+            }
+        }, WS_PONG_TIMEOUT_MS);
+    }, WS_PING_MS);
+}
+
+function requestSafeReload() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+        pendingSoftReload = true;
+        return;
+    }
+    if (!isAccessUiIdle()) {
+        pendingSoftReload = true;
+        return;
+    }
+    pendingSoftReload = false;
+    window.location.reload();
+}
+
+function tryPendingSoftReload() {
+    if (
+        pendingSoftReload &&
+        isAccessUiIdle() &&
+        socket &&
+        socket.readyState === WebSocket.OPEN
+    ) {
+        pendingSoftReload = false;
+        window.location.reload();
+    }
+}
+
+function onWsOpened() {
+    const downMs = disconnectedSince ? Date.now() - disconnectedSince : 0;
+    disconnectedSince = null;
+    startHeartbeat();
+    if (currentMode === MODE_ENROLLMENT && !isEnrollmentCaptureActive && !enrollmentCaptureCompleted) {
+        enterAccessMode();
+    } else if (currentMode === MODE_ACCESS) {
+        enterAccessMode();
+    }
+    if (downMs >= LONG_DISCONNECT_RELOAD_MS && !softReloadDoneForThisDown) {
+        softReloadDoneForThisDown = true;
+        requestSafeReload();
+        return;
+    }
+    softReloadDoneForThisDown = false;
+    tryPendingSoftReload();
+}
+
+function onWsClosed() {
+    stopHeartbeat();
+    clearConfirmingWatchdog();
+    if (disconnectedSince === null) {
+        disconnectedSince = Date.now();
+    }
+    softReloadDoneForThisDown = false;
+    setStatus("disconnected", "Sin conexión...");
+    stopAccessLoop();
+    if (currentMode === MODE_ACCESS) {
+        clearAccessResult();
+    }
+    reconnectTimer = setTimeout(connectWebSocket, RECONNECT_DELAY_MS);
+}
+
+function startDetectWatchdog() {
+    clearInterval(detectWatchdogTimer);
+    detectWatchdogTimer = setInterval(function () {
+        if (document.visibilityState !== "visible" || currentMode !== MODE_ACCESS) {
+            return;
+        }
+        if (!accessLoopActive) {
+            return;
+        }
+        if (Date.now() - lastDetectTick > DETECT_WATCHDOG_MS) {
+            detectRestartCount += 1;
+            lastDetectTick = Date.now();
+            stopAccessLoop();
+            startAccessLoop();
+            if (detectRestartCount >= 2) {
+                detectRestartCount = 0;
+                requestSafeReload();
+            }
+        } else {
+            detectRestartCount = 0;
+        }
+    }, DETECT_WATCHDOG_MS);
+}
+
+function attachCameraEndedHandler(stream) {
+    const tracks = stream.getVideoTracks();
+    if (!tracks.length) {
+        return;
+    }
+    tracks[0].addEventListener("ended", function () {
+        if (cameraRetrying || currentMode !== MODE_ACCESS) {
+            return;
+        }
+        cameraRetrying = true;
+        ensureCamera()
+            .then(function () {
+                if (currentMode === MODE_ACCESS) {
+                    stopAccessLoop();
+                    startAccessLoop();
+                }
+            })
+            .catch(function (err) {
+                console.error("[Tablet EA] Error reintentando cámara:", err);
+                setStatus("disconnected", "Sin cámara");
+            })
+            .finally(function () {
+                cameraRetrying = false;
+            });
+    });
 }
 
 let isEnrollmentCaptureActive = false;
@@ -222,6 +407,7 @@ function clearAccessTimers() {
 function clearAccessResult() {
     exitQuickRetryMode();
     isConfirmingIdentity = false;
+    clearConfirmingWatchdog();
     resetAccessStability();
     hideProcessingOverlay();
     clearTimeout(resultTimeout);
@@ -230,6 +416,7 @@ function clearAccessResult() {
     hideBottomBanner();
     hudInstruction.classList.remove("hidden");
     isProcessingAccess = false;
+    tryPendingSoftReload();
 }
 
 function formatCutLine(data) {
@@ -372,6 +559,7 @@ function showConfirmingIdentity(data) {
     isProcessingAccess = false;
     isCooldown = false;
     resetAccessStability();
+    startConfirmingWatchdog();
     hudInstruction.classList.add("hidden");
     setFaceGuideVariant("processing");
     const name = data.name ? data.name + " — " : "";
@@ -390,6 +578,7 @@ function showAccessResult(data) {
 
     const variant = data.variant || (data.status === "GRANTED" ? "granted" : "denied_unknown");
     isConfirmingIdentity = false;
+    clearConfirmingWatchdog();
     hideProcessingOverlay();
     isProcessingAccess = false;
     setFaceGuideVariant(variant);
@@ -434,6 +623,8 @@ async function accessDetectLoop() {
     if (!accessLoopActive || currentMode !== MODE_ACCESS) {
         return;
     }
+
+    lastDetectTick = Date.now();
 
     if (!isModelsLoaded || cameraFeed.paused || cameraFeed.ended) {
         requestAnimationFrame(accessDetectLoop);
@@ -684,6 +875,7 @@ async function ensureCamera() {
     });
     cameraStream = stream;
     cameraFeed.srcObject = stream;
+    attachCameraEndedHandler(stream);
     return new Promise(function (resolve) {
         cameraFeed.addEventListener("loadedmetadata", resolve, { once: true });
     });
@@ -861,8 +1053,12 @@ function handleAccessResponse(data) {
 }
 
 function handleServerMessage(data) {
+    if (data.type === "PONG") {
+        notePongReceived();
+        return;
+    }
     if (data.type === "TABLET_RELOAD") {
-        window.location.reload();
+        requestSafeReload();
         return;
     }
     if (data.type && String(data.type).indexOf("ENROLLMENT_") === 0) {
@@ -874,20 +1070,15 @@ function handleServerMessage(data) {
 
 function connectWebSocket() {
     clearTimeout(reconnectTimer);
+    stopHeartbeat();
     socket = new WebSocket(WS_URL);
 
     socket.onopen = function () {
-        if (currentMode === MODE_ENROLLMENT && !isEnrollmentCaptureActive && !enrollmentCaptureCompleted) {
-            enterAccessMode();
-        } else if (currentMode === MODE_ACCESS) {
-            enterAccessMode();
-        }
+        onWsOpened();
     };
 
     socket.onclose = function () {
-        setStatus("disconnected", "Sin conexión...");
-        stopAccessLoop();
-        reconnectTimer = setTimeout(connectWebSocket, RECONNECT_DELAY_MS);
+        onWsClosed();
     };
 
     socket.onmessage = function (event) {
@@ -899,26 +1090,7 @@ function connectWebSocket() {
     };
 }
 
-function scheduleDailyReload() {
-    const now = new Date();
-    const reloadTime = new Date();
-    reloadTime.setHours(4, 0, 0, 0); // 4:00 AM
-
-    // Si ya pasaron las 4:00 AM de hoy, programar para mañana
-    if (now.getTime() > reloadTime.getTime()) {
-        reloadTime.setDate(reloadTime.getDate() + 1);
-    }
-
-    const msUntilReload = reloadTime.getTime() - now.getTime();
-    
-    setTimeout(function() {
-        window.location.reload();
-    }, msUntilReload);
-}
-
 document.addEventListener("DOMContentLoaded", function () {
-    scheduleDailyReload();
-    
     if (termsAcceptBtn) {
         termsAcceptBtn.addEventListener("click", acceptTermsOnTablet);
     }
@@ -931,6 +1103,7 @@ document.addEventListener("DOMContentLoaded", function () {
             connectWebSocket();
         }
     });
+    startDetectWatchdog();
     loadModels()
         .then(function () {
             return enterAccessMode();

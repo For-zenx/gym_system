@@ -5,7 +5,7 @@
 {% block page_title %}Perfil del Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.7">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.9">
 {% endblock %}
 
 {% block content %}
@@ -259,6 +259,9 @@
                 <button type="button" class="btn btn-primary" disabled title="No hay planes disponibles para cobrar">Registrar cobro</button>
                 {% endif %}
                 {% endif %}
+                {% if can_grant_admin_access %}
+                <button type="button" class="btn btn-admin-access" onclick="openAdminAccessModal()" {% if not admin_access_fixed_plans %}disabled title="No hay planes fijos activos"{% endif %}>Acceso administrativo</button>
+                {% endif %}
                 {% if 'billing.change_cut_date' in user_permissions %}
                 <button type="button" class="btn btn-link-muted" onclick="openCutDateModal()">Cambiar fecha de corte</button>
                 {% endif %}
@@ -499,6 +502,54 @@
     </div>
     {% endif %}
 
+    {% if can_grant_admin_access %}
+    <div class="modal-overlay" id="adminAccessModal">
+        <div class="modal-content">
+            {% include "includes/modal_header.html" with modal_title="Acceso administrativo" %}
+            <p class="profile-danger-text" style="margin-top: 0;">
+                Esto eliminará todas las membresías anteriores, reseteará la suscripción fija,
+                cancelará periodos de servicio vinculados y <strong>no generará cobro</strong>.
+            </p>
+            {% if admin_access_fixed_plans %}
+            <form method="POST" action="{% url 'clients:grant_admin_access' client.codigo_afiliado %}" id="admin-access-form">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="admin_access_plan_id">Plan fijo</label>
+                    <select id="admin_access_plan_id" name="plan_id" class="form-control" required>
+                        <option value="">Seleccione un plan…</option>
+                        {% for plan in admin_access_fixed_plans %}
+                        <option value="{{ plan.pk }}">
+                            {{ plan.nombre }}{% if plan.hora_inicio and plan.hora_fin %} ({{ plan.hora_inicio|time:"H:i" }}–{{ plan.hora_fin|time:"H:i" }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="admin_access_valid_until">Válido hasta</label>
+                    <input type="date" id="admin_access_valid_until" name="valid_until" class="form-control" required min="{{ today|date:'Y-m-d' }}" value="{{ today|date:'Y-m-d' }}">
+                    <p class="billing-field-hint" id="admin-access-summary" style="margin-top: 0.5rem;">
+                        Acceso desde {{ today|date:"d/m/Y" }} hasta {{ today|date:"d/m/Y" }}.
+                    </p>
+                </div>
+                <label class="profile-danger-ack">
+                    <input type="checkbox" id="admin_access_ack" name="confirm_admin_access" value="1" required>
+                    <span>Entiendo que se borrarán membresías anteriores y no se generará un cobro.</span>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAdminAccessModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="admin-access-submit">Asignar acceso</button>
+                </div>
+            </form>
+            {% else %}
+            <p class="billing-field-hint">No hay planes fijos activos en el catálogo.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAdminAccessModal()">Cerrar</button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="modal-overlay" id="manageMembershipsModal">
         <div class="modal-content" style="max-width: 800px;">
             {% include "includes/modal_header.html" with modal_title="Gestionar Membresías" %}
@@ -565,6 +616,35 @@
 {% block extra_js %}
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
 <script>
+    {% if can_grant_admin_access %}
+    function openAdminAccessModal() {
+        document.getElementById('adminAccessModal').classList.add('show');
+    }
+
+    function closeAdminAccessModal() {
+        document.getElementById('adminAccessModal').classList.remove('show');
+    }
+
+    (function () {
+        var dateInput = document.getElementById('admin_access_valid_until');
+        var summary = document.getElementById('admin-access-summary');
+        if (!dateInput || !summary) return;
+
+        function formatVe(isoDate) {
+            if (!isoDate || isoDate.length < 10) return '—';
+            var parts = isoDate.split('-');
+            return parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+
+        function updateSummary() {
+            summary.textContent = 'Acceso desde {{ today|date:"d/m/Y" }} hasta ' + formatVe(dateInput.value) + '.';
+        }
+
+        dateInput.addEventListener('change', updateSummary);
+        dateInput.addEventListener('input', updateSummary);
+    })();
+    {% endif %}
+
     {% if 'billing.change_cut_date' in user_permissions %}
     function openCutDateModal() {
         document.getElementById('cutDateModal').classList.add('show');
@@ -627,6 +707,9 @@
 
     {% if 'billing.change_cut_date' in user_permissions %}
     bindDismissibleModalById('cutDateModal', { onClose: closeCutDateModal });
+    {% endif %}
+    {% if can_grant_admin_access %}
+    bindDismissibleModalById('adminAccessModal', { onClose: closeAdminAccessModal });
     {% endif %}
     {% if 'clients.block' in user_permissions and not client.is_blocked %}
     bindDismissibleModalById('blockModal', { onClose: closeBlockModal });

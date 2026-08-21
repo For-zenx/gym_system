@@ -3,6 +3,7 @@ from .views import (
     BulkDeleteInactiveClientsView,
     ClientProfileView,
     ClientDeleteView,
+    ClientGrantAdminAccessView,
     EditClientView,
     ClientListView,
     InactiveClientsPreviewView,
@@ -21,4 +22,9 @@ urlpatterns = [
     path('<str:codigo_afiliado>/re-enrolar/', ReEnrollClientView.as_view(), name='re_enroll'),
     path('<str:codigo_afiliado>/eliminar/', ClientDeleteView.as_view(), name='delete_client'),
     path('<str:codigo_afiliado>/bloquear/', ToggleBlockClientView.as_view(), name='toggle_block'),
+    path(
+        '<str:codigo_afiliado>/acceso-administrativo/',
+        ClientGrantAdminAccessView.as_view(),
+        name='grant_admin_access',
+    ),
 ]

@@ -83,12 +83,14 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
             await self.send(json.dumps({"status": "ERROR", "reason": "Formato de mensaje inválido. Se esperaba JSON."}))
             return
 
-        if payload.get("type") == "FRAME":
+        msg_type = payload.get("type")
+        if msg_type == "PING":
+            await self.send(json.dumps({"type": "PONG"}))
+        elif msg_type == "FRAME":
             await self._handle_frame(payload)
         else:
-            message_type = payload.get("type")
-            logger.warning("Tipo de mensaje desconocido en tablet de acceso: %s", message_type)
-            await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{message_type}'"}))
+            logger.warning("Tipo de mensaje desconocido en tablet de acceso: %s", msg_type)
+            await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{msg_type}'"}))
 
     async def _handle_frame(self, payload):
         await _handle_access_frame(self, payload, "last_unknown_log_time")
@@ -127,7 +129,10 @@ class EnrollmentTabletConsumer(AsyncWebsocketConsumer):
             await self.send(json.dumps({"status": "ERROR", "reason": "Formato de mensaje inválido. Se esperaba JSON."}))
             return
 
-        if payload.get("type") == "ENROLLMENT_PHOTO":
+        msg_type = payload.get("type")
+        if msg_type == "PING":
+            await self.send(json.dumps({"type": "PONG"}))
+        elif msg_type == "ENROLLMENT_PHOTO":
             await self.channel_layer.group_send(
                 DASHBOARD_GROUP,
                 {
@@ -136,11 +141,9 @@ class EnrollmentTabletConsumer(AsyncWebsocketConsumer):
                     "image": payload.get("image"),
                 },
             )
-
         else:
-            message_type = payload.get("type")
-            logger.warning("Tipo de mensaje desconocido en tablet de enrolamiento: %s", message_type)
-            await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{message_type}'"}))
+            logger.warning("Tipo de mensaje desconocido en tablet de enrolamiento: %s", msg_type)
+            await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{msg_type}'"}))
 
     async def enrollment_command(self, event):
         await self.send(json.dumps(event.get("data", {})))
@@ -204,7 +207,9 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
             return
 
         msg_type = payload.get("type")
-        if msg_type == "FRAME":
+        if msg_type == "PING":
+            await self.send(json.dumps({"type": "PONG"}))
+        elif msg_type == "FRAME":
             await self._handle_frame(payload)
         elif msg_type == "ENROLLMENT_PHOTO":
             await self.channel_layer.group_send(
@@ -215,7 +220,6 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
                     "image": payload.get("image"),
                 },
             )
-
         else:
             logger.warning(
                 "Tipo de mensaje desconocido en tablet enrolamiento_acceso: %s",

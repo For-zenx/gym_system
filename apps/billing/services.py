@@ -1429,6 +1429,81 @@ def delete_membership_with_audit(membership, user):
 
 
 @transaction.atomic
+def grant_admin_access(client, plan, valid_until, user):
+    """Asigna acceso administrativo sin cobro: limpia membresías previas y crea una fija.
+
+    - Solo afiliados MEMBER.
+    - Solo planes FIXED activos.
+    - Elimina ClientServicePeriod (PROTECT sobre Membership) y todas las membresías.
+    - Vincula fixed_plan al plan elegido; conserva fecha_corte_dia o la deriva de valid_until.
+    - No crea Invoice ni llama register_checkout.
+    """
+    from datetime import date as date_cls
+
+    if not getattr(client, "is_member", False):
+        raise ValidationError("Solo se puede asignar acceso administrativo a afiliados.")
+
+    if not plan or not plan.is_fixed:
+        raise ValidationError("Debe seleccionar un plan fijo activo.")
+
+    if not plan.is_active:
+        raise ValidationError("El plan seleccionado no está activo.")
+
+    today = date_cls.today()
+    if not isinstance(valid_until, date_cls):
+        raise ValidationError("La fecha de vigencia no es válida.")
+    if valid_until < today:
+        raise ValidationError("La fecha de vigencia no puede ser anterior a hoy.")
+
+    deleted_period_ids = list(
+        client.service_periods.values_list("id", flat=True)
+    )
+    client.service_periods.all().delete()
+
+    deleted_membership_ids = []
+    memberships = list(client.memberships.select_related("plan").order_by("fecha_inicio"))
+    for membership in memberships:
+        deleted_membership_ids.append(membership.pk)
+        delete_membership_with_audit(membership, user)
+
+    cut_day = client.fecha_corte_dia
+    if cut_day is None:
+        cut_day = max(1, min(valid_until.day, 28))
+
+    client.fixed_plan = plan
+    client.fecha_corte_dia = cut_day
+    client.save(update_fields=["fixed_plan", "fecha_corte_dia"])
+
+    new_membership = Membership(
+        client=client,
+        plan=plan,
+        fecha_inicio=today,
+        fecha_fin=valid_until,
+    )
+    new_membership.save()
+
+    log_billing_event(
+        client,
+        ClientBillingEvent.EventType.ADMIN_ACCESS_GRANTED,
+        payload={
+            "plan_id": plan.pk,
+            "plan_name": plan.nombre,
+            "fecha_inicio": today.isoformat(),
+            "fecha_fin": valid_until.isoformat(),
+            "membership_id": new_membership.pk,
+            "deleted_membership_ids": deleted_membership_ids,
+            "deleted_service_period_ids": deleted_period_ids,
+            "fecha_corte_dia": cut_day,
+        },
+        motivo="Acceso administrativo sin cobro por {}".format(
+            user.username if user else "sistema"
+        ),
+        user=user,
+    )
+    return new_membership
+
+
+@transaction.atomic
 def void_invoice(invoice, user, reason):
     if invoice.esta_anulada:
         raise ValidationError("La factura ya está anulada.")

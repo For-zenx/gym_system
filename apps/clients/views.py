@@ -12,6 +12,8 @@ from django.views import View
 from django.contrib import messages
 from django.http import JsonResponse
 from django.db.models import Exists, OuterRef, Q
+from django.core.exceptions import ValidationError
+from django.utils.dateparse import parse_date
 from .models import Client, GuestPass, PersonCategory, STAFF_PERSON_CATEGORIES
 from .services import (
     ALLOWED_INACTIVITY_YEARS,
@@ -39,6 +41,7 @@ from apps.billing.services import (
     get_display_service_periods_for_client,
     get_recent_service_periods_for_client,
     get_profile_subscription_summary,
+    grant_admin_access,
 )
 from apps.lockers.services import (
     get_display_locker_rentals_for_client,
@@ -211,6 +214,13 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
         context['all_memberships'] = self.object.memberships.select_related('plan').order_by('-fecha_inicio')
         context['has_chargeable_plans'] = bool(
             get_chargeable_plans(self.object, active_plans)
+        )
+        context['admin_access_fixed_plans'] = Plan.objects.filter(
+            is_active=True,
+            billing_type=Plan.BillingType.FIXED,
+        ).order_by("nombre")
+        context['can_grant_admin_access'] = has_permission(
+            self.request.user, "clients.grant_admin_access"
         )
         if has_permission(self.request.user, "classes.view"):
             from apps.classes.services import get_client_class_registrations
@@ -406,6 +416,64 @@ class ToggleBlockClientView(PermissionRequiredMixin, View):
         
         client.save(update_fields=["is_blocked", "blocking_reason"])
         return redirect("clients:profile", codigo_afiliado=codigo_afiliado)
+
+
+class ClientGrantAdminAccessView(PermissionRequiredMixin, View):
+    required_permission = "clients.grant_admin_access"
+
+    def post(self, request, codigo_afiliado):
+        client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        profile_url = reverse(
+            "clients:profile",
+            kwargs={"codigo_afiliado": codigo_afiliado},
+        )
+
+        if not client.is_member:
+            messages.error(request, "Solo se puede asignar acceso administrativo a afiliados.")
+            return redirect(
+                reverse(
+                    get_person_profile_url_name(client),
+                    kwargs={"codigo_afiliado": codigo_afiliado},
+                )
+            )
+
+        if request.POST.get("confirm_admin_access") != "1":
+            messages.error(
+                request,
+                "Debes confirmar que entiendes que se eliminarán membresías anteriores y no se generará cobro.",
+            )
+            return redirect(profile_url)
+
+        plan_id = (request.POST.get("plan_id") or "").strip()
+        plan = Plan.objects.filter(
+            pk=plan_id,
+            is_active=True,
+            billing_type=Plan.BillingType.FIXED,
+        ).first()
+        if not plan:
+            messages.error(request, "Seleccione un plan fijo activo.")
+            return redirect(profile_url)
+
+        valid_until = parse_date((request.POST.get("valid_until") or "").strip())
+        if not valid_until:
+            messages.error(request, "Indique la fecha de vigencia.")
+            return redirect(profile_url)
+
+        try:
+            membership = grant_admin_access(client, plan, valid_until, request.user)
+        except ValidationError as exc:
+            message = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            messages.error(request, message)
+            return redirect(profile_url)
+
+        messages.success(
+            request,
+            "Acceso administrativo asignado con plan {} hasta el {} (sin cobro).".format(
+                plan.nombre,
+                membership.fecha_fin.strftime("%d/%m/%Y"),
+            ),
+        )
+        return redirect(profile_url)
 
 
 class ReEnrollClientView(PermissionRequiredMixin, View):

@@ -303,6 +303,7 @@ class ClientBillingEvent(models.Model):
         LATE_FEE_APPLIED = "LATE_FEE_APPLIED", "Multa aplicada"
         LATE_FEE_WAIVED = "LATE_FEE_WAIVED", "Multa omitida"
         MEMBERSHIP_DELETED = "MEMBERSHIP_DELETED", "Membresía eliminada"
+        ADMIN_ACCESS_GRANTED = "ADMIN_ACCESS_GRANTED", "Acceso administrativo asignado"
 
     client = models.ForeignKey(
         Client,

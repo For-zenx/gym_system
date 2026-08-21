@@ -20,6 +20,7 @@ PERMISSION_GROUPS = {
             ("clients.enroll", "Enrolar nuevos afiliados"),
             ("clients.delete", "Eliminar afiliados"),
             ("clients.block", "Bloquear acceso manualmente"),
+            ("clients.grant_admin_access", "Asignar acceso administrativo sin cobro"),
         ],
     },
     "staff_persons": {

@@ -10,6 +10,11 @@ const RESULT_DISPLAY_DENIED_MS = 3200;
 const RESULT_DISPLAY_DENIED_UNKNOWN_MS = 1600;
 const COOLDOWN_RELEASE_MS = 300;
 const QUICK_RETRY_IDLE_MS = 4000;
+const WS_PING_MS = 20000;
+const WS_PONG_TIMEOUT_MS = 45000;
+const LONG_DISCONNECT_RELOAD_MS = 5 * 60 * 1000;
+const CONFIRMING_MAX_MS = 12000;
+const DETECT_WATCHDOG_MS = 15000;
 
 const cameraFeed = document.getElementById('camera-feed');
 const overlayCanvas = document.getElementById('overlay-canvas');
@@ -39,9 +44,160 @@ let canvasCtx = overlayCanvas.getContext('2d');
 let isModelsLoaded = false;
 let lastCaptureTime = 0;
 let accessStableSince = null;
+let disconnectedSince = null;
+let pendingSoftReload = false;
+let softReloadDoneForThisDown = false;
+let pingTimer = null;
+let pongTimer = null;
+let confirmingWatchdogTimer = null;
+let lastDetectTick = Date.now();
+let detectWatchdogTimer = null;
+let detectRestartCount = 0;
+let cameraRetrying = false;
 
 function resetAccessStability() {
     accessStableSince = null;
+}
+
+function isAccessUiIdle() {
+    return (
+        !isProcessingAccess &&
+        !isConfirmingIdentity &&
+        accessBottomBanner.classList.contains('hidden')
+    );
+}
+
+function clearConfirmingWatchdog() {
+    clearTimeout(confirmingWatchdogTimer);
+    confirmingWatchdogTimer = null;
+}
+
+function startConfirmingWatchdog() {
+    clearConfirmingWatchdog();
+    confirmingWatchdogTimer = setTimeout(function () {
+        confirmingWatchdogTimer = null;
+        if (isConfirmingIdentity) {
+            clearAccessResult();
+            setHud('Coloque su rostro en el óvalo');
+            isCooldown = false;
+        }
+    }, CONFIRMING_MAX_MS);
+}
+
+function stopHeartbeat() {
+    clearInterval(pingTimer);
+    clearTimeout(pongTimer);
+    pingTimer = null;
+    pongTimer = null;
+}
+
+function notePongReceived() {
+    clearTimeout(pongTimer);
+    pongTimer = null;
+}
+
+function startHeartbeat() {
+    stopHeartbeat();
+    pingTimer = setInterval(function () {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            return;
+        }
+        try {
+            socket.send(JSON.stringify({ type: 'PING' }));
+        } catch (err) {
+            return;
+        }
+        clearTimeout(pongTimer);
+        pongTimer = setTimeout(function () {
+            if (socket) {
+                try {
+                    socket.close();
+                } catch (e) { /* ignore */ }
+            }
+        }, WS_PONG_TIMEOUT_MS);
+    }, WS_PING_MS);
+}
+
+function requestSafeReload() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+        pendingSoftReload = true;
+        return;
+    }
+    if (!isAccessUiIdle()) {
+        pendingSoftReload = true;
+        return;
+    }
+    pendingSoftReload = false;
+    window.location.reload();
+}
+
+function tryPendingSoftReload() {
+    if (pendingSoftReload && isAccessUiIdle() && socket && socket.readyState === WebSocket.OPEN) {
+        pendingSoftReload = false;
+        window.location.reload();
+    }
+}
+
+function onWsOpened() {
+    const downMs = disconnectedSince ? (Date.now() - disconnectedSince) : 0;
+    disconnectedSince = null;
+    setStatus('connected', 'Conectado');
+    startHeartbeat();
+    if (downMs >= LONG_DISCONNECT_RELOAD_MS && !softReloadDoneForThisDown) {
+        softReloadDoneForThisDown = true;
+        requestSafeReload();
+        return;
+    }
+    softReloadDoneForThisDown = false;
+    tryPendingSoftReload();
+}
+
+function onWsClosed() {
+    stopHeartbeat();
+    clearConfirmingWatchdog();
+    if (disconnectedSince === null) {
+        disconnectedSince = Date.now();
+    }
+    softReloadDoneForThisDown = false;
+    setStatus('disconnected', 'Sin conexión...');
+    clearAccessResult();
+    reconnectTimer = setTimeout(connectWebSocket, RECONNECT_DELAY_MS);
+}
+
+function startDetectWatchdog() {
+    clearInterval(detectWatchdogTimer);
+    detectWatchdogTimer = setInterval(function () {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+        if (Date.now() - lastDetectTick > DETECT_WATCHDOG_MS) {
+            detectRestartCount += 1;
+            lastDetectTick = Date.now();
+            requestAnimationFrame(detectFaceLoop);
+            if (detectRestartCount >= 2) {
+                detectRestartCount = 0;
+                requestSafeReload();
+            }
+        } else {
+            detectRestartCount = 0;
+        }
+    }, DETECT_WATCHDOG_MS);
+}
+
+function attachCameraEndedHandler(stream) {
+    const tracks = stream.getVideoTracks();
+    if (!tracks.length) {
+        return;
+    }
+    tracks[0].addEventListener('ended', function () {
+        if (cameraRetrying) {
+            return;
+        }
+        cameraRetrying = true;
+        startCamera().finally(function () {
+            cameraRetrying = false;
+        });
+    });
 }
 
 async function loadModels() {
@@ -139,6 +295,7 @@ function enterQuickRetryMode() {
 function clearAccessResult() {
     exitQuickRetryMode();
     isConfirmingIdentity = false;
+    clearConfirmingWatchdog();
     resetAccessStability();
     hideProcessingOverlay();
     clearTimeout(resultTimeout);
@@ -147,6 +304,7 @@ function clearAccessResult() {
     hideBottomBanner();
     hudInstruction.classList.remove('hidden');
     isProcessingAccess = false;
+    tryPendingSoftReload();
 }
 
 function formatCutLine(data) {
@@ -273,6 +431,7 @@ function showConfirmingIdentity(data) {
     isProcessingAccess = false;
     isCooldown = false;
     resetAccessStability();
+    startConfirmingWatchdog();
     hudInstruction.classList.add('hidden');
     setFaceGuideVariant('processing');
     const name = data.name ? data.name + ' — ' : '';
@@ -287,6 +446,7 @@ function showConfirmingIdentity(data) {
 function showAccessResult(data) {
     const variant = data.variant || (data.status === 'GRANTED' ? 'granted' : 'denied_unknown');
     isConfirmingIdentity = false;
+    clearConfirmingWatchdog();
     hideProcessingOverlay();
     isProcessingAccess = false;
     setFaceGuideVariant(variant);
@@ -323,6 +483,8 @@ function showAccessResult(data) {
 }
 
 async function detectFaceLoop() {
+    lastDetectTick = Date.now();
+
     if (!isModelsLoaded || cameraFeed.paused || cameraFeed.ended) {
         requestAnimationFrame(detectFaceLoop);
         return;
@@ -442,7 +604,9 @@ async function startCamera() {
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
         });
         cameraFeed.srcObject = stream;
+        attachCameraEndedHandler(stream);
         cameraFeed.addEventListener('loadedmetadata', function () {
+            lastDetectTick = Date.now();
             requestAnimationFrame(detectFaceLoop);
         }, { once: true });
     } catch (err) {
@@ -453,16 +617,15 @@ async function startCamera() {
 
 function connectWebSocket() {
     clearTimeout(reconnectTimer);
+    stopHeartbeat();
     socket = new WebSocket(WS_URL);
 
     socket.onopen = function () {
-        setStatus('connected', 'Conectado');
+        onWsOpened();
     };
 
     socket.onclose = function () {
-        setStatus('disconnected', 'Sin conexión...');
-        clearAccessResult();
-        reconnectTimer = setTimeout(connectWebSocket, RECONNECT_DELAY_MS);
+        onWsClosed();
     };
 
     socket.onmessage = function (event) {
@@ -476,6 +639,16 @@ function connectWebSocket() {
 
 function handleServerMessage(data) {
     clearTimeout(serverTimeoutTimer);
+
+    if (data.type === 'PONG') {
+        notePongReceived();
+        return;
+    }
+
+    if (data.type === 'TABLET_RELOAD') {
+        requestSafeReload();
+        return;
+    }
 
     if (data.status === 'ERROR') {
         showAccessResult({
@@ -506,6 +679,16 @@ function setStatus(state, text) {
 
 document.addEventListener('DOMContentLoaded', function () {
     setHud('Coloque su rostro en el óvalo');
+    document.addEventListener('visibilitychange', function () {
+        if (
+            document.visibilityState === 'visible' &&
+            (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)
+        ) {
+            clearTimeout(reconnectTimer);
+            connectWebSocket();
+        }
+    });
+    startDetectWatchdog();
     loadModels().then(startCamera).catch(function (err) {
         console.error('[Tablet Acceso] Error cargando IA:', err);
         setStatus('disconnected', 'Error IA');
