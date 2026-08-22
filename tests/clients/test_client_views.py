@@ -1,13 +1,17 @@
 import pytest
+from datetime import date, timedelta
 from django.urls import reverse
 from unittest.mock import MagicMock
 
+from apps.billing.models import Invoice, Membership, Plan, SaleItem
+from apps.billing.services import register_checkout
 from apps.clients.models import Client
 from apps.clients.validation import split_cedula
 from tests.core.conftest import FAKE_PHOTO_B64
 from tests.helpers import ACCESS_PARAMS, assert_access, login_if_needed
 
 REENROLL_JSON_HEADER = {"HTTP_X_REENROLL_SUBMIT": "1"}
+GRANT_ADMIN_PERMISSION = "clients.grant_admin_access"
 
 
 def _edit_post_data(affiliate):
@@ -263,9 +267,6 @@ def test_client_profile__active_services_display(
     create_sale_item,
     exchange_rate,
 ):
-    from apps.billing.models import SaleItem
-    from apps.billing.services import register_checkout
-
     affiliate = create_client()
     plan = create_plan()
     towel = create_sale_item(item_type=SaleItem.ItemType.SERVICE, name="Toallas Test")
@@ -288,4 +289,75 @@ def test_client_profile__active_services_display(
     assert "Extras vigentes" in content
 
 
-GRANT_ADMIN_PERMISSION = "clients.grant_admin_access"
+@pytest.mark.parametrize(
+    ("is_logged_in", "permissions"),
+    ACCESS_PARAMS + [(True, [GRANT_ADMIN_PERMISSION])],
+)
+@pytest.mark.django_db
+def test_grant_admin_access__access(
+    client,
+    create_staff_user,
+    create_client,
+    create_plan,
+    get_login_url,
+    is_logged_in,
+    permissions,
+):
+    affiliate = create_client()
+    plan = create_plan(billing_type=Plan.BillingType.FIXED)
+    login_if_needed(client, create_staff_user, is_logged_in, permissions)
+
+    url = reverse(
+        "clients:grant_admin_access",
+        kwargs={"codigo_afiliado": affiliate.codigo_afiliado},
+    )
+    response = client.post(
+        url,
+        {
+            "confirm_admin_access": "1",
+            "plan_id": str(plan.pk),
+            "valid_until": (date.today() + timedelta(days=30)).isoformat(),
+        },
+    )
+    assert_access(
+        response,
+        is_logged_in,
+        permissions,
+        GRANT_ADMIN_PERMISSION,
+        url,
+        get_login_url,
+        success_status=302,
+    )
+
+
+@pytest.mark.django_db
+def test_grant_admin_access__post_grants_membership(
+    client,
+    create_staff_user,
+    create_client,
+    create_plan,
+):
+    affiliate = create_client()
+    plan = create_plan(billing_type=Plan.BillingType.FIXED)
+    valid_until = date.today() + timedelta(days=45)
+    staff = create_staff_user(permissions=[GRANT_ADMIN_PERMISSION])
+    client.force_login(staff)
+
+    url = reverse(
+        "clients:grant_admin_access",
+        kwargs={"codigo_afiliado": affiliate.codigo_afiliado},
+    )
+    response = client.post(
+        url,
+        {
+            "confirm_admin_access": "1",
+            "plan_id": str(plan.pk),
+            "valid_until": valid_until.isoformat(),
+        },
+    )
+
+    assert response.status_code == 302
+    membership = Membership.objects.get(client=affiliate)
+    assert membership.plan_id == plan.pk
+    assert membership.fecha_fin == valid_until
+    assert not Invoice.objects.filter(client=affiliate).exists()
