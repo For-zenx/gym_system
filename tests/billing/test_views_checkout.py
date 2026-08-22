@@ -244,3 +244,26 @@ def test_membership_delete__post_active_persists(client, create_staff_user, crea
 
     assert response.status_code == 302
     assert Membership.objects.filter(pk=membership_pk).exists()
+
+
+@pytest.mark.django_db
+def test_charge_checkout__post_requires_payment_method(
+    client,
+    create_staff_user,
+    create_client,
+    create_plan,
+    exchange_rate,
+):
+    affiliate = create_client()
+    plan = create_plan()
+    staff = create_staff_user(permissions=[CHARGE_PERMISSION])
+    client.force_login(staff)
+
+    url = reverse("billing:charge_checkout", kwargs={"codigo_afiliado": affiliate.codigo_afiliado})
+    post_data = build_checkout_post(plan)
+    post_data.pop("payment_method", None)
+    response = client.post(url, post_data)
+
+    assert response.status_code == 302
+    assert "cobro-exito" not in (response.url or "")
+    assert not Invoice.objects.filter(client=affiliate).exists()
