@@ -111,11 +111,12 @@ def test_verify_license_file_legacy_without_expires_on(license_env):
     assert error is None
 
 
-def test_license_is_required_ignored_in_production(monkeypatch):
+def test_license_is_required__skip_overrides_production(monkeypatch):
+    """SKIP_LICENSE_CHECK disables enforcement even under settings_production."""
     monkeypatch.setenv("DJANGO_SETTINGS_MODULE", "config.settings_production")
     monkeypatch.setenv("LICENSE_REQUIRED", "False")
     monkeypatch.setenv("SKIP_LICENSE_CHECK", "true")
-    assert licencia.license_is_required() is True
+    assert licencia.license_is_required() is False
 
 
 def test_license_is_required_respects_dev_env(monkeypatch):

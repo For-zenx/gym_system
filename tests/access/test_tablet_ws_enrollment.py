@@ -47,19 +47,17 @@ async def test_tablet_enrollment_ws__photo_reaches_dashboard():
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-async def test_tablet_enrollment_ws__terms_accepted_reaches_dashboard():
+async def test_tablet_enrollment_ws__unknown_type_returns_error():
     tablet = WebsocketCommunicator(application, WS_TABLET_ENROLLMENT)
-    dashboard = WebsocketCommunicator(application, WS_DASHBOARD)
-
     await tablet.connect()
-    await dashboard.connect()
 
     await tablet.send_json_to({"type": "ENROLLMENT_TERMS_ACCEPTED"})
+    response = await tablet.receive_json_from()
 
-    message = await receive_json_skipping_status(dashboard, "ENROLLMENT_TERMS_ACCEPTED")
+    assert response["status"] == "ERROR"
+    assert "ENROLLMENT_TERMS_ACCEPTED" in response["reason"]
 
     await tablet.disconnect()
-    await dashboard.disconnect()
 
 
 @pytest.mark.asyncio
@@ -73,8 +71,7 @@ async def test_tablet_enrollment_ws__dashboard_start_command_reaches_tablet():
 
     await dashboard.send_json_to({"type": "ENROLLMENT_START", "sessionId": "test-1"})
 
-    message = await tablet.receive_json_from()
-    assert message["type"] == "ENROLLMENT_START"
+    message = await receive_json_skipping_status(tablet, "ENROLLMENT_START")
     assert message["sessionId"] == "test-1"
 
     await tablet.disconnect()

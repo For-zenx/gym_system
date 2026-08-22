@@ -16,11 +16,22 @@ def test_report_view__access(
     is_logged_in,
     permissions,
 ):
+    """Legacy ReportView redirects to summary_report when permitted."""
     login_if_needed(client, create_staff_user, is_logged_in, permissions)
 
     url = reverse("billing:report")
     response = client.get(url)
-    assert_access(response, is_logged_in, permissions, "reports.view", url, get_login_url)
+    assert_access(
+        response,
+        is_logged_in,
+        permissions,
+        "reports.view",
+        url,
+        get_login_url,
+        success_status=302,
+    )
+    if is_logged_in and "reports.view" in permissions:
+        assert reverse("billing:summary_report") in response.url
 
 
 @pytest.mark.parametrize(
@@ -38,7 +49,7 @@ def test_report_send__access(
     login_if_needed(client, create_staff_user, is_logged_in, permissions)
 
     url = reverse("billing:report_send")
-    response = client.post(url, {"period_days": "7"})
+    response = client.post(url)
     assert_access(
         response,
         is_logged_in,

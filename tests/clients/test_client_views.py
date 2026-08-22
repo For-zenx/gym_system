@@ -273,6 +273,7 @@ def test_client_profile__active_services_display(
         affiliate,
         plan=plan,
         product_lines=[{"item_id": towel.pk, "qty": 1}],
+        payment_method="CASH_VES",
     )
 
     staff = create_staff_user(permissions=["clients.view_profile"])
@@ -285,3 +286,6 @@ def test_client_profile__active_services_display(
     content = response.content.decode("utf-8")
     assert "Toallas Test" in content
     assert "Extras vigentes" in content
+
+
+GRANT_ADMIN_PERMISSION = "clients.grant_admin_access"

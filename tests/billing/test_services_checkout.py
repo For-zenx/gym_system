@@ -1,10 +1,12 @@
 import pytest
 from django.core.exceptions import ValidationError
 
-from apps.billing.models import ClientServicePeriod, SaleItem
+from apps.billing.models import ClientServicePeriod, Invoice, SaleItem
 from apps.billing.services import register_checkout
 from apps.lockers.models import LockerRental
 from tests import factories
+
+DEFAULT_PAYMENT = Invoice.PaymentMethod.CASH_VES
 
 
 @pytest.mark.django_db
@@ -20,6 +22,7 @@ def test_register_checkout__service_without_plan_raises(
         register_checkout(
             client,
             product_lines=[{"item_id": towel.pk, "qty": 1}],
+            payment_method=DEFAULT_PAYMENT,
         )
 
     assert "servicios" in str(exc_info.value).lower()
@@ -37,11 +40,13 @@ def test_register_checkout__product_without_plan_ok(
     result = register_checkout(
         client,
         product_lines=[{"item_id": water.pk, "qty": 2}],
+        payment_method=DEFAULT_PAYMENT,
     )
 
     assert result.invoice is not None
     assert result.membership is None
     assert result.invoice.lines.filter(sale_item=water).exists()
+    assert result.invoice.payment_method == DEFAULT_PAYMENT
 
 
 @pytest.mark.django_db
@@ -59,6 +64,7 @@ def test_register_checkout__towel_creates_service_period(
         client,
         plan=plan,
         product_lines=[{"item_id": towel.pk, "qty": 1}],
+        payment_method=DEFAULT_PAYMENT,
     )
 
     period = ClientServicePeriod.objects.get(client=client, sale_item=towel)
@@ -91,6 +97,7 @@ def test_register_checkout__locker_uses_membership_dates(
                 "locker_end": "2000-01-31",
             }
         ],
+        payment_method=DEFAULT_PAYMENT,
     )
 
     rental = LockerRental.objects.get(client=client)

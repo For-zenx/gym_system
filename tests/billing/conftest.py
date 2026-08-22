@@ -8,11 +8,12 @@ def exchange_rate(db):
     return factories.create_exchange_rate()
 
 
-def build_checkout_post(plan, product_lines=None, origin="profile"):
+def build_checkout_post(plan, product_lines=None, origin="profile", payment_method="CASH_VES"):
     """Minimal POST body for ChargeCheckoutView (flexible plan, no cut-day fields)."""
     data = {
         "origin": origin,
         "plan_id": str(plan.pk),
+        "payment_method": payment_method,
     }
     product_ids = []
     for line in product_lines or []:

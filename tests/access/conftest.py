@@ -42,11 +42,21 @@ def tablet_access_expired_affiliate(create_client, create_membership):
     return affiliate
 
 
-async def receive_json_skipping_status(communicator, expected_type, max_messages=6):
+async def receive_json_skipping_status(communicator, expected_type, max_messages=8):
+    skip_types = {"tablet_status", "TABLET_MODE_CHANGED"}
     for _ in range(max_messages):
         message = await communicator.receive_json_from()
-        if message.get("type") == "tablet_status":
+        if message.get("type") in skip_types:
             continue
         assert message.get("type") == expected_type, message
         return message
     pytest.fail("Expected message type {!r} not received".format(expected_type))
+
+
+@pytest.fixture(autouse=True)
+def reset_dashboard_enrollment_mode():
+    from apps.access.consumers import DashboardConsumer
+
+    DashboardConsumer._is_enrollment_mode = False
+    yield
+    DashboardConsumer._is_enrollment_mode = False
