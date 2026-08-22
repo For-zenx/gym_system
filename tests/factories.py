@@ -4,7 +4,16 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 
-from apps.billing.models import Invoice, InvoiceLine, Membership, Plan, SaleItem, ExchangeRate
+from apps.billing.corporate_services import create_corporate_group as _create_corporate_group_service
+from apps.billing.models import (
+    CorporateGroup,
+    ExchangeRate,
+    Invoice,
+    InvoiceLine,
+    Membership,
+    Plan,
+    SaleItem,
+)
 from apps.clients.models import Client, GuestPass, PERSON_CODE_PREFIX, PersonCategory
 from apps.lockers.models import Locker
 from apps.users.models import StaffProfile, StaffRole
@@ -100,15 +109,37 @@ def create_guest_pass(guest=None, sponsor=None, valid_from=None, valid_until=Non
     )
 
 
-def create_plan(nombre=None, billing_type=Plan.BillingType.FLEXIBLE, dias_duracion=30, precio_usd=None):
+def create_plan(
+    nombre=None,
+    billing_type=Plan.BillingType.FLEXIBLE,
+    dias_duracion=30,
+    precio_usd=None,
+    max_members=None,
+):
     seq = next(_plan_counter)
+    if billing_type == Plan.BillingType.CORPORATE and max_members is None:
+        max_members = 10
+    if billing_type != Plan.BillingType.CORPORATE:
+        max_members = None
     return Plan.objects.create(
         nombre=nombre or "Plan Test {}".format(seq),
         billing_type=billing_type,
         dias_duracion=dias_duracion if billing_type == Plan.BillingType.FLEXIBLE else None,
         precio_usd=precio_usd or Decimal("10.00"),
+        max_members=max_members,
         is_active=True,
     )
+
+
+def create_corporate_group(plan=None, subscriber=None, created_by=None):
+    if subscriber is None:
+        subscriber = create_client()
+    if plan is None:
+        plan = create_plan(billing_type=Plan.BillingType.CORPORATE, max_members=10)
+    result = _create_corporate_group_service(plan, subscriber, created_by=created_by)
+    if isinstance(result, CorporateGroup):
+        return result
+    return result.group
 
 
 def create_sale_item(
