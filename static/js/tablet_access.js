@@ -54,6 +54,24 @@ let lastDetectTick = Date.now();
 let detectWatchdogTimer = null;
 let detectRestartCount = 0;
 let cameraRetrying = false;
+let pendingSoftReloadReason = '—';
+
+// OPS_AUDIT
+function sendOpsEvent(event, reason, detail) {
+    try {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            return;
+        }
+        socket.send(JSON.stringify({
+            type: 'OPS',
+            event: event || '—',
+            reason: reason || '—',
+            detail: detail || '—',
+        }));
+    } catch (err) {
+        /* ignore */
+    }
+}
 
 function resetAccessStability() {
     accessStableSince = null;
@@ -109,6 +127,8 @@ function startHeartbeat() {
         }
         clearTimeout(pongTimer);
         pongTimer = setTimeout(function () {
+            // OPS_AUDIT
+            sendOpsEvent('pong_timeout', 'pong_timeout', '—');
             if (socket) {
                 try {
                     socket.close();
@@ -118,7 +138,10 @@ function startHeartbeat() {
     }, WS_PING_MS);
 }
 
-function requestSafeReload() {
+function requestSafeReload(reason) {
+    if (reason) {
+        pendingSoftReloadReason = reason;
+    }
     if (!socket || socket.readyState !== WebSocket.OPEN) {
         pendingSoftReload = true;
         return;
@@ -128,12 +151,18 @@ function requestSafeReload() {
         return;
     }
     pendingSoftReload = false;
+    // OPS_AUDIT
+    sendOpsEvent('soft_reload', pendingSoftReloadReason || '—', '—');
+    pendingSoftReloadReason = '—';
     window.location.reload();
 }
 
 function tryPendingSoftReload() {
     if (pendingSoftReload && isAccessUiIdle() && socket && socket.readyState === WebSocket.OPEN) {
         pendingSoftReload = false;
+        // OPS_AUDIT
+        sendOpsEvent('soft_reload', pendingSoftReloadReason || '—', '—');
+        pendingSoftReloadReason = '—';
         window.location.reload();
     }
 }
@@ -143,9 +172,15 @@ function onWsOpened() {
     disconnectedSince = null;
     setStatus('connected', 'Conectado');
     startHeartbeat();
+    // OPS_AUDIT
+    sendOpsEvent(
+        'ws_open',
+        downMs > 0 ? 'reconnect' : 'initial',
+        'down_ms=' + downMs
+    );
     if (downMs >= LONG_DISCONNECT_RELOAD_MS && !softReloadDoneForThisDown) {
         softReloadDoneForThisDown = true;
-        requestSafeReload();
+        requestSafeReload('offline_ge_5min');
         return;
     }
     softReloadDoneForThisDown = false;
@@ -173,10 +208,12 @@ function startDetectWatchdog() {
         if (Date.now() - lastDetectTick > DETECT_WATCHDOG_MS) {
             detectRestartCount += 1;
             lastDetectTick = Date.now();
+            // OPS_AUDIT
+            sendOpsEvent('detect_stall', 'detect_watchdog', 'stalls=' + detectRestartCount);
             requestAnimationFrame(detectFaceLoop);
             if (detectRestartCount >= 2) {
                 detectRestartCount = 0;
-                requestSafeReload();
+                requestSafeReload('detect_watchdog');
             }
         } else {
             detectRestartCount = 0;
@@ -194,6 +231,8 @@ function attachCameraEndedHandler(stream) {
             return;
         }
         cameraRetrying = true;
+        // OPS_AUDIT
+        sendOpsEvent('camera_ended', 'camera_ended', '—');
         startCamera().finally(function () {
             cameraRetrying = false;
         });
@@ -646,7 +685,7 @@ function handleServerMessage(data) {
     }
 
     if (data.type === 'TABLET_RELOAD') {
-        requestSafeReload();
+        requestSafeReload('dashboard_forced');
         return;
     }
 

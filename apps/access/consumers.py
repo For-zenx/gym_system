@@ -6,6 +6,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from apps.access.frame_processing import process_biometric_access_frame
+from apps.access.tablet_ops_audit import write_tablet_ops_log
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +18,27 @@ TABLET_COMBINED_GROUP = "tablet_enrolamiento_acceso"
 TABLET_ROLE_ACCESS = "access"
 TABLET_ROLE_ENROLLMENT = "enrollment"
 
+OPS_ROLE_ACCESS = "acceso"
+OPS_ROLE_ENROLLMENT = "enrolamiento"
+OPS_ROLE_COMBINED = "combined"
+OPS_ROLE_DASHBOARD = "dashboard"
+
 ENROLLMENT_COMMAND_TYPES = (
     "ENROLLMENT_START",
     "ENROLLMENT_END",
     "ENROLLMENT_SKIP_TERMS",
     "ENROLLMENT_REQUIRE_TERMS",
 )
+
+
+# OPS_AUDIT
+def _handle_ops_message(payload, default_role):
+    write_tablet_ops_log(
+        event=payload.get("event"),
+        role=payload.get("role") or default_role,
+        reason=payload.get("reason"),
+        detail=payload.get("detail"),
+    )
 
 
 async def _send_access_frame_result(consumer, result):
@@ -68,11 +84,15 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
         self.pending_since = None
         await self.channel_layer.group_add(TABLET_ACCESS_GROUP, self.channel_name)
         logger.info("Tablet de acceso conectada. Canal: %s", self.channel_name)
+        # OPS_AUDIT
+        write_tablet_ops_log("connect", OPS_ROLE_ACCESS, "ws_accept", "—")
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard(TABLET_ACCESS_GROUP, self.channel_name)
         logger.info("Tablet de acceso desconectada. Canal: %s — Código: %s", self.channel_name, code)
+        # OPS_AUDIT
+        write_tablet_ops_log("disconnect", OPS_ROLE_ACCESS, "ws_close", "close_code={0}".format(code))
         await self._notify_dashboard(TABLET_ROLE_ACCESS, False)
 
     async def receive(self, text_data=None, bytes_data=None):
@@ -88,6 +108,9 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
             await self.send(json.dumps({"type": "PONG"}))
         elif msg_type == "FRAME":
             await self._handle_frame(payload)
+        elif msg_type == "OPS":
+            # OPS_AUDIT
+            _handle_ops_message(payload, OPS_ROLE_ACCESS)
         else:
             logger.warning("Tipo de mensaje desconocido en tablet de acceso: %s", msg_type)
             await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{msg_type}'"}))
@@ -114,11 +137,15 @@ class EnrollmentTabletConsumer(AsyncWebsocketConsumer):
         await self.accept()
         await self.channel_layer.group_add(TABLET_ENROLLMENT_GROUP, self.channel_name)
         logger.info("Tablet de enrolamiento conectada. Canal: %s", self.channel_name)
+        # OPS_AUDIT
+        write_tablet_ops_log("connect", OPS_ROLE_ENROLLMENT, "ws_accept", "—")
         await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, True)
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard(TABLET_ENROLLMENT_GROUP, self.channel_name)
         logger.info("Tablet de enrolamiento desconectada. Canal: %s — Código: %s", self.channel_name, code)
+        # OPS_AUDIT
+        write_tablet_ops_log("disconnect", OPS_ROLE_ENROLLMENT, "ws_close", "close_code={0}".format(code))
         await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, False)
 
     async def receive(self, text_data=None, bytes_data=None):
@@ -141,6 +168,9 @@ class EnrollmentTabletConsumer(AsyncWebsocketConsumer):
                     "image": payload.get("image"),
                 },
             )
+        elif msg_type == "OPS":
+            # OPS_AUDIT
+            _handle_ops_message(payload, OPS_ROLE_ENROLLMENT)
         else:
             logger.warning("Tipo de mensaje desconocido en tablet de enrolamiento: %s", msg_type)
             await self.send(json.dumps({"status": "ERROR", "reason": f"Tipo de mensaje no reconocido: '{msg_type}'"}))
@@ -175,6 +205,8 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
         self.pending_since = None
         await self.channel_layer.group_add(TABLET_COMBINED_GROUP, self.channel_name)
         logger.info("Tablet enrolamiento_acceso conectada. Canal: %s", self.channel_name)
+        # OPS_AUDIT
+        write_tablet_ops_log("connect", OPS_ROLE_COMBINED, "ws_accept", "—")
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
         await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, True)
 
@@ -185,6 +217,8 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
             self.channel_name,
             code,
         )
+        # OPS_AUDIT
+        write_tablet_ops_log("disconnect", OPS_ROLE_COMBINED, "ws_close", "close_code={0}".format(code))
         await self._notify_dashboard(TABLET_ROLE_ACCESS, False)
         await self._notify_dashboard(TABLET_ROLE_ENROLLMENT, False)
 
@@ -220,6 +254,9 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
                     "image": payload.get("image"),
                 },
             )
+        elif msg_type == "OPS":
+            # OPS_AUDIT
+            _handle_ops_message(payload, OPS_ROLE_COMBINED)
         else:
             logger.warning(
                 "Tipo de mensaje desconocido en tablet enrolamiento_acceso: %s",
@@ -263,6 +300,8 @@ class DashboardConsumer(AsyncWebsocketConsumer):
         await self.accept()
         await self.channel_layer.group_add(DASHBOARD_GROUP, self.channel_name)
         logger.info("Dashboard (PC) conectado. Canal: %s", self.channel_name)
+        # OPS_AUDIT
+        write_tablet_ops_log("connect", OPS_ROLE_DASHBOARD, "ws_accept", "—")
         await self.channel_layer.group_send(TABLET_ACCESS_GROUP, {"type": "tablet_status_request"})
         await self.channel_layer.group_send(TABLET_ENROLLMENT_GROUP, {"type": "tablet_status_request"})
         await self.channel_layer.group_send(TABLET_COMBINED_GROUP, {"type": "tablet_status_request"})
@@ -276,6 +315,8 @@ class DashboardConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, code):
         await self.channel_layer.group_discard(DASHBOARD_GROUP, self.channel_name)
         logger.info("Dashboard (PC) desconectado. Canal: %s", self.channel_name)
+        # OPS_AUDIT
+        write_tablet_ops_log("disconnect", OPS_ROLE_DASHBOARD, "ws_close", "close_code={0}".format(code))
 
     async def receive(self, text_data=None, bytes_data=None):
         try:
@@ -286,6 +327,8 @@ class DashboardConsumer(AsyncWebsocketConsumer):
 
         msg_type = payload.get("type")
         if msg_type == "TABLET_RELOAD":
+            # OPS_AUDIT
+            write_tablet_ops_log("tablet_reload", OPS_ROLE_DASHBOARD, "dashboard_forced", "—")
             reload_event = {"type": "tablet_reload"}
             await self.channel_layer.group_send(TABLET_ACCESS_GROUP, reload_event)
             await self.channel_layer.group_send(TABLET_ENROLLMENT_GROUP, reload_event)

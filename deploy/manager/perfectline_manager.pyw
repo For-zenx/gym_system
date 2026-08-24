@@ -1,4 +1,5 @@
 import ctypes
+import datetime
 import os
 import json
 import socket
@@ -13,6 +14,30 @@ DEFAULT_URL = "http://127.0.0.1:8000/"
 DEFAULT_PORT = 8000
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CREATE_NEW_PROCESS_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+
+# OPS_AUDIT — temporary study; remove with tablet_ops_audit hooks.
+def _append_tablet_ops(logs_dir: Path, event: str, reason: str = "—", detail: str = "—") -> None:
+    try:
+        now = datetime.datetime.now()
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        path = logs_dir / "tablet_ops_{0}.txt".format(now.strftime("%Y%m%d"))
+        line = "\t".join(
+            [
+                now.strftime("%Y-%m-%d %H:%M:%S"),
+                event,
+                "server",
+                reason,
+                detail,
+            ]
+        )
+        write_header = not path.exists()
+        with path.open("a", encoding="utf-8") as handle:
+            if write_header:
+                handle.write("timestamp\tevent\trole\treason\tdetail\n")
+            handle.write(line + "\n")
+    except Exception:
+        pass
 
 
 class ManagerApp:
@@ -235,6 +260,8 @@ class ManagerApp:
         self.server_log = self.server_log_path.open("a", encoding="utf-8")
         self.server_log.write("\n=== PerfectLine server start ===\n")
         self.server_log.flush()
+        # OPS_AUDIT
+        _append_tablet_ops(self.logs_dir, "server_start", "manager", "—")
         try:
             self.server_process = subprocess.Popen(
                 [str(self.daphne_path), "-b", "0.0.0.0", "-p", str(DEFAULT_PORT), "config.asgi:application"],
@@ -277,6 +304,8 @@ class ManagerApp:
         except Exception:
             pass
         self.server_process = None
+        # OPS_AUDIT
+        _append_tablet_ops(self.logs_dir, "server_stop", "manager", "pid={0}".format(pid))
         self._close_server_log()
 
     def _confirm_port_closed(self) -> None:

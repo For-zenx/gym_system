@@ -195,6 +195,9 @@ FISCAL_REPORT_READ_TIMEOUT = float(os.getenv("FISCAL_REPORT_READ_TIMEOUT", "30.0
 # DEPRECATED: TASK-045 — token único; tokens por rol se añadirán en tarea futura.
 TABLET_TOKEN = "gym-tablet-001"
 
+# OPS_AUDIT — temporary tablet↔PC study; set False to silence without deleting hooks.
+TABLET_OPS_AUDIT_ENABLED = True
+
 # Correo (reportes TASK-051): credenciales SMTP vía .env
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
