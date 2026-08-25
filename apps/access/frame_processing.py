@@ -236,10 +236,11 @@ def process_biometric_access_frame(
 
 def process_biometric_access_burst(images, last_unknown_log_time):
     """
-    Identifica con el primer frame y verifica 1:1 al candidato con el segundo.
-    Devuelve una sola respuesta final y nunca expone una identidad provisional.
+    Identifica con el primer frame que haga MATCH y verifica 1:1 al candidato
+    con los demás frames de la ráfaga hasta confirmar. Una sola respuesta final;
+    nunca expone identidad provisional.
     """
-    if not isinstance(images, (list, tuple)) or len(images) < 2:
+    if not isinstance(images, (list, tuple)):
         match_result = ai_engine._empty_match_result(ai_engine.OUTCOME_INVALID_FRAME)
         return {
             "tablet_response": {
@@ -254,8 +255,32 @@ def process_biometric_access_burst(images, last_unknown_log_time):
             "pending_since": None,
         }
 
-    identification = ai_engine.match_face(images[0])
-    candidate = identification.client
+    frames = [image for image in images[:4] if isinstance(image, str) and image]
+    if len(frames) < 2:
+        match_result = ai_engine._empty_match_result(ai_engine.OUTCOME_INVALID_FRAME)
+        return {
+            "tablet_response": {
+                "status": "ERROR",
+                "reason": "Se requieren dos imágenes para verificar el acceso.",
+            },
+            "dashboard_event": None,
+            "should_log_unknown": False,
+            "match_result": match_result,
+            "unknown_log_time": last_unknown_log_time,
+            "pending_client_id": None,
+            "pending_since": None,
+        }
+
+    identification = None
+    identify_index = None
+    candidate = None
+    for index, frame in enumerate(frames):
+        identification = ai_engine.match_face(frame)
+        if identification.client is not None:
+            identify_index = index
+            candidate = identification.client
+            break
+
     if candidate is None:
         return _unknown_result(
             identification,
@@ -270,19 +295,29 @@ def process_biometric_access_burst(images, last_unknown_log_time):
         confirm_stage="burst_identify",
     )
 
-    verification = ai_engine.verify_face(images[1], candidate)
-    if verification.client is None:
-        return _unknown_result(
-            verification,
-            last_unknown_log_time,
-            confirm_stage="burst_rejected",
+    last_verification = None
+    for index, frame in enumerate(frames):
+        if index == identify_index:
+            continue
+        last_verification = ai_engine.verify_face(frame, candidate)
+        if last_verification.client is not None:
+            return _finalize_matched_client(
+                candidate,
+                last_verification,
+                last_unknown_log_time,
+                confirm_stage="burst_confirmed",
+            )
+        write_access_biometrics_log(
+            last_verification,
+            "PENDING",
+            "burst_candidate",
+            confirm_stage="burst_verify_retry",
         )
 
-    return _finalize_matched_client(
-        candidate,
-        verification,
+    return _unknown_result(
+        last_verification or identification,
         last_unknown_log_time,
-        confirm_stage="burst_confirmed",
+        confirm_stage="burst_rejected",
     )
 
 

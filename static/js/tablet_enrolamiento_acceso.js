@@ -19,9 +19,9 @@ const LONG_DISCONNECT_RELOAD_MS = 5 * 60 * 1000;
 const CONFIRMING_MAX_MS = 4000;
 const CONFIRM_ABANDON_MS = 1200;
 const DETECT_WATCHDOG_MS = 15000;
-const ACCESS_BURST_INTERVAL_MS = 200;
+const ACCESS_BURST_INTERVAL_MS = 150;
 const ACCESS_BURST_SAMPLE_COUNT = 4;
-const ACCESS_BURST_MIN_SEPARATION_MS = 350;
+const ACCESS_BURST_MIN_SEPARATION_MS = 250;
 
 const MODE_ACCESS = "access";
 const MODE_ENROLLMENT = "enrollment";
@@ -764,23 +764,30 @@ function captureBurstCandidate(detection) {
     };
 }
 
-function selectBestBurstPair(candidates) {
-    let bestPair = null;
-    let bestScore = -Infinity;
-    for (let i = 0; i < candidates.length; i += 1) {
-        for (let j = i + 1; j < candidates.length; j += 1) {
-            const separation = candidates[j].capturedAt - candidates[i].capturedAt;
-            if (separation < ACCESS_BURST_MIN_SEPARATION_MS) {
-                continue;
-            }
-            const pairScore = candidates[i].score + candidates[j].score;
-            if (pairScore > bestScore) {
-                bestScore = pairScore;
-                bestPair = [candidates[i], candidates[j]];
+function selectBurstSamplesForSend(candidates) {
+    if (!candidates || candidates.length < 2) {
+        return null;
+    }
+    const ordered = candidates.slice().sort(function (a, b) {
+        return a.capturedAt - b.capturedAt;
+    });
+    const limited = ordered.slice(0, ACCESS_BURST_SAMPLE_COUNT);
+    let hasSeparatedPair = false;
+    for (let i = 0; i < limited.length; i += 1) {
+        for (let j = i + 1; j < limited.length; j += 1) {
+            if (limited[j].capturedAt - limited[i].capturedAt >= ACCESS_BURST_MIN_SEPARATION_MS) {
+                hasSeparatedPair = true;
+                break;
             }
         }
+        if (hasSeparatedPair) {
+            break;
+        }
     }
-    return bestPair;
+    if (!hasSeparatedPair) {
+        return null;
+    }
+    return limited;
 }
 
 async function collectAndSendAccessBurst(initialDetection) {
@@ -822,18 +829,18 @@ async function collectAndSendAccessBurst(initialDetection) {
             }
         }
 
-        const pair = selectBestBurstPair(candidates);
+        const samples = selectBurstSamplesForSend(candidates);
         if (burstGeneration !== accessBurstGeneration) {
             return;
         }
-        if (!pair) {
+        if (!samples) {
             clearAccessResult();
             setHud("Coloque su rostro en el óvalo");
             isCooldown = false;
             return;
         }
         showAccessProcessing();
-        sendAccessBurst(pair.map(function (candidate) { return candidate.image; }));
+        sendAccessBurst(samples.map(function (candidate) { return candidate.image; }));
     } catch (err) {
         console.error("[Tablet EA] Error capturando ráfaga:", err);
         clearAccessResult();

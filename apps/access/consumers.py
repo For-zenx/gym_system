@@ -80,11 +80,19 @@ async def _handle_access_frame(consumer, payload, last_unknown_log_time_attr):
 
 async def _handle_access_burst(consumer, payload, last_unknown_log_time_attr):
     images = payload.get("images")
-    if (
-        not isinstance(images, list)
-        or len(images) < 2
-        or not all(isinstance(image, str) and image for image in images[:2])
-    ):
+    if not isinstance(images, list) or len(images) < 2:
+        await consumer.send(
+            json.dumps(
+                {
+                    "status": "ERROR",
+                    "reason": "FRAME_BURST requiere dos imágenes válidas.",
+                }
+            )
+        )
+        return
+
+    frames = [image for image in images[:4] if isinstance(image, str) and image]
+    if len(frames) < 2:
         await consumer.send(
             json.dumps(
                 {
@@ -96,7 +104,7 @@ async def _handle_access_burst(consumer, payload, last_unknown_log_time_attr):
         return
 
     result = await database_sync_to_async(process_biometric_access_burst)(
-        images[:2],
+        frames,
         getattr(type(consumer), last_unknown_log_time_attr),
     )
     consumer.pending_client_id = None
