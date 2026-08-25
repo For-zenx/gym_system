@@ -146,4 +146,8 @@ window.sendDashboardCommand = function (commandData) {
 
 window.reloadTablet = function () {
     window.sendDashboardCommand({ type: 'TABLET_RELOAD' });
+    // En /enrolamiento/ la recarga sola no reabre la captura; la página reenvía ENROLLMENT_START.
+    if (typeof window.onEnrollmentPageTabletReload === 'function') {
+        window.onEnrollmentPageTabletReload();
+    }
 };

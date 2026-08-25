@@ -96,13 +96,6 @@
     position: relative;
 }
 
-.enrollment-reset-tablet-btn {
-    margin-top: 1rem;
-    margin-left: 0.5rem;
-    z-index: 5;
-    position: relative;
-}
-
 .enrollment-terms-status {
     margin-top: 1rem;
     width: 100%;
