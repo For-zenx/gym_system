@@ -30,6 +30,7 @@ let skipTermsAfterCapture = false;
 let lastCaptureTime = 0;
 let detectionLoopRunning = false;
 let stableSince = null;
+const enrollmentHud = TabletFaceUtils.createEnrollmentHudController(hudText);
 
 async function loadModels() {
     hudText.textContent = 'Cargando motor de IA...';
@@ -149,7 +150,7 @@ async function detectFaceLoop() {
                 }
 
                 if (now - stableSince >= TabletFaceUtils.STABILITY_MS) {
-                    hudText.textContent = 'Capturando...';
+                    enrollmentHud.show('Capturando...', now, { immediate: true });
                     sendEnrollmentPhoto();
                     lastCaptureTime = now;
                     captureCompleted = true;
@@ -165,14 +166,31 @@ async function detectFaceLoop() {
                         }
                     }, 1200);
                 } else {
-                    hudText.textContent = 'Coloque su rostro en el óvalo';
+                    enrollmentHud.show('Quédese quieto…', now, { immediate: true });
                 }
             } else {
                 resetStability();
-                hudText.textContent = 'Coloque su rostro en el óvalo';
+                enrollmentHud.show(
+                    TabletFaceUtils.getEnrollmentHudMessage(
+                        detection,
+                        resizedDetection,
+                        cameraFeed,
+                        faceGuideOval
+                    ) || 'Coloque su rostro en el óvalo',
+                    now
+                );
             }
         } else if (!detection) {
             resetStability();
+            enrollmentHud.show(
+                TabletFaceUtils.getEnrollmentHudMessage(
+                    null,
+                    null,
+                    cameraFeed,
+                    faceGuideOval
+                ) || 'Coloque su rostro en el óvalo',
+                now
+            );
         }
     } catch (e) {
         console.error('Error en bucle de enrolamiento:', e);
@@ -284,7 +302,7 @@ async function startEnrollmentSession() {
     idleOverlay.classList.add('hidden');
     faceGuide.classList.add('active');
     hudInstruction.classList.remove('hidden');
-    hudText.textContent = 'Coloque su rostro en el óvalo';
+    enrollmentHud.reset('Coloque su rostro en el óvalo');
     captureCompleted = false;
     termsAcceptedThisSession = false;
     skipTermsAfterCapture = false;

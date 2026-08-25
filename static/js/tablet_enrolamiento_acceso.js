@@ -327,6 +327,7 @@ let skipTermsAfterCapture = false;
 let lastEnrollmentCaptureTime = 0;
 let enrollmentDetectionRunning = false;
 let stableSince = null;
+const enrollmentHud = TabletFaceUtils.createEnrollmentHudController(hudText);
 
 async function loadModels() {
     const MODEL_URL = "/static/models";
@@ -1001,7 +1002,7 @@ async function enrollmentDetectLoop() {
                 }
 
                 if (now - stableSince >= TabletFaceUtils.STABILITY_MS) {
-                    hudText.textContent = "Capturando...";
+                    enrollmentHud.show("Capturando...", now, { immediate: true });
                     sendEnrollmentPhoto();
                     lastEnrollmentCaptureTime = now;
                     enrollmentCaptureCompleted = true;
@@ -1019,14 +1020,31 @@ async function enrollmentDetectLoop() {
                         }
                     }, 1200);
                 } else {
-                    hudText.textContent = "Coloque su rostro en el óvalo";
+                    enrollmentHud.show("Quédese quieto…", now, { immediate: true });
                 }
             } else {
                 resetStability();
-                hudText.textContent = "Coloque su rostro en el óvalo";
+                enrollmentHud.show(
+                    TabletFaceUtils.getEnrollmentHudMessage(
+                        detection,
+                        resizedDetection,
+                        cameraFeed,
+                        faceGuideOval
+                    ) || "Coloque su rostro en el óvalo",
+                    now
+                );
             }
         } else if (!detection) {
             resetStability();
+            enrollmentHud.show(
+                TabletFaceUtils.getEnrollmentHudMessage(
+                    null,
+                    null,
+                    cameraFeed,
+                    faceGuideOval
+                ) || "Coloque su rostro en el óvalo",
+                now
+            );
         }
     } catch (e) {
         console.error("[Tablet EA] Error en bucle de enrolamiento:", e);
@@ -1139,7 +1157,7 @@ async function startEnrollmentSession() {
     faceGuide.classList.add("active");
     faceGuide.classList.remove("face-guide-access");
     hudInstruction.classList.remove("hidden");
-    hudText.textContent = "Coloque su rostro en el óvalo";
+    enrollmentHud.reset("Coloque su rostro en el óvalo");
     enrollmentCaptureCompleted = false;
     termsAcceptedThisSession = false;
     skipTermsAfterCapture = false;

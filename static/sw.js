@@ -1,14 +1,14 @@
 // sw.js — Service Worker mínimo para PWA en Perfect Line II
-const CACHE_NAME = 'perfectline-v1';
+const CACHE_NAME = 'perfectline-v2';
 const ASSETS = [
   '/tablet/enrolamiento_acceso/',
   '/tablet/acceso/',
   '/tablet/enrolamiento/',
   '/static/css/tablet.css?v=3.1',
   '/static/vendor/face-api.min.js',
-  '/static/js/tablet_face_utils.js?v=1.1',
-  '/static/js/tablet_enrollment.js?v=2.3',
-  '/static/js/tablet_enrolamiento_acceso.js?v=1.3',
+  '/static/js/tablet_face_utils.js?v=1.6',
+  '/static/js/tablet_enrollment.js?v=2.5',
+  '/static/js/tablet_enrolamiento_acceso.js?v=1.14',
   '/static/img/icon-192.png',
   '/static/img/icon-512.png'
 ];

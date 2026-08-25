@@ -12,8 +12,8 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 FACE_ENCODING_MODEL = "large"
-# Menos = más estricto. 0.46 endurece frente a 0.5; multi-frame cubre flukes de un frame.
-TOLERANCE = 0.46
+# Menos = más estricto. 0.47 endurece frente a 0.5; multi-frame cubre flukes de un frame.
+TOLERANCE = 0.47
 
 OUTCOME_MATCH = "MATCH"
 OUTCOME_NO_FACE = "NO_FACE"
