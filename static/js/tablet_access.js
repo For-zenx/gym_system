@@ -19,6 +19,15 @@ const DETECT_WATCHDOG_MS = 15000;
 const ACCESS_BURST_INTERVAL_MS = 150;
 const ACCESS_BURST_SAMPLE_COUNT = 4;
 const ACCESS_BURST_MIN_SEPARATION_MS = 250;
+const ACCESS_HUD_STICKY_MS = 400;
+const ACCESS_HUD_IDLE = 'Coloque su rostro en el óvalo';
+const ACCESS_HUD_HOLD = 'Mantenga la cara quieta…';
+const ACCESS_UI_IDLE = 'idle';
+const ACCESS_UI_HOLD_STILL = 'hold_still';
+const ACCESS_UI_CAPTURING = 'capturing';
+const ACCESS_UI_VERIFYING = 'verifying';
+const ACCESS_UI_RESULT = 'result';
+const ACCESS_QUICK_RETRY_SUBTITLE = 'Intente de nuevo';
 
 const cameraFeed = document.getElementById('camera-feed');
 const overlayCanvas = document.getElementById('overlay-canvas');
@@ -62,6 +71,10 @@ let cameraRetrying = false;
 let pendingSoftReloadReason = '—';
 let isCollectingAccessBurst = false;
 let accessBurstGeneration = 0;
+let accessUiState = ACCESS_UI_IDLE;
+let accessHudPending = null;
+let accessHudPendingSince = 0;
+let accessHudShown = null;
 
 // OPS_AUDIT
 function sendOpsEvent(event, reason, detail) {
@@ -119,7 +132,7 @@ function abortConfirmingToIdle() {
     sendConfirmAbort();
     confirmAbandonSince = null;
     clearAccessResult();
-    setHud('Coloque su rostro en el óvalo');
+    setAccessUiState(ACCESS_UI_IDLE, { immediate: true });
     isCooldown = false;
 }
 
@@ -285,7 +298,106 @@ async function loadModels() {
 }
 
 function setHud(text) {
+    if (!text || text === accessHudShown) {
+        return;
+    }
+    accessHudShown = text;
+    accessHudPending = null;
     hudText.textContent = text;
+}
+
+function commitAccessHud(text, immediate) {
+    const now = Date.now();
+    if (!text) {
+        return;
+    }
+    if (immediate || text === ACCESS_HUD_HOLD) {
+        setHud(text);
+        return;
+    }
+    if (text === accessHudShown) {
+        accessHudPending = null;
+        return;
+    }
+    if (text !== accessHudPending) {
+        accessHudPending = text;
+        accessHudPendingSince = now;
+        return;
+    }
+    if (now - accessHudPendingSince >= ACCESS_HUD_STICKY_MS) {
+        setHud(text);
+    }
+}
+
+function resetAccessHudSticky(initialText) {
+    accessHudPending = null;
+    accessHudPendingSince = 0;
+    accessHudShown = null;
+    if (initialText) {
+        setHud(initialText);
+    }
+}
+
+/**
+ * Una sola voz visible por fase: HUD (idle/hold) o banner (verifying/result).
+ * No usa overlay de Verificando (evita duplicar el banner).
+ */
+function setAccessUiState(state, options) {
+    options = options || {};
+    const prev = accessUiState;
+    accessUiState = state;
+
+    if (state === ACCESS_UI_IDLE || state === ACCESS_UI_HOLD_STILL || state === ACCESS_UI_CAPTURING) {
+        hideProcessingOverlay();
+        if (isQuickRetryMode) {
+            hudInstruction.classList.add('hidden');
+            if (accessBottomBanner.classList.contains('hidden')) {
+                showBottomBanner('denied_unknown', 'No reconocido', ACCESS_QUICK_RETRY_SUBTITLE);
+            } else if (state === ACCESS_UI_IDLE) {
+                updateBottomBannerSubtitle(ACCESS_QUICK_RETRY_SUBTITLE);
+            } else {
+                updateBottomBannerSubtitle(ACCESS_HUD_HOLD);
+            }
+            return;
+        }
+        hideBottomBanner();
+        setFaceGuideVariant('');
+        hudInstruction.classList.remove('hidden');
+        if (state === ACCESS_UI_IDLE) {
+            commitAccessHud(ACCESS_HUD_IDLE, options.immediate);
+        } else {
+            commitAccessHud(ACCESS_HUD_HOLD, true);
+        }
+        return;
+    }
+
+    if (state === ACCESS_UI_VERIFYING) {
+        hideProcessingOverlay();
+        hudInstruction.classList.add('hidden');
+        cancelQuickRetryIdleReset();
+        setFaceGuideVariant('processing');
+        const title = options.title || 'Verificando…';
+        const subtitle = options.subtitle || 'Un momento por favor';
+        if (isQuickRetryMode && !accessBottomBanner.classList.contains('hidden')) {
+            accessBannerTitle.textContent = title;
+            updateBottomBannerSubtitle(subtitle);
+            accessBottomBanner.classList.remove(
+                'granted', 'granted_staff', 'granted_guest', 'granted_grace',
+                'denied_unknown', 'denied_suspended', 'denied_schedule', 'denied_cooldown', 'denied_other'
+            );
+            accessBottomBanner.classList.add('processing');
+        } else {
+            showBottomBanner('processing', title, subtitle);
+        }
+        return;
+    }
+
+    if (state === ACCESS_UI_RESULT) {
+        hideProcessingOverlay();
+        hudInstruction.classList.add('hidden');
+        setFaceGuideVariant(options.variant || '');
+        showBottomBanner(options.variant || 'denied_other', options.title || '', options.subtitle || '');
+    }
 }
 
 function setFaceGuideVariant(variant) {
@@ -353,7 +465,7 @@ function updateQuickRetryIdleTracking(meetsCriteria) {
 
 function resetQuickRetryToIdle() {
     clearAccessResult();
-    setHud('Coloque su rostro en el óvalo');
+    setAccessUiState(ACCESS_UI_IDLE, { immediate: true });
     isCooldown = false;
 }
 
@@ -385,6 +497,7 @@ function clearAccessResult() {
     hideBottomBanner();
     hudInstruction.classList.remove('hidden');
     isProcessingAccess = false;
+    accessUiState = ACCESS_UI_IDLE;
     tryPendingSoftReload();
 }
 
@@ -474,16 +587,10 @@ function buildResultCopy(data, variant) {
 function showAccessProcessing() {
     cancelQuickRetryIdleReset();
     isProcessingAccess = true;
-    hudInstruction.classList.add('hidden');
-
-    if (isQuickRetryMode) {
-        updateBottomBannerSubtitle('Re-verificando…');
-        showProcessingOverlay('Re-verificando…');
-    } else {
-        setFaceGuideVariant('processing');
-        showBottomBanner('processing', 'Verificando…', 'Un momento por favor');
-        showProcessingOverlay('Verificando…');
-    }
+    setAccessUiState(ACCESS_UI_VERIFYING, {
+        title: 'Verificando…',
+        subtitle: 'Un momento por favor',
+    });
 }
 
 function scheduleDeniedUnknownQuickRetry(title, subtitle) {
@@ -491,7 +598,8 @@ function scheduleDeniedUnknownQuickRetry(title, subtitle) {
     quickRetryTimeout = setTimeout(function () {
         quickRetryTimeout = null;
         enterQuickRetryMode();
-        updateBottomBannerSubtitle(subtitle);
+        showBottomBanner('denied_unknown', title || 'No reconocido', ACCESS_QUICK_RETRY_SUBTITLE);
+        accessUiState = ACCESS_UI_IDLE;
     }, RESULT_DISPLAY_DENIED_UNKNOWN_MS);
 }
 
@@ -499,7 +607,7 @@ function scheduleFullResultClear() {
     clearTimeout(resultTimeout);
     resultTimeout = setTimeout(function () {
         clearAccessResult();
-        setHud('Coloque su rostro en el óvalo');
+        resetAccessHudSticky(ACCESS_HUD_IDLE);
         setTimeout(function () {
             isCooldown = false;
         }, COOLDOWN_RELEASE_MS);
@@ -514,14 +622,10 @@ function showConfirmingIdentity(data) {
     confirmAbandonSince = null;
     resetAccessStability();
     startConfirmingWatchdog();
-    hideProcessingOverlay();
-    hudInstruction.classList.add('hidden');
-    setFaceGuideVariant('processing');
-    showBottomBanner(
-        'processing',
-        'Siga frente a la cámara',
-        ''
-    );
+    setAccessUiState(ACCESS_UI_VERIFYING, {
+        title: 'Siga frente a la cámara',
+        subtitle: '',
+    });
 }
 
 function showAccessResult(data) {
@@ -529,13 +633,14 @@ function showAccessResult(data) {
     isConfirmingIdentity = false;
     confirmAbandonSince = null;
     clearConfirmingWatchdog();
-    hideProcessingOverlay();
     isProcessingAccess = false;
-    setFaceGuideVariant(variant);
-    hudInstruction.classList.add('hidden');
 
     const copy = buildResultCopy(data, variant);
-    showBottomBanner(variant, copy.title, copy.subtitle);
+    setAccessUiState(ACCESS_UI_RESULT, {
+        variant: variant,
+        title: copy.title,
+        subtitle: copy.subtitle,
+    });
 
     clearTimeout(resultTimeout);
     clearTimeout(quickRetryTimeout);
@@ -545,7 +650,7 @@ function showAccessResult(data) {
         isCooldown = true;
         resultTimeout = setTimeout(function () {
             clearAccessResult();
-            setHud('Coloque su rostro en el óvalo');
+            resetAccessHudSticky(ACCESS_HUD_IDLE);
             setTimeout(function () {
                 isCooldown = false;
             }, COOLDOWN_RELEASE_MS);
@@ -656,11 +761,7 @@ async function collectAndSendAccessBurst(initialDetection) {
     const burstGeneration = ++accessBurstGeneration;
     isCollectingAccessBurst = true;
     isProcessingAccess = true;
-    if (isQuickRetryMode) {
-        updateBottomBannerSubtitle('Mantenga el rostro un instante');
-    } else {
-        setHud('Mantenga el rostro un instante');
-    }
+    setAccessUiState(ACCESS_UI_CAPTURING);
     const candidates = [captureBurstCandidate(initialDetection)];
 
     try {
@@ -691,7 +792,7 @@ async function collectAndSendAccessBurst(initialDetection) {
         }
         if (!samples) {
             clearAccessResult();
-            setHud('Coloque su rostro en el óvalo');
+            setAccessUiState(ACCESS_UI_IDLE, { immediate: true });
             isCooldown = false;
             return;
         }
@@ -700,7 +801,7 @@ async function collectAndSendAccessBurst(initialDetection) {
     } catch (err) {
         console.error('[Tablet Acceso] Error capturando ráfaga:', err);
         clearAccessResult();
-        setHud('Coloque su rostro en el óvalo');
+        setAccessUiState(ACCESS_UI_IDLE, { immediate: true });
         isCooldown = false;
     } finally {
         if (burstGeneration === accessBurstGeneration) {
@@ -751,20 +852,12 @@ async function detectFaceLoop() {
                 await collectAndSendAccessBurst(detection);
                 lastCaptureTime = now;
             } else {
-                setHud('Mantenga la cara quieta…');
+                setAccessUiState(ACCESS_UI_HOLD_STILL);
             }
         } else {
             resetAccessStability();
-            if (detection && !isProcessingAccess && !isQuickRetryMode) {
-                setHud('Coloque su rostro en el óvalo');
-            } else if (detection && !isProcessingAccess && isQuickRetryMode) {
-                updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
-            } else if (!detection && !isProcessingAccess) {
-                if (isQuickRetryMode) {
-                    updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
-                } else {
-                    setHud('Coloque su rostro en el óvalo');
-                }
+            if (!isProcessingAccess && !isCooldown && accessUiState !== ACCESS_UI_RESULT) {
+                setAccessUiState(ACCESS_UI_IDLE);
             }
         }
 
@@ -880,7 +973,8 @@ function setStatus(state, text) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    setHud('Coloque su rostro en el óvalo');
+    resetAccessHudSticky(ACCESS_HUD_IDLE);
+    accessUiState = ACCESS_UI_IDLE;
     document.addEventListener('visibilitychange', function () {
         if (
             document.visibilityState === 'visible' &&
