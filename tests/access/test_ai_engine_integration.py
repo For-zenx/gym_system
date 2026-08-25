@@ -31,5 +31,22 @@ def test_ai_engine__recognize_face_matches_enrolled_client(
 
 
 @pytest.mark.django_db
+def test_ai_engine__verify_face_matches_specific_candidate(
+    create_client,
+    enrollment_face_b64,
+):
+    embedding = ai_engine.generate_embedding(ENROLLMENT_FACE_FIXTURE)
+    affiliate = create_client()
+    affiliate.face_id_embeddings = embedding
+    affiliate.save(update_fields=["face_id_embeddings"])
+
+    result = ai_engine.verify_face(enrollment_face_b64, affiliate)
+
+    assert result.client is not None
+    assert result.client.pk == affiliate.pk
+    assert result.best_codigo == affiliate.codigo_afiliado
+
+
+@pytest.mark.django_db
 def test_ai_engine__recognize_face_unknown_when_no_embeddings(enrollment_face_b64):
     assert ai_engine.recognize_face(enrollment_face_b64) is None

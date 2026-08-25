@@ -12,7 +12,7 @@ from apps.access.services import (
     pulse_turnstile_if_granted,
 )
 
-PENDING_CONFIRM_TIMEOUT_SECONDS = 7.0
+PENDING_CONFIRM_TIMEOUT_SECONDS = 3.0
 
 
 def _membership_data(client_obj):
@@ -138,6 +138,41 @@ def _finalize_matched_client(client, match_result, last_unknown_log_time, confir
     }
 
 
+def _unknown_result(match_result, last_unknown_log_time, confirm_stage="n/a"):
+    now = datetime.datetime.now()
+    write_access_biometrics_log(
+        match_result,
+        "DENIED",
+        "denied_unknown",
+        confirm_stage=confirm_stage,
+    )
+    should_log_unknown = (
+        last_unknown_log_time is None
+        or (now - last_unknown_log_time).total_seconds() >= 10
+    )
+    if should_log_unknown:
+        log_unknown_access()
+
+    return {
+        "tablet_response": {
+            "status": "DENIED",
+            "variant": "denied_unknown",
+            "name": "",
+            "detail": "No reconocido",
+        },
+        "dashboard_event": (
+            _dashboard_event(None, False, "No reconocido", [], is_unknown=True)
+            if should_log_unknown
+            else None
+        ),
+        "should_log_unknown": should_log_unknown,
+        "match_result": match_result,
+        "unknown_log_time": now if should_log_unknown else last_unknown_log_time,
+        "pending_client_id": None,
+        "pending_since": None,
+    }
+
+
 def process_biometric_access_frame(
     base64_image: str,
     last_unknown_log_time,
@@ -146,7 +181,7 @@ def process_biometric_access_frame(
 ):
     """
     Procesa un frame de acceso biométrico (sync).
-    Requiere 2 MATCH consecutivos de la misma persona antes de GRANT.
+    Compatibilidad para tablets anteriores: requiere 2 MATCH de la misma persona.
     Durante pendiente, NO_MATCH/NO_FACE no cancelan (retry suave).
     """
     match_result = ai_engine.match_face(base64_image)
@@ -166,36 +201,7 @@ def process_biometric_access_frame(
                 pending_since,
             )
 
-        write_access_biometrics_log(
-            match_result,
-            "DENIED",
-            "denied_unknown",
-            confirm_stage="n/a",
-        )
-
-        should_log_unknown = (
-            last_unknown_log_time is None
-            or (now - last_unknown_log_time).total_seconds() >= 10
-        )
-        if should_log_unknown:
-            log_unknown_access()
-
-        tablet_response = {
-            "status": "DENIED",
-            "variant": "denied_unknown",
-            "name": "",
-            "detail": "No reconocido",
-        }
-        dashboard_event = _dashboard_event(None, False, "No reconocido", [], is_unknown=True)
-        return {
-            "tablet_response": tablet_response,
-            "dashboard_event": dashboard_event if should_log_unknown else None,
-            "should_log_unknown": should_log_unknown,
-            "match_result": match_result,
-            "unknown_log_time": now if should_log_unknown else last_unknown_log_time,
-            "pending_client_id": None,
-            "pending_since": None,
-        }
+        return _unknown_result(match_result, last_unknown_log_time)
 
     if pending_client_id is None or pending_client_id != client.pk:
         write_access_biometrics_log(
@@ -207,8 +213,8 @@ def process_biometric_access_frame(
         tablet_response = {
             "status": "PENDING",
             "variant": "confirming",
-            "name": client.nombre,
-            "detail": "Mantenga la cara quieta",
+            "name": "",
+            "detail": "Siga frente a la cámara",
         }
         return {
             "tablet_response": tablet_response,
@@ -228,17 +234,60 @@ def process_biometric_access_frame(
     )
 
 
+def process_biometric_access_burst(images, last_unknown_log_time):
+    """
+    Identifica con el primer frame y verifica 1:1 al candidato con el segundo.
+    Devuelve una sola respuesta final y nunca expone una identidad provisional.
+    """
+    if not isinstance(images, (list, tuple)) or len(images) < 2:
+        match_result = ai_engine._empty_match_result(ai_engine.OUTCOME_INVALID_FRAME)
+        return {
+            "tablet_response": {
+                "status": "ERROR",
+                "reason": "Se requieren dos imágenes para verificar el acceso.",
+            },
+            "dashboard_event": None,
+            "should_log_unknown": False,
+            "match_result": match_result,
+            "unknown_log_time": last_unknown_log_time,
+            "pending_client_id": None,
+            "pending_since": None,
+        }
+
+    identification = ai_engine.match_face(images[0])
+    candidate = identification.client
+    if candidate is None:
+        return _unknown_result(
+            identification,
+            last_unknown_log_time,
+            confirm_stage="burst_identify",
+        )
+
+    write_access_biometrics_log(
+        identification,
+        "PENDING",
+        "burst_candidate",
+        confirm_stage="burst_identify",
+    )
+
+    verification = ai_engine.verify_face(images[1], candidate)
+    if verification.client is None:
+        return _unknown_result(
+            verification,
+            last_unknown_log_time,
+            confirm_stage="burst_rejected",
+        )
+
+    return _finalize_matched_client(
+        candidate,
+        verification,
+        last_unknown_log_time,
+        confirm_stage="burst_confirmed",
+    )
+
+
 def _soft_pending_retry(match_result, last_unknown_log_time, pending_client_id, pending_since):
     """Keep confirmation alive on a weak second frame (NO_MATCH / NO_FACE)."""
-    from apps.clients.models import Client
-
-    pending_name = match_result.best_nombre or ""
-    if not pending_name:
-        try:
-            pending_name = Client.objects.get(pk=pending_client_id).nombre
-        except Client.DoesNotExist:
-            pending_name = ""
-
     write_access_biometrics_log(
         match_result,
         "PENDING",
@@ -248,8 +297,8 @@ def _soft_pending_retry(match_result, last_unknown_log_time, pending_client_id, 
     tablet_response = {
         "status": "PENDING",
         "variant": "confirming",
-        "name": pending_name,
-        "detail": "Mantenga la cara quieta",
+        "name": "",
+        "detail": "Siga frente a la cámara",
     }
     return {
         "tablet_response": tablet_response,

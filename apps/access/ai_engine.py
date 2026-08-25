@@ -227,6 +227,43 @@ def match_face(base64_image: str) -> FaceMatchResult:
     )
 
 
+def verify_face(base64_image: str, candidate) -> FaceMatchResult:
+    """Verifica un frame únicamente contra el candidato identificado previamente."""
+    try:
+        rgb_image = _decode_base64_to_rgb(base64_image)
+    except ValueError as exc:
+        logger.warning("Frame de verificación inválido: %s", exc)
+        return _empty_match_result(OUTCOME_INVALID_FRAME)
+
+    frame_encodings = face_recognition.face_encodings(rgb_image, model=FACE_ENCODING_MODEL)
+    if not frame_encodings:
+        return _empty_match_result(OUTCOME_NO_FACE)
+
+    try:
+        known_embedding = np.array(candidate.face_id_embeddings)
+    except (TypeError, ValueError):
+        logger.error("Embedding corrupto para afiliado %s.", candidate.nombre)
+        return _empty_match_result(OUTCOME_NO_ENROLLED)
+
+    distance = float(
+        face_recognition.face_distance([known_embedding], frame_encodings[0])[0]
+    )
+    outcome = OUTCOME_MATCH if distance <= TOLERANCE else OUTCOME_NO_MATCH
+    return FaceMatchResult(
+        client=candidate if outcome == OUTCOME_MATCH else None,
+        outcome=outcome,
+        best_distance=distance,
+        best_codigo=candidate.codigo_afiliado,
+        best_nombre=candidate.nombre,
+        second_distance=None,
+        second_codigo=None,
+        second_nombre=None,
+        margin=None,
+        tolerance=TOLERANCE,
+        model=FACE_ENCODING_MODEL,
+    )
+
+
 def recognize_face(base64_image: str):
     """API legacy: retorna el Client coincidente o None."""
     return match_face(base64_image).client

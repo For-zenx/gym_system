@@ -3,8 +3,8 @@
 const WS_URL = window.TABLET_WS_URL;
 const RECONNECT_DELAY_MS = 3000;
 const CAPTURE_COOLDOWN_MS = 2000;
-const CONFIRM_CAPTURE_COOLDOWN_MS = 700;
-const ACCESS_FIRST_STABILITY_MS = 450;
+const CONFIRM_CAPTURE_COOLDOWN_MS = 400;
+const ACCESS_FIRST_STABILITY_MS = 400;
 const RESULT_DISPLAY_MS = 4000;
 const RESULT_DISPLAY_DENIED_MS = 3200;
 const RESULT_DISPLAY_DENIED_UNKNOWN_MS = 1600;
@@ -13,8 +13,12 @@ const QUICK_RETRY_IDLE_MS = 4000;
 const WS_PING_MS = 20000;
 const WS_PONG_TIMEOUT_MS = 45000;
 const LONG_DISCONNECT_RELOAD_MS = 5 * 60 * 1000;
-const CONFIRMING_MAX_MS = 12000;
+const CONFIRMING_MAX_MS = 4000;
+const CONFIRM_ABANDON_MS = 1200;
 const DETECT_WATCHDOG_MS = 15000;
+const ACCESS_BURST_INTERVAL_MS = 200;
+const ACCESS_BURST_SAMPLE_COUNT = 4;
+const ACCESS_BURST_MIN_SEPARATION_MS = 350;
 
 const cameraFeed = document.getElementById('camera-feed');
 const overlayCanvas = document.getElementById('overlay-canvas');
@@ -50,11 +54,14 @@ let softReloadDoneForThisDown = false;
 let pingTimer = null;
 let pongTimer = null;
 let confirmingWatchdogTimer = null;
+let confirmAbandonSince = null;
 let lastDetectTick = Date.now();
 let detectWatchdogTimer = null;
 let detectRestartCount = 0;
 let cameraRetrying = false;
 let pendingSoftReloadReason = '—';
+let isCollectingAccessBurst = false;
+let accessBurstGeneration = 0;
 
 // OPS_AUDIT
 function sendOpsEvent(event, reason, detail) {
@@ -95,11 +102,43 @@ function startConfirmingWatchdog() {
     confirmingWatchdogTimer = setTimeout(function () {
         confirmingWatchdogTimer = null;
         if (isConfirmingIdentity) {
-            clearAccessResult();
-            setHud('Coloque su rostro en el óvalo');
-            isCooldown = false;
+            abortConfirmingToIdle();
         }
     }, CONFIRMING_MAX_MS);
+}
+
+function sendConfirmAbort() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        try {
+            socket.send(JSON.stringify({ type: 'CONFIRM_ABORT' }));
+        } catch (err) { /* ignore */ }
+    }
+}
+
+function abortConfirmingToIdle() {
+    sendConfirmAbort();
+    confirmAbandonSince = null;
+    clearAccessResult();
+    setHud('Coloque su rostro en el óvalo');
+    isCooldown = false;
+}
+
+function noteConfirmingFacePresence(meetsCriteria, now) {
+    if (!isConfirmingIdentity) {
+        confirmAbandonSince = null;
+        return;
+    }
+    if (meetsCriteria) {
+        confirmAbandonSince = null;
+        return;
+    }
+    if (confirmAbandonSince === null) {
+        confirmAbandonSince = now;
+        return;
+    }
+    if (now - confirmAbandonSince >= CONFIRM_ABANDON_MS) {
+        abortConfirmingToIdle();
+    }
 }
 
 function stopHeartbeat() {
@@ -332,8 +371,11 @@ function enterQuickRetryMode() {
 }
 
 function clearAccessResult() {
+    accessBurstGeneration += 1;
+    isCollectingAccessBurst = false;
     exitQuickRetryMode();
     isConfirmingIdentity = false;
+    confirmAbandonSince = null;
     clearConfirmingWatchdog();
     resetAccessStability();
     hideProcessingOverlay();
@@ -469,22 +511,23 @@ function showConfirmingIdentity(data) {
     isConfirmingIdentity = true;
     isProcessingAccess = false;
     isCooldown = false;
+    confirmAbandonSince = null;
     resetAccessStability();
     startConfirmingWatchdog();
+    hideProcessingOverlay();
     hudInstruction.classList.add('hidden');
     setFaceGuideVariant('processing');
-    const name = data.name ? data.name + ' — ' : '';
     showBottomBanner(
         'processing',
-        'Confirmando…',
-        name + (data.detail || 'Mantenga la cara quieta')
+        'Siga frente a la cámara',
+        ''
     );
-    showProcessingOverlay('Confirmando…');
 }
 
 function showAccessResult(data) {
     const variant = data.variant || (data.status === 'GRANTED' ? 'granted' : 'denied_unknown');
     isConfirmingIdentity = false;
+    confirmAbandonSince = null;
     clearConfirmingWatchdog();
     hideProcessingOverlay();
     isProcessingAccess = false;
@@ -521,6 +564,144 @@ function showAccessResult(data) {
     scheduleFullResultClear();
 }
 
+function waitMs(ms) {
+    return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+    });
+}
+
+function captureBurstCandidate(detection) {
+    const canvas = document.createElement('canvas');
+    canvas.width = cameraFeed.videoWidth;
+    canvas.height = cameraFeed.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
+
+    const det = TabletFaceUtils.getFaceDetection(detection);
+    const box = det && det.box;
+    let brightnessScore = 0.5;
+    let sharpnessScore = 0.5;
+    let sizeScore = 0;
+
+    if (box && box.width > 0 && box.height > 0) {
+        const sample = document.createElement('canvas');
+        sample.width = 64;
+        sample.height = 64;
+        const sampleCtx = sample.getContext('2d', { willReadFrequently: true });
+        sampleCtx.drawImage(
+            cameraFeed,
+            box.x, box.y, box.width, box.height,
+            0, 0, sample.width, sample.height
+        );
+        const pixels = sampleCtx.getImageData(0, 0, sample.width, sample.height).data;
+        let luminanceTotal = 0;
+        let edgeTotal = 0;
+        let previous = null;
+        for (let i = 0; i < pixels.length; i += 4) {
+            const luminance = (pixels[i] * 0.299) + (pixels[i + 1] * 0.587) + (pixels[i + 2] * 0.114);
+            luminanceTotal += luminance;
+            if (previous !== null) {
+                edgeTotal += Math.abs(luminance - previous);
+            }
+            previous = luminance;
+        }
+        const pixelCount = pixels.length / 4;
+        const meanLuminance = luminanceTotal / pixelCount;
+        brightnessScore = Math.max(0, 1 - (Math.abs(meanLuminance - 128) / 128));
+        sharpnessScore = Math.min(1, (edgeTotal / pixelCount) / 24);
+        sizeScore = Math.min(1, box.width / Math.max(1, cameraFeed.videoWidth * 0.45));
+    }
+
+    const detectionScore = det && typeof det.score === 'number' ? det.score : 0;
+    return {
+        image: canvas.toDataURL('image/jpeg', 0.85),
+        score: (detectionScore * 0.55) + (sharpnessScore * 0.25) +
+            (brightnessScore * 0.15) + (sizeScore * 0.05),
+        capturedAt: Date.now(),
+    };
+}
+
+function selectBestBurstPair(candidates) {
+    let bestPair = null;
+    let bestScore = -Infinity;
+    for (let i = 0; i < candidates.length; i += 1) {
+        for (let j = i + 1; j < candidates.length; j += 1) {
+            const separation = candidates[j].capturedAt - candidates[i].capturedAt;
+            if (separation < ACCESS_BURST_MIN_SEPARATION_MS) {
+                continue;
+            }
+            const pairScore = candidates[i].score + candidates[j].score;
+            if (pairScore > bestScore) {
+                bestScore = pairScore;
+                bestPair = [candidates[i], candidates[j]];
+            }
+        }
+    }
+    return bestPair;
+}
+
+async function collectAndSendAccessBurst(initialDetection) {
+    if (isCollectingAccessBurst || isProcessingAccess) {
+        return;
+    }
+    const burstGeneration = ++accessBurstGeneration;
+    isCollectingAccessBurst = true;
+    isProcessingAccess = true;
+    if (isQuickRetryMode) {
+        updateBottomBannerSubtitle('Mantenga el rostro un instante');
+    } else {
+        setHud('Mantenga el rostro un instante');
+    }
+    const candidates = [captureBurstCandidate(initialDetection)];
+
+    try {
+        for (let i = 1; i < ACCESS_BURST_SAMPLE_COUNT; i += 1) {
+            await waitMs(ACCESS_BURST_INTERVAL_MS);
+            if (burstGeneration !== accessBurstGeneration) {
+                return;
+            }
+            const detection = await faceapi.detectSingleFace(
+                cameraFeed,
+                TabletFaceUtils.accessDetectorOptions()
+            );
+            if (!detection) {
+                continue;
+            }
+            const displaySize = { width: cameraFeed.videoWidth, height: cameraFeed.videoHeight };
+            const resized = faceapi.resizeResults(detection, displaySize);
+            if (TabletFaceUtils.meetsAccessCaptureCriteria(
+                detection, resized, cameraFeed, faceGuideOval
+            )) {
+                candidates.push(captureBurstCandidate(detection));
+            }
+        }
+
+        const pair = selectBestBurstPair(candidates);
+        if (burstGeneration !== accessBurstGeneration) {
+            return;
+        }
+        if (!pair) {
+            clearAccessResult();
+            setHud('Coloque su rostro en el óvalo');
+            isCooldown = false;
+            return;
+        }
+        showAccessProcessing();
+        sendAccessBurst(pair.map(function (candidate) { return candidate.image; }));
+    } catch (err) {
+        console.error('[Tablet Acceso] Error capturando ráfaga:', err);
+        clearAccessResult();
+        setHud('Coloque su rostro en el óvalo');
+        isCooldown = false;
+    } finally {
+        if (burstGeneration === accessBurstGeneration) {
+            isCollectingAccessBurst = false;
+        }
+    }
+}
+
 async function detectFaceLoop() {
     lastDetectTick = Date.now();
 
@@ -535,8 +716,7 @@ async function detectFaceLoop() {
     }
 
     const now = Date.now();
-    const captureCooldownMs = isConfirmingIdentity ? CONFIRM_CAPTURE_COOLDOWN_MS : CAPTURE_COOLDOWN_MS;
-    const cooldownOk = isQuickRetryMode || isConfirmingIdentity || (now - lastCaptureTime) > captureCooldownMs;
+    const cooldownOk = isQuickRetryMode || (now - lastCaptureTime) > CAPTURE_COOLDOWN_MS;
 
     try {
         const detection = await faceapi.detectSingleFace(
@@ -556,39 +736,24 @@ async function detectFaceLoop() {
         }
 
         if (detection && cooldownOk && !isProcessingAccess && !isCooldown && meetsCriteria) {
-            let readyToCapture = true;
-            if (!isConfirmingIdentity) {
-                if (accessStableSince === null) {
-                    accessStableSince = now;
-                }
-                readyToCapture = (now - accessStableSince) >= ACCESS_FIRST_STABILITY_MS;
-                if (!readyToCapture) {
-                    setHud('Mantenga la cara quieta…');
-                }
-            } else {
-                resetAccessStability();
+            if (accessStableSince === null) {
+                accessStableSince = now;
             }
-
-            if (readyToCapture) {
+            if ((now - accessStableSince) >= ACCESS_FIRST_STABILITY_MS) {
                 resetAccessStability();
-                showAccessProcessing();
-                sendAccessFrame();
+                await collectAndSendAccessBurst(detection);
                 lastCaptureTime = now;
+            } else {
+                setHud('Mantenga la cara quieta…');
             }
         } else {
-            if (!isConfirmingIdentity) {
-                resetAccessStability();
-            }
-            if (detection && !isProcessingAccess && isConfirmingIdentity) {
-                updateBottomBannerSubtitle('Mantenga la cara quieta');
-            } else if (detection && !isProcessingAccess && !isQuickRetryMode) {
+            resetAccessStability();
+            if (detection && !isProcessingAccess && !isQuickRetryMode) {
                 setHud('Coloque su rostro en el óvalo');
             } else if (detection && !isProcessingAccess && isQuickRetryMode) {
                 updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
             } else if (!detection && !isProcessingAccess) {
-                if (isConfirmingIdentity) {
-                    updateBottomBannerSubtitle('Mantenga la cara quieta');
-                } else if (isQuickRetryMode) {
+                if (isQuickRetryMode) {
                     updateBottomBannerSubtitle('Coloque su rostro en el óvalo');
                 } else {
                     setHud('Coloque su rostro en el óvalo');
@@ -606,18 +771,9 @@ async function detectFaceLoop() {
     requestAnimationFrame(detectFaceLoop);
 }
 
-function sendAccessFrame() {
-    const canvas = document.createElement('canvas');
-    canvas.width = cameraFeed.videoWidth;
-    canvas.height = cameraFeed.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
-    const dataURL = canvas.toDataURL('image/jpeg', 0.85);
-
+function sendAccessBurst(images) {
     if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'FRAME', image: dataURL }));
+        socket.send(JSON.stringify({ type: 'FRAME_BURST', images: images }));
         clearTimeout(serverTimeoutTimer);
         serverTimeoutTimer = setTimeout(function () {
             if (isProcessingAccess) {

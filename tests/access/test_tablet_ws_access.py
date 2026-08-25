@@ -34,6 +34,13 @@ def _patch_match_face(monkeypatch, client=None):
     )
 
 
+def _patch_verify_face(monkeypatch, client=None):
+    monkeypatch.setattr(
+        "apps.access.frame_processing.ai_engine.verify_face",
+        lambda _img, _candidate: _match_result(client=client),
+    )
+
+
 async def _send_two_confirming_frames(communicator):
     await communicator.send_json_to({"type": "FRAME", "image": FAKE_PHOTO_B64})
     first = await communicator.receive_json_from()
@@ -106,6 +113,64 @@ async def test_tablet_access_ws__granted_creates_log_and_opens_turnstile(
     log = await sync_to_async(AccessLog.objects.get)(client=affiliate)
     assert log.resultado is True
 
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_tablet_access_ws__burst_grants_with_single_final_response(
+    tablet_access_affiliate,
+    monkeypatch,
+):
+    affiliate = tablet_access_affiliate
+    turnstile_calls = []
+    _patch_match_face(monkeypatch, client=affiliate)
+    _patch_verify_face(monkeypatch, client=affiliate)
+    monkeypatch.setattr(
+        "apps.access.services.open_turnstile",
+        lambda: turnstile_calls.append(True)
+        or TurnstilePulseResult(True, "COM_TEST", 1.0),
+    )
+
+    communicator = WebsocketCommunicator(application, WS_TABLET_ACCESS)
+    await communicator.connect()
+    await communicator.send_json_to(
+        {
+            "type": "FRAME_BURST",
+            "images": [FAKE_PHOTO_B64, FAKE_PHOTO_B64],
+        }
+    )
+    response = await communicator.receive_json_from()
+
+    assert response["status"] == "GRANTED"
+    assert response["name"] == affiliate.nombre
+    assert turnstile_calls == [True]
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_tablet_access_ws__burst_rejection_never_exposes_candidate(
+    tablet_access_affiliate,
+    monkeypatch,
+):
+    affiliate = tablet_access_affiliate
+    _patch_match_face(monkeypatch, client=affiliate)
+    _patch_verify_face(monkeypatch, client=None)
+
+    communicator = WebsocketCommunicator(application, WS_TABLET_ACCESS)
+    await communicator.connect()
+    await communicator.send_json_to(
+        {
+            "type": "FRAME_BURST",
+            "images": [FAKE_PHOTO_B64, FAKE_PHOTO_B64],
+        }
+    )
+    response = await communicator.receive_json_from()
+
+    assert response["status"] == "DENIED"
+    assert response["variant"] == "denied_unknown"
+    assert response["name"] == ""
     await communicator.disconnect()
 
 

@@ -5,7 +5,10 @@ import logging
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-from apps.access.frame_processing import process_biometric_access_frame
+from apps.access.frame_processing import (
+    process_biometric_access_burst,
+    process_biometric_access_frame,
+)
 from apps.access.tablet_ops_audit import write_tablet_ops_log
 
 logger = logging.getLogger(__name__)
@@ -75,6 +78,36 @@ async def _handle_access_frame(consumer, payload, last_unknown_log_time_attr):
     )
 
 
+async def _handle_access_burst(consumer, payload, last_unknown_log_time_attr):
+    images = payload.get("images")
+    if (
+        not isinstance(images, list)
+        or len(images) < 2
+        or not all(isinstance(image, str) and image for image in images[:2])
+    ):
+        await consumer.send(
+            json.dumps(
+                {
+                    "status": "ERROR",
+                    "reason": "FRAME_BURST requiere dos imágenes válidas.",
+                }
+            )
+        )
+        return
+
+    result = await database_sync_to_async(process_biometric_access_burst)(
+        images[:2],
+        getattr(type(consumer), last_unknown_log_time_attr),
+    )
+    consumer.pending_client_id = None
+    consumer.pending_since = None
+    setattr(
+        type(consumer),
+        last_unknown_log_time_attr,
+        await _send_access_frame_result(consumer, result),
+    )
+
+
 class AccessTabletConsumer(AsyncWebsocketConsumer):
     last_unknown_log_time = None
 
@@ -106,8 +139,13 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
         msg_type = payload.get("type")
         if msg_type == "PING":
             await self.send(json.dumps({"type": "PONG"}))
+        elif msg_type == "FRAME_BURST":
+            await self._handle_burst(payload)
         elif msg_type == "FRAME":
             await self._handle_frame(payload)
+        elif msg_type == "CONFIRM_ABORT":
+            self.pending_client_id = None
+            self.pending_since = None
         elif msg_type == "OPS":
             # OPS_AUDIT
             _handle_ops_message(payload, OPS_ROLE_ACCESS)
@@ -117,6 +155,9 @@ class AccessTabletConsumer(AsyncWebsocketConsumer):
 
     async def _handle_frame(self, payload):
         await _handle_access_frame(self, payload, "last_unknown_log_time")
+
+    async def _handle_burst(self, payload):
+        await _handle_access_burst(self, payload, "last_unknown_log_time")
 
     async def tablet_status_request(self, event):
         await self._notify_dashboard(TABLET_ROLE_ACCESS, True)
@@ -243,8 +284,13 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
         msg_type = payload.get("type")
         if msg_type == "PING":
             await self.send(json.dumps({"type": "PONG"}))
+        elif msg_type == "FRAME_BURST":
+            await self._handle_burst(payload)
         elif msg_type == "FRAME":
             await self._handle_frame(payload)
+        elif msg_type == "CONFIRM_ABORT":
+            self.pending_client_id = None
+            self.pending_since = None
         elif msg_type == "ENROLLMENT_PHOTO":
             await self.channel_layer.group_send(
                 DASHBOARD_GROUP,
@@ -273,6 +319,9 @@ class CombinedTabletConsumer(AsyncWebsocketConsumer):
 
     async def _handle_frame(self, payload):
         await _handle_access_frame(self, payload, "last_unknown_log_time")
+
+    async def _handle_burst(self, payload):
+        await _handle_access_burst(self, payload, "last_unknown_log_time")
 
     async def enrollment_command(self, event):
         await self.send(json.dumps(event.get("data", {})))
