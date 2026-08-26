@@ -1,0 +1,38 @@
+<div class="enrollment-quality-bar" id="enrollment-quality-bar" aria-label="Calidad de la foto">
+    <div class="enrollment-quality-bar__track">
+        <div class="enrollment-quality-bar__segment" data-grade="no_face" tabindex="0" data-tooltip="No se detectó una cara usable.">
+            <span class="enrollment-quality-bar__label">Sin cara</span>
+        </div>
+        <div class="enrollment-quality-bar__segment" data-grade="risky" tabindex="0" data-tooltip="Cara pequeña, oscura o borrosa; puede fallar el acceso.">
+            <span class="enrollment-quality-bar__label">Riesgosa</span>
+        </div>
+        <div class="enrollment-quality-bar__segment" data-grade="acceptable" tabindex="0" data-tooltip="Calidad mínima; puede continuar, pero otra foto sería mejor.">
+            <span class="enrollment-quality-bar__label">Aceptable</span>
+        </div>
+        <div class="enrollment-quality-bar__segment" data-grade="good" tabindex="0" data-tooltip="Buena calidad para reconocimiento facial.">
+            <span class="enrollment-quality-bar__label">Buena</span>
+        </div>
+        <div class="enrollment-quality-bar__segment" data-grade="excellent" tabindex="0" data-tooltip="Calidad óptima para reconocimiento facial.">
+            <span class="enrollment-quality-bar__label">Excelente</span>
+        </div>
+    </div>
+</div>
+
+<div id="enrollment-risky-photo-modal" class="modal-overlay enrollment-risky-modal" aria-hidden="true">
+    <div class="modal-content modal-content-narrow enrollment-risky-card" role="dialog" aria-modal="true" aria-labelledby="enrollment-risky-title">
+        <div class="modal-header">
+            <h2 id="enrollment-risky-title">Foto riesgosa</h2>
+        </div>
+        <p class="enrollment-risky-text">
+            La calidad de esta foto puede afectar el reconocimiento facial en el torniquete.
+            Se recomienda tomar otra foto en la tablet.
+        </p>
+        <p id="enrollment-risky-countdown" class="enrollment-risky-countdown">
+            Espere <strong>10</strong> segundos para poder continuar…
+        </p>
+        <div class="enrollment-risky-actions">
+            <button type="button" class="btn enrollment-risky-btn-cancel" id="enrollment-risky-cancel">Cancelar</button>
+            <button type="button" class="btn enrollment-risky-btn-continue" id="enrollment-risky-continue" disabled>Continuar</button>
+        </div>
+    </div>
+</div>

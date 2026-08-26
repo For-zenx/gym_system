@@ -5,7 +5,7 @@
 {% block page_title %}Re-enrolamiento biométrico{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.6">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.16">
 {% endblock %}
 
 {% block content %}
@@ -56,6 +56,7 @@
         <button type="button" class="btn btn-secondary enrollment-retake-btn" onclick="retakeEnrollmentPhoto()">
             Tomar otra foto
         </button>
+        {% include 'includes/enrollment_photo_quality_bar.html' %}
         <div id="reenrollment-photo-status" class="enrollment-terms-status enrollment-terms-status--pending" role="status">
             Esperando nueva foto en la tablet
         </div>
@@ -121,5 +122,6 @@
     window.ENROLLMENT_VALIDATE_PHOTO_URL = '{% url "enrollment_validate_photo" %}';
 </script>
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
-<script src="{% static 'js/re_enrollment.js' %}?v=1.3"></script>
+<script src="{% static 'js/enrollment_photo_quality.js' %}?v=1.2"></script>
+<script src="{% static 'js/re_enrollment.js' %}?v=1.4"></script>
 {% endblock %}

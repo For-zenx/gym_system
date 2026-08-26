@@ -27,6 +27,11 @@ from apps.clients.services import (
 )
 from apps.access.models import AccessLog
 from apps.access import ai_engine
+from apps.access.enrollment_photo_quality import (
+    GRADE_NO_FACE,
+    analyze_enrollment_photo_b64,
+    analysis_to_dict,
+)
 from apps.users.decorators import permission_required
 from apps.users.permissions import has_permission
 
@@ -174,9 +179,20 @@ def enrollment_validate_photo(request):
             foto_frente_b64 = ""
 
     try:
-        ai_engine.validate_enrollment_photo_b64(foto_frente_b64)
+        analysis = analyze_enrollment_photo_b64(foto_frente_b64)
     except ValueError as exc:
-        return JsonResponse({"status": "error", "message": str(exc)}, status=400)
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": str(exc),
+                "grade": GRADE_NO_FACE,
+                "grade_label": "Sin cara",
+                "requires_override": False,
+                "can_save_direct": False,
+                "embed_ok": False,
+            },
+            status=400,
+        )
     except Exception:
         return JsonResponse(
             {
@@ -186,7 +202,18 @@ def enrollment_validate_photo(request):
             status=500,
         )
 
-    return JsonResponse({"status": "ok"})
+    payload = analysis_to_dict(analysis)
+    if analysis.grade == GRADE_NO_FACE:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "No se detectó una cara usable en la foto. Use Tomar otra foto.",
+                **payload,
+            },
+            status=400,
+        )
+
+    return JsonResponse({"status": "ok", **payload})
 
 
 @enrollment_access
