@@ -15,6 +15,7 @@ from .models import Client, GuestPass, PERSON_CODE_PREFIX, PersonCategory
 
 ALLOWED_INACTIVITY_YEARS = (1, 2)
 INACTIVE_CLIENTS_PREVIEW_LIMIT = 20
+PROFILE_NOTE_MAX_LENGTH = 1000
 
 
 class BulkDeleteCountMismatchError(Exception):
@@ -23,6 +24,24 @@ class BulkDeleteCountMismatchError(Exception):
         super().__init__(actual_count)
 
 CLIENT_IMAGE_FIELDS = ("foto_frente", "foto_perfil_izq", "foto_perfil_der")
+
+
+def update_profile_note(client, text):
+    """Guarda la nota permanente del perfil (afiliado o invitado). Vacío = borrar."""
+    from django.core.exceptions import ValidationError
+
+    if not (client.is_member or client.is_guest):
+        raise ValidationError("Solo se puede guardar nota en afiliados o invitados.")
+
+    note = (text or "").strip()
+    if len(note) > PROFILE_NOTE_MAX_LENGTH:
+        raise ValidationError(
+            "La nota no puede superar {} caracteres.".format(PROFILE_NOTE_MAX_LENGTH)
+        )
+
+    client.profile_note = note
+    client.save(update_fields=["profile_note"])
+    return client
 
 
 def get_next_person_code(category):

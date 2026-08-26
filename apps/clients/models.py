@@ -78,6 +78,12 @@ class Client(models.Model):
         blank=True,
         null=True
     )
+    profile_note = models.TextField(
+        "Nota de perfil",
+        blank=True,
+        default="",
+        help_text="Nota permanente visible en el perfil del afiliado o invitado.",
+    )
 
     # foto_frente alimenta el motor de reconocimiento y la UI; perfiles legacy sin uso activo.
     foto_frente = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)

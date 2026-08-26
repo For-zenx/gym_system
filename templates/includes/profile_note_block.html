@@ -1,0 +1,88 @@
+{# Nota permanente del perfil (afiliado / invitado). Requiere: client, can_edit_profile_note, profile_note_form_url, profile_note_max_length #}
+<div class="profile-note-strip">
+    <div class="profile-note-strip-main">
+        <span class="profile-note-label">Nota</span>
+        {% if client.profile_note %}
+        <p class="profile-note-text">{{ client.profile_note }}</p>
+        {% else %}
+        <p class="profile-note-text profile-note-empty">Sin nota</p>
+        {% endif %}
+    </div>
+    {% if can_edit_profile_note %}
+    <button type="button" class="btn-link-muted profile-note-edit-btn" onclick="openProfileNoteModal()">
+        {% if client.profile_note %}Editar{% else %}Añadir{% endif %}
+    </button>
+    {% endif %}
+</div>
+
+{% if can_edit_profile_note %}
+<div class="modal-overlay" id="profileNoteModal">
+    <div class="modal-content">
+        {% include "includes/modal_header.html" with modal_title="Nota de perfil" %}
+        <p class="profile-danger-text" style="margin-top: 0;">
+            Esta nota queda fija en el perfil para que el personal la vea al abrir la ficha.
+            Déjala vacía y guarda para eliminarla.
+        </p>
+        <form method="POST" action="{{ profile_note_form_url }}" id="profile-note-form">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="profile_note_input">Nota</label>
+                <textarea
+                    id="profile_note_input"
+                    name="profile_note"
+                    class="form-control"
+                    rows="4"
+                    maxlength="{{ profile_note_max_length }}"
+                    placeholder="Ej.: debe el casillero, acuerdo especial, etc."
+                >{{ client.profile_note }}</textarea>
+                <p class="billing-field-hint" id="profile-note-counter" style="margin-top: 0.35rem;">
+                    0 / {{ profile_note_max_length }}
+                </p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeProfileNoteModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar nota</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+(function () {
+    function initProfileNoteModal() {
+        var modal = document.getElementById('profileNoteModal');
+        var input = document.getElementById('profile_note_input');
+        var counter = document.getElementById('profile-note-counter');
+        var maxLen = {{ profile_note_max_length }};
+        if (!modal || !input) return;
+
+        function updateCounter() {
+            if (!counter) return;
+            counter.textContent = (input.value || '').length + ' / ' + maxLen;
+        }
+
+        window.openProfileNoteModal = function () {
+            modal.classList.add('show');
+            updateCounter();
+            input.focus();
+        };
+
+        window.closeProfileNoteModal = function () {
+            modal.classList.remove('show');
+        };
+
+        input.addEventListener('input', updateCounter);
+        updateCounter();
+
+        if (typeof bindDismissibleModalById === 'function') {
+            bindDismissibleModalById('profileNoteModal', { onClose: closeProfileNoteModal });
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initProfileNoteModal);
+    } else {
+        initProfileNoteModal();
+    }
+})();
+</script>
+{% endif %}

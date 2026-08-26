@@ -9,6 +9,7 @@ from .views import (
     InactiveClientsPreviewView,
     ReEnrollClientView,
     ToggleBlockClientView,
+    UpdateProfileNoteView,
 )
 
 app_name = 'clients'
@@ -19,6 +20,7 @@ urlpatterns = [
     path('inactivos/eliminar/', BulkDeleteInactiveClientsView.as_view(), name='inactive_clients_bulk_delete'),
     path('<str:codigo_afiliado>/', ClientProfileView.as_view(), name='profile'),
     path('<str:codigo_afiliado>/editar/', EditClientView.as_view(), name='edit_client'),
+    path('<str:codigo_afiliado>/nota/', UpdateProfileNoteView.as_view(), name='update_profile_note'),
     path('<str:codigo_afiliado>/re-enrolar/', ReEnrollClientView.as_view(), name='re_enroll'),
     path('<str:codigo_afiliado>/eliminar/', ClientDeleteView.as_view(), name='delete_client'),
     path('<str:codigo_afiliado>/bloquear/', ToggleBlockClientView.as_view(), name='toggle_block'),

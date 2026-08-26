@@ -18,6 +18,7 @@ from .models import Client, GuestPass, PersonCategory, STAFF_PERSON_CATEGORIES
 from .services import (
     ALLOWED_INACTIVITY_YEARS,
     BulkDeleteCountMismatchError,
+    PROFILE_NOTE_MAX_LENGTH,
     bulk_delete_inactive_clients,
     build_inactive_clients_preview,
     delete_client,
@@ -26,6 +27,7 @@ from .services import (
     issue_guest_pass,
     replace_client_front_photo,
     revoke_guest_pass,
+    update_profile_note,
 )
 from .validation import (
     apply_client_fields,
@@ -62,6 +64,14 @@ def _edit_permission_for_client(client):
     if client.is_member:
         return "clients.edit"
     return "staff_persons.edit"
+
+
+def _profile_note_edit_permission(client):
+    if client.is_member:
+        return "clients.edit"
+    if client.is_guest:
+        return "guests.register"
+    return None
 
 
 def _view_permission_for_client(client):
@@ -222,6 +232,14 @@ class ClientProfileView(PermissionRequiredMixin, DetailView):
         context['can_grant_admin_access'] = has_permission(
             self.request.user, "clients.grant_admin_access"
         )
+        context['can_edit_profile_note'] = has_permission(
+            self.request.user, "clients.edit"
+        )
+        context['profile_note_max_length'] = PROFILE_NOTE_MAX_LENGTH
+        context['profile_note_form_url'] = reverse(
+            "clients:update_profile_note",
+            kwargs={"codigo_afiliado": self.object.codigo_afiliado},
+        )
         if has_permission(self.request.user, "classes.view"):
             from apps.classes.services import get_client_class_registrations
 
@@ -288,6 +306,43 @@ class EditClientView(PermissionRequiredMixin, View):
                 kwargs={"codigo_afiliado": codigo_afiliado},
             )
         )
+
+
+class UpdateProfileNoteView(PermissionRequiredMixin, View):
+    required_permission = None
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        client = get_object_or_404(Client, codigo_afiliado=kwargs["codigo_afiliado"])
+        required = _profile_note_edit_permission(client)
+        if not required or not has_permission(request.user, required):
+            raise PermissionDenied(self.permission_denied_message)
+        return View.dispatch(self, request, *args, **kwargs)
+
+    def post(self, request, codigo_afiliado):
+        client = get_object_or_404(Client, codigo_afiliado=codigo_afiliado)
+        profile_url = reverse(
+            get_person_profile_url_name(client),
+            kwargs={"codigo_afiliado": codigo_afiliado},
+        )
+
+        if not (client.is_member or client.is_guest):
+            messages.error(request, "Solo se puede guardar nota en afiliados o invitados.")
+            return redirect(profile_url)
+
+        try:
+            update_profile_note(client, request.POST.get("profile_note"))
+        except ValidationError as exc:
+            message = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            messages.error(request, message)
+            return redirect(profile_url)
+
+        if client.profile_note:
+            messages.success(request, "Nota de perfil actualizada.")
+        else:
+            messages.success(request, "Nota de perfil eliminada.")
+        return redirect(profile_url)
 
 
 class InactiveClientsPreviewView(PermissionRequiredMixin, View):
@@ -683,6 +738,14 @@ class GuestProfileView(PermissionRequiredMixin, DetailView):
         context["today"] = today
         context["can_set_custom_pass_expiry"] = has_permission(
             self.request.user, "guests.set_custom_pass_expiry"
+        )
+        context["can_edit_profile_note"] = has_permission(
+            self.request.user, "guests.register"
+        )
+        context["profile_note_max_length"] = PROFILE_NOTE_MAX_LENGTH
+        context["profile_note_form_url"] = reverse(
+            "guests:update_profile_note",
+            kwargs={"codigo_afiliado": self.object.codigo_afiliado},
         )
         return context
 

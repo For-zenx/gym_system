@@ -5,7 +5,7 @@
 {% block page_title %}Perfil del Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.9">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.0">
 {% endblock %}
 
 {% block content %}
@@ -68,6 +68,8 @@
 
         <div class="card profile-caja-card">
             <h3 class="profile-section-title">Caja</h3>
+
+            {% include "includes/profile_note_block.html" %}
 
             <dl class="profile-caja-lines">
                 {% if corp_group %}

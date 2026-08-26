@@ -5,7 +5,7 @@
 {% block page_title %}Perfil de invitado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.7">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.0">
 <link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.3">
 {% endblock %}
 
@@ -47,9 +47,10 @@
     </div>
 
     <div class="profile-content">
-        {% if 'guests.register' in user_permissions %}
         <div class="card profile-caja-card">
             <div class="profile-card-body">
+            {% include "includes/profile_note_block.html" %}
+            {% if 'guests.register' in user_permissions %}
             {% if active_pass %}
             <h3 class="profile-section-title">Pase activo</h3>
             <p class="profile-caja-note">Este invitado ya tiene un pase vigente hasta el {{ active_pass.valid_until|date:"d/m/Y" }}. Revóquelo desde el historial o espere a que venza para emitir otro.</p>
@@ -65,9 +66,9 @@
                 <button type="submit" class="btn btn-primary">Emitir pase</button>
             </form>
             {% endif %}
+            {% endif %}
             </div>
         </div>
-        {% endif %}
 
         <div class="card profile-tabs-card guest-pass-history-card">
             <div class="profile-card-body">
@@ -171,6 +172,9 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if can_edit_profile_note %}
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
+{% endif %}
 {% if 'guests.register' in user_permissions and not active_pass %}
 <script src="{% static 'js/guest_pass_validity.js' %}?v=1.0"></script>
 <script>
