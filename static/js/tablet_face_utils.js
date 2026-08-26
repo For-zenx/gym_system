@@ -4,8 +4,8 @@ const TabletFaceUtils = (function () {
     const MIN_DETECTION_SCORE = 0.60;
     const STABILITY_MS = 800;
     // Enrolamiento: min 0.65 fuerza acercarse; max alto evita «Aléjese» casi al llegar al min.
-    const OVAL_MIN_FACE_WIDTH_RATIO = 0.67;
-    const OVAL_MAX_FACE_WIDTH_RATIO = 1.25;
+    const OVAL_MIN_FACE_WIDTH_RATIO = 0.60;
+    const OVAL_MAX_FACE_WIDTH_RATIO = 1.20;
 
     function getFaceDetection(faceResult) {
         if (!faceResult) {

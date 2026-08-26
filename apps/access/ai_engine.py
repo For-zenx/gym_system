@@ -1,9 +1,10 @@
 import base64
 import io
 import logging
+import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import face_recognition
 import numpy as np
@@ -35,6 +36,71 @@ class FaceMatchResult:
     margin: Optional[float]
     tolerance: float
     model: str
+
+
+@dataclass(frozen=True)
+class EmbeddingGallery:
+    client_ids: Tuple[int, ...]
+    codigos: Tuple[str, ...]
+    nombres: Tuple[str, ...]
+    embeddings: np.ndarray
+
+
+_embedding_gallery_lock = threading.RLock()
+_embedding_gallery_cache = None
+
+
+def invalidate_embedding_cache() -> None:
+    """Invalida la galería facial en memoria del proceso Daphne."""
+    global _embedding_gallery_cache
+    with _embedding_gallery_lock:
+        _embedding_gallery_cache = None
+
+
+def _get_embedding_gallery() -> EmbeddingGallery:
+    """Carga una matriz inmutable de embeddings; no cachea reglas de acceso."""
+    global _embedding_gallery_cache
+    with _embedding_gallery_lock:
+        if _embedding_gallery_cache is not None:
+            return _embedding_gallery_cache
+
+        from apps.clients.models import Client
+
+        client_ids = []
+        codigos = []
+        nombres = []
+        embeddings = []
+        rows = Client.objects.exclude(face_id_embeddings__isnull=True).values_list(
+            "pk",
+            "codigo_afiliado",
+            "nombre",
+            "face_id_embeddings",
+        )
+        for client_id, codigo, nombre, raw_embedding in rows:
+            try:
+                embedding = np.asarray(raw_embedding, dtype=np.float64)
+                if embedding.shape != (128,):
+                    raise ValueError("se esperaban 128 dimensiones")
+            except (TypeError, ValueError) as exc:
+                logger.error("Embedding corrupto para afiliado %s: %s", nombre, exc)
+                continue
+            client_ids.append(client_id)
+            codigos.append(codigo)
+            nombres.append(nombre)
+            embeddings.append(embedding)
+
+        matrix = (
+            np.vstack(embeddings)
+            if embeddings
+            else np.empty((0, 128), dtype=np.float64)
+        )
+        _embedding_gallery_cache = EmbeddingGallery(
+            client_ids=tuple(client_ids),
+            codigos=tuple(codigos),
+            nombres=tuple(nombres),
+            embeddings=matrix,
+        )
+        return _embedding_gallery_cache
 
 
 def _decode_base64_to_rgb(base64_string: str) -> np.ndarray:
@@ -124,15 +190,13 @@ def _top_two_matches(
 
 
 def _build_match_result(
-    client_list: list,
+    gallery: EmbeddingGallery,
     face_distances: np.ndarray,
-    matches: list,
     best_index: int,
     second_index: Optional[int],
     outcome: str,
+    matched_client=None,
 ) -> FaceMatchResult:
-    best_client = client_list[best_index]
-    second_client = client_list[second_index] if second_index is not None else None
     best_distance = float(face_distances[best_index])
     second_distance = (
         float(face_distances[second_index]) if second_index is not None else None
@@ -143,14 +207,14 @@ def _build_match_result(
         else None
     )
     return FaceMatchResult(
-        client=best_client if outcome == OUTCOME_MATCH else None,
+        client=matched_client if outcome == OUTCOME_MATCH else None,
         outcome=outcome,
         best_distance=best_distance,
-        best_codigo=best_client.codigo_afiliado,
-        best_nombre=best_client.nombre,
+        best_codigo=gallery.codigos[best_index],
+        best_nombre=gallery.nombres[best_index],
         second_distance=second_distance,
-        second_codigo=second_client.codigo_afiliado if second_client else None,
-        second_nombre=second_client.nombre if second_client else None,
+        second_codigo=gallery.codigos[second_index] if second_index is not None else None,
+        second_nombre=gallery.nombres[second_index] if second_index is not None else None,
         margin=margin,
         tolerance=TOLERANCE,
         model=FACE_ENCODING_MODEL,
@@ -176,51 +240,37 @@ def match_face(base64_image: str) -> FaceMatchResult:
         return _empty_match_result(OUTCOME_NO_FACE)
 
     frame_embedding = frame_encodings[0]
-    enrolled_clients = Client.objects.exclude(face_id_embeddings__isnull=True)
-
-    if not enrolled_clients.exists():
+    gallery = _get_embedding_gallery()
+    if not gallery.client_ids:
         logger.warning("No hay afiliados enrolados en la base de datos.")
         return _empty_match_result(OUTCOME_NO_ENROLLED)
 
-    known_embeddings: List[np.ndarray] = []
-    client_list = []
-    for client in enrolled_clients:
-        try:
-            known_embeddings.append(np.array(client.face_id_embeddings))
-            client_list.append(client)
-        except (TypeError, ValueError) as exc:
-            logger.error("Embedding corrupto para afiliado %s: %s", client.nombre, exc)
-
-    if not known_embeddings:
-        return _empty_match_result(OUTCOME_NO_ENROLLED)
-
-    matches = face_recognition.compare_faces(
-        known_embeddings, frame_embedding, tolerance=TOLERANCE
-    )
-    face_distances = face_recognition.face_distance(known_embeddings, frame_embedding)
-    best_index, second_index = _top_two_matches(face_distances, client_list)
-
-    if matches[best_index]:
-        matched_client = client_list[best_index]
+    face_distances = face_recognition.face_distance(gallery.embeddings, frame_embedding)
+    best_index, second_index = _top_two_matches(face_distances, gallery.client_ids)
+    if face_distances[best_index] <= TOLERANCE:
+        matched_client = Client.objects.filter(pk=gallery.client_ids[best_index]).first()
+        if matched_client is None:
+            invalidate_embedding_cache()
+            logger.warning("El candidato facial ya no existe; se negó el intento.")
+            return _empty_match_result(OUTCOME_NO_MATCH)
         logger.info(
             "Cara reconocida: %s (distancia: %.4f)",
             matched_client.nombre,
             face_distances[best_index],
         )
         return _build_match_result(
-            client_list,
+            gallery,
             face_distances,
-            matches,
             best_index,
             second_index,
             OUTCOME_MATCH,
+            matched_client=matched_client,
         )
 
     logger.debug("Sin coincidencia (mejor distancia: %.4f).", face_distances[best_index])
     return _build_match_result(
-        client_list,
+        gallery,
         face_distances,
-        matches,
         best_index,
         second_index,
         OUTCOME_NO_MATCH,

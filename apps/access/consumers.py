@@ -1,7 +1,10 @@
+import asyncio
 import datetime
 import json
 import logging
+import time
 
+from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
@@ -9,6 +12,7 @@ from apps.access.frame_processing import (
     process_biometric_access_burst,
     process_biometric_access_frame,
 )
+from apps.access.services import pulse_turnstile_if_granted
 from apps.access.tablet_ops_audit import write_tablet_ops_log
 
 logger = logging.getLogger(__name__)
@@ -45,12 +49,25 @@ def _handle_ops_message(payload, default_role):
 
 
 async def _send_access_frame_result(consumer, result):
+    tablet_response = result["tablet_response"]
+    should_pulse = tablet_response.get("status") == "GRANTED"
+    pulse_task = None
+    if should_pulse:
+        pulse_task = asyncio.create_task(
+            sync_to_async(pulse_turnstile_if_granted, thread_sensitive=False)(True)
+        )
+
+    # La tablet no debe esperar el segundo eléctrico del pulso del torniquete.
+    await consumer.send(json.dumps(tablet_response))
+
     if result["dashboard_event"] is not None:
         event = {"type": "new_access_log"}
         event.update(result["dashboard_event"])
         await consumer.channel_layer.group_send(DASHBOARD_GROUP, event)
 
-    await consumer.send(json.dumps(result["tablet_response"]))
+    if pulse_task is not None:
+        await pulse_task
+
     return result["unknown_log_time"]
 
 
@@ -103,9 +120,18 @@ async def _handle_access_burst(consumer, payload, last_unknown_log_time_attr):
         )
         return
 
+    started_at = time.perf_counter()
     result = await database_sync_to_async(process_biometric_access_burst)(
         frames,
         getattr(type(consumer), last_unknown_log_time_attr),
+    )
+    elapsed_ms = (time.perf_counter() - started_at) * 1000
+    payload_chars = sum(len(frame) for frame in frames)
+    logger.info(
+        "Rendimiento biométrico burst: total_ms=%.1f frames=%d payload_chars=%d",
+        elapsed_ms,
+        len(frames),
+        payload_chars,
     )
     consumer.pending_client_id = None
     consumer.pending_since = None

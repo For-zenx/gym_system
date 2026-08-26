@@ -22,6 +22,9 @@ const DETECT_WATCHDOG_MS = 15000;
 const ACCESS_BURST_INTERVAL_MS = 150;
 const ACCESS_BURST_SAMPLE_COUNT = 4;
 const ACCESS_BURST_MIN_SEPARATION_MS = 250;
+const ACCESS_FRAME_MAX_WIDTH = 1152;
+const ACCESS_FRAME_MAX_HEIGHT = 648;
+const ACCESS_FRAME_JPEG_QUALITY = 0.85;
 const ACCESS_HUD_STICKY_MS = 400;
 const ACCESS_HUD_IDLE = "Coloque su rostro en el óvalo";
 const ACCESS_HUD_HOLD = "Mantenga la cara quieta…";
@@ -51,6 +54,7 @@ const accessProcessingLabel = document.getElementById("access-processing-label")
 const termsOverlay = document.getElementById("terms-overlay");
 const termsAcceptBtn = document.getElementById("terms-accept-btn");
 const waitingOverlay = document.getElementById("enrollment-waiting-overlay");
+const accessBurstCanvas = document.createElement("canvas");
 
 let currentMode = MODE_ACCESS;
 let socket = null;
@@ -819,13 +823,20 @@ function waitMs(ms) {
 }
 
 function captureBurstCandidate(detection) {
-    const canvas = document.createElement("canvas");
-    canvas.width = cameraFeed.videoWidth;
-    canvas.height = cameraFeed.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
+    const sourceWidth = cameraFeed.videoWidth;
+    const sourceHeight = cameraFeed.videoHeight;
+    const scale = Math.min(
+        1,
+        ACCESS_FRAME_MAX_WIDTH / Math.max(1, sourceWidth),
+        ACCESS_FRAME_MAX_HEIGHT / Math.max(1, sourceHeight)
+    );
+    const frameWidth = Math.max(1, Math.round(sourceWidth * scale));
+    const frameHeight = Math.max(1, Math.round(sourceHeight * scale));
+    accessBurstCanvas.width = frameWidth;
+    accessBurstCanvas.height = frameHeight;
+    const ctx = accessBurstCanvas.getContext("2d");
+    ctx.setTransform(-1, 0, 0, 1, frameWidth, 0);
+    ctx.drawImage(cameraFeed, 0, 0, frameWidth, frameHeight);
 
     const det = TabletFaceUtils.getFaceDetection(detection);
     const box = det && det.box;
@@ -867,7 +878,7 @@ function captureBurstCandidate(detection) {
 
     const detectionScore = det && typeof det.score === "number" ? det.score : 0;
     return {
-        image: canvas.toDataURL("image/jpeg", 0.85),
+        image: accessBurstCanvas.toDataURL("image/jpeg", ACCESS_FRAME_JPEG_QUALITY),
         score: (detectionScore * 0.55) + (sharpnessScore * 0.25) +
             (brightnessScore * 0.15) + (sizeScore * 0.05),
         capturedAt: Date.now(),
@@ -882,22 +893,31 @@ function selectBurstSamplesForSend(candidates) {
         return a.capturedAt - b.capturedAt;
     });
     const limited = ordered.slice(0, ACCESS_BURST_SAMPLE_COUNT);
-    let hasSeparatedPair = false;
+    let bestPair = null;
+    let bestPairScore = -Infinity;
     for (let i = 0; i < limited.length; i += 1) {
         for (let j = i + 1; j < limited.length; j += 1) {
             if (limited[j].capturedAt - limited[i].capturedAt >= ACCESS_BURST_MIN_SEPARATION_MS) {
-                hasSeparatedPair = true;
-                break;
+                const pairScore = limited[i].score + limited[j].score;
+                if (pairScore > bestPairScore) {
+                    bestPair = [limited[i], limited[j]];
+                    bestPairScore = pairScore;
+                }
             }
         }
-        if (hasSeparatedPair) {
-            break;
-        }
     }
-    if (!hasSeparatedPair) {
+    if (!bestPair) {
         return null;
     }
-    return limited;
+    bestPair.sort(function (a, b) {
+        return (b.score - a.score) || (a.capturedAt - b.capturedAt);
+    });
+    const remaining = limited.filter(function (candidate) {
+        return candidate !== bestPair[0] && candidate !== bestPair[1];
+    }).sort(function (a, b) {
+        return (b.score - a.score) || (a.capturedAt - b.capturedAt);
+    });
+    return bestPair.concat(remaining);
 }
 
 async function collectAndSendAccessBurst(initialDetection) {

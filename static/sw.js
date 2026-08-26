@@ -4,11 +4,11 @@ const ASSETS = [
   '/tablet/enrolamiento_acceso/',
   '/tablet/acceso/',
   '/tablet/enrolamiento/',
-  '/static/css/tablet.css?v=3.1',
+  '/static/css/tablet.css?v=3.2',
   '/static/vendor/face-api.min.js',
   '/static/js/tablet_face_utils.js?v=1.6',
   '/static/js/tablet_enrollment.js?v=2.5',
-  '/static/js/tablet_enrolamiento_acceso.js?v=1.16',
+  '/static/js/tablet_enrolamiento_acceso.js?v=1.17',
   '/static/img/icon-192.png',
   '/static/img/icon-512.png'
 ];

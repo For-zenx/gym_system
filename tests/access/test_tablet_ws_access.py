@@ -1,3 +1,7 @@
+import asyncio
+import threading
+import time
+
 import pytest
 from asgiref.sync import sync_to_async
 from channels.testing import WebsocketCommunicator
@@ -68,6 +72,14 @@ async def _send_two_confirming_frames(communicator):
     return await communicator.receive_json_from()
 
 
+async def _wait_for_turnstile_calls(calls, expected=1):
+    for _ in range(100):
+        if len(calls) >= expected:
+            return
+        await asyncio.sleep(0.01)
+    pytest.fail("El pulso del torniquete no se ejecutó a tiempo.")
+
+
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
 async def test_tablet_access_ws__connects(monkeypatch):
@@ -125,6 +137,7 @@ async def test_tablet_access_ws__granted_creates_log_and_opens_turnstile(
     assert response["status"] == "GRANTED"
     assert response["variant"] == "granted"
     assert response["name"] == affiliate.nombre
+    await _wait_for_turnstile_calls(turnstile_calls)
     assert turnstile_calls == [True]
 
     log = await sync_to_async(AccessLog.objects.get)(client=affiliate)
@@ -161,6 +174,7 @@ async def test_tablet_access_ws__burst_grants_with_single_final_response(
 
     assert response["status"] == "GRANTED"
     assert response["name"] == affiliate.nombre
+    await _wait_for_turnstile_calls(turnstile_calls)
     assert turnstile_calls == [True]
     await communicator.disconnect()
 
@@ -220,7 +234,49 @@ async def test_tablet_access_ws__burst_retries_verify_on_later_frame(
 
     assert response["status"] == "GRANTED"
     assert response["name"] == affiliate.nombre
+    await _wait_for_turnstile_calls(turnstile_calls)
     assert turnstile_calls == [True]
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_tablet_access_ws__grant_response_does_not_wait_for_pulse(
+    tablet_access_affiliate,
+    monkeypatch,
+):
+    affiliate = tablet_access_affiliate
+    pulse_started = threading.Event()
+    release_pulse = threading.Event()
+
+    _patch_match_face(monkeypatch, client=affiliate)
+    _patch_verify_face(monkeypatch, client=affiliate)
+
+    def _slow_turnstile():
+        pulse_started.set()
+        release_pulse.wait(timeout=2.0)
+        return TurnstilePulseResult(True, "COM_TEST", 1.0)
+
+    monkeypatch.setattr("apps.access.services.open_turnstile", _slow_turnstile)
+
+    communicator = WebsocketCommunicator(application, WS_TABLET_ACCESS)
+    await communicator.connect()
+    started_at = time.perf_counter()
+    await communicator.send_json_to(
+        {
+            "type": "FRAME_BURST",
+            "images": [FAKE_PHOTO_B64, FAKE_PHOTO_B64],
+        }
+    )
+    response = await communicator.receive_json_from(timeout=0.5)
+    elapsed = time.perf_counter() - started_at
+
+    assert response["status"] == "GRANTED"
+    assert elapsed < 0.5
+    assert pulse_started.wait(timeout=0.5)
+
+    release_pulse.set()
+    await asyncio.sleep(0.05)
     await communicator.disconnect()
 
 
@@ -231,10 +287,12 @@ async def test_tablet_access_ws__expired_membership_denied(
     monkeypatch,
 ):
     affiliate = tablet_access_expired_affiliate
+    turnstile_calls = []
     _patch_match_face(monkeypatch, client=affiliate)
     monkeypatch.setattr(
         "apps.access.services.open_turnstile",
-        lambda: TurnstilePulseResult(True, "COM_TEST", 1.0),
+        lambda: turnstile_calls.append(True)
+        or TurnstilePulseResult(True, "COM_TEST", 1.0),
     )
 
     communicator = WebsocketCommunicator(application, WS_TABLET_ACCESS)
@@ -244,6 +302,7 @@ async def test_tablet_access_ws__expired_membership_denied(
 
     assert response["status"] == "DENIED"
     assert response["variant"] in ("denied_other", "denied_suspended")
+    assert turnstile_calls == []
 
     denied_exists = await sync_to_async(
         AccessLog.objects.filter(client=affiliate, resultado=False).exists

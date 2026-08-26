@@ -9,7 +9,6 @@ from apps.access.services import (
     get_client_cooldown_remaining,
     log_cooldown_denial,
     log_unknown_access,
-    pulse_turnstile_if_granted,
 )
 
 PENDING_CONFIRM_TIMEOUT_SECONDS = 3.0
@@ -115,7 +114,6 @@ def _finalize_matched_client(client, match_result, last_unknown_log_time, confir
 
     mem_data = _membership_data(client)
     granted, detail = check_access_integrity(client)
-    pulse_turnstile_if_granted(granted)
 
     tablet_response = build_tablet_access_payload(client, granted, detail, mem_data)
     write_access_biometrics_log(
