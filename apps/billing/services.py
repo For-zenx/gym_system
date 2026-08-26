@@ -1435,7 +1435,8 @@ def grant_admin_access(client, plan, valid_until, user):
     - Solo afiliados MEMBER.
     - Solo planes FIXED activos.
     - Elimina ClientServicePeriod (PROTECT sobre Membership) y todas las membresías.
-    - Vincula fixed_plan al plan elegido; conserva fecha_corte_dia o la deriva de valid_until.
+    - Vincula fixed_plan al plan elegido; siempre realinea fecha_corte_dia al día de valid_until (1–28).
+    - Permite valid_until en pasado, hoy o futuro; si es pasado, la membresía nace ya vencida.
     - No crea Invoice ni llama register_checkout.
     """
     from datetime import date as date_cls
@@ -1452,8 +1453,6 @@ def grant_admin_access(client, plan, valid_until, user):
     today = date_cls.today()
     if not isinstance(valid_until, date_cls):
         raise ValidationError("La fecha de vigencia no es válida.")
-    if valid_until < today:
-        raise ValidationError("La fecha de vigencia no puede ser anterior a hoy.")
 
     deleted_period_ids = list(
         client.service_periods.values_list("id", flat=True)
@@ -1466,9 +1465,8 @@ def grant_admin_access(client, plan, valid_until, user):
         deleted_membership_ids.append(membership.pk)
         delete_membership_with_audit(membership, user)
 
-    cut_day = client.fecha_corte_dia
-    if cut_day is None:
-        cut_day = max(1, min(valid_until.day, 28))
+    cut_day = max(1, min(valid_until.day, 28))
+    fecha_inicio = valid_until if valid_until < today else today
 
     client.fixed_plan = plan
     client.fecha_corte_dia = cut_day
@@ -1477,7 +1475,7 @@ def grant_admin_access(client, plan, valid_until, user):
     new_membership = Membership(
         client=client,
         plan=plan,
-        fecha_inicio=today,
+        fecha_inicio=fecha_inicio,
         fecha_fin=valid_until,
     )
     new_membership.save()
@@ -1488,7 +1486,7 @@ def grant_admin_access(client, plan, valid_until, user):
         payload={
             "plan_id": plan.pk,
             "plan_name": plan.nombre,
-            "fecha_inicio": today.isoformat(),
+            "fecha_inicio": fecha_inicio.isoformat(),
             "fecha_fin": valid_until.isoformat(),
             "membership_id": new_membership.pk,
             "deleted_membership_ids": deleted_membership_ids,

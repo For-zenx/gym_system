@@ -526,8 +526,8 @@
                 </div>
                 <div class="form-group">
                     <label for="admin_access_valid_until">Válido hasta</label>
-                    <input type="date" id="admin_access_valid_until" name="valid_until" class="form-control" required min="{{ today|date:'Y-m-d' }}" value="{{ today|date:'Y-m-d' }}">
-                    <p class="billing-field-hint" id="admin-access-summary" style="margin-top: 0.5rem;">
+                    <input type="date" id="admin_access_valid_until" name="valid_until" class="form-control" required value="{{ today|date:'Y-m-d' }}">
+                    <p class="billing-field-hint" id="admin-access-summary" style="margin-top: 0.35rem;">
                         Acceso desde {{ today|date:"d/m/Y" }} hasta {{ today|date:"d/m/Y" }}.
                     </p>
                 </div>
@@ -629,6 +629,8 @@
         var dateInput = document.getElementById('admin_access_valid_until');
         var summary = document.getElementById('admin-access-summary');
         if (!dateInput || !summary) return;
+        var todayIso = '{{ today|date:"Y-m-d" }}';
+        var todayDisplay = '{{ today|date:"d/m/Y" }}';
 
         function formatVe(isoDate) {
             if (!isoDate || isoDate.length < 10) return '—';
@@ -636,12 +638,29 @@
             return parts[2] + '/' + parts[1] + '/' + parts[0];
         }
 
+        function cutDayFromIso(isoDate) {
+            if (!isoDate || isoDate.length < 10) return null;
+            var day = parseInt(isoDate.split('-')[2], 10);
+            if (isNaN(day)) return null;
+            if (day < 1) return 1;
+            if (day > 28) return 28;
+            return day;
+        }
+
         function updateSummary() {
-            summary.textContent = 'Acceso desde {{ today|date:"d/m/Y" }} hasta ' + formatVe(dateInput.value) + '.';
+            var untilIso = dateInput.value;
+            var untilDisplay = formatVe(untilIso);
+            var cutDay = cutDayFromIso(untilIso);
+            var startDisplay = (untilIso && untilIso < todayIso) ? untilDisplay : todayDisplay;
+            var cutText = cutDay
+                ? ' La fecha de corte quedará el día ' + cutDay + ' de cada mes.'
+                : '';
+            summary.textContent = 'Acceso desde ' + startDisplay + ' hasta ' + untilDisplay + '.' + cutText;
         }
 
         dateInput.addEventListener('change', updateSummary);
         dateInput.addEventListener('input', updateSummary);
+        updateSummary();
     })();
     {% endif %}
 

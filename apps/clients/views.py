@@ -466,11 +466,14 @@ class ClientGrantAdminAccessView(PermissionRequiredMixin, View):
             messages.error(request, message)
             return redirect(profile_url)
 
+        cut_day = membership.client.fecha_corte_dia
         messages.success(
             request,
-            "Acceso administrativo asignado con plan {} hasta el {} (sin cobro).".format(
+            "Acceso administrativo asignado con plan {} hasta el {} (sin cobro). "
+            "Fecha de corte realineada al día {}.".format(
                 plan.nombre,
                 membership.fecha_fin.strftime("%d/%m/%Y"),
+                cut_day,
             ),
         )
         return redirect(profile_url)
