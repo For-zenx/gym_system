@@ -14,8 +14,18 @@
     const processErrorMessage = document.getElementById('reenrollment-process-error-message');
     const processCloseBtn = document.getElementById('reenrollment-process-close-btn');
     const processCloseX = document.getElementById('reenrollment-process-close-x');
+    const validateUrl = window.ENROLLMENT_VALIDATE_PHOTO_URL || '';
 
     let photoReady = false;
+    let photoRejected = false;
+    let photoRejectMessage = '';
+    let photoVerifying = false;
+    let photoValidateAbort = null;
+
+    function getCsrfToken() {
+        const input = form ? form.querySelector('input[name="csrfmiddlewaretoken"]') : null;
+        return input ? input.value : '';
+    }
 
     function setPhotoStatus(state, message) {
         if (!statusEl) {
@@ -27,12 +37,24 @@
 
     function updateSaveState() {
         if (saveButton) {
-            saveButton.disabled = !photoReady;
+            const canClick = (photoReady || photoRejected) && !photoVerifying;
+            saveButton.disabled = !canClick;
+        }
+    }
+
+    function abortPhotoValidation() {
+        if (photoValidateAbort) {
+            photoValidateAbort.abort();
+            photoValidateAbort = null;
         }
     }
 
     function clearPhoto() {
+        abortPhotoValidation();
         photoReady = false;
+        photoRejected = false;
+        photoRejectMessage = '';
+        photoVerifying = false;
         if (inputElement) {
             inputElement.value = '';
         }
@@ -48,7 +70,7 @@
         updateSaveState();
     }
 
-    function showPhoto(image) {
+    function showPhotoPreview(image) {
         if (!imgElement || !inputElement) {
             return;
         }
@@ -59,12 +81,88 @@
             placeholderEl.classList.add('hidden');
         }
         inputElement.value = image;
+    }
+
+    function markPhotoAccepted() {
         photoReady = true;
-        setPhotoStatus('accepted', 'Nueva foto capturada');
+        photoRejected = false;
+        photoRejectMessage = '';
+        photoVerifying = false;
+        setPhotoStatus('accepted', 'Foto lista');
         updateSaveState();
         if (window.sendDashboardCommand) {
             window.sendDashboardCommand({ type: 'ENROLLMENT_SKIP_TERMS' });
         }
+    }
+
+    function markPhotoRejected(message) {
+        photoReady = false;
+        photoRejected = true;
+        photoVerifying = false;
+        photoRejectMessage = message
+            || 'La foto no es válida: no se detectó una cara usable. Use Tomar otra foto.';
+        setPhotoStatus('rejected', photoRejectMessage);
+        updateSaveState();
+    }
+
+    function validateEnrollmentPhoto(imageDataUrl) {
+        abortPhotoValidation();
+        photoReady = false;
+        photoRejected = false;
+        photoRejectMessage = '';
+        photoVerifying = true;
+        setPhotoStatus('verifying', 'Analizando foto facial…');
+        updateSaveState();
+
+        if (!validateUrl) {
+            markPhotoRejected('No se pudo verificar la foto con el servidor. Use Tomar otra foto.');
+            return;
+        }
+
+        const controller = new AbortController();
+        photoValidateAbort = controller;
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', getCsrfToken());
+        formData.append('foto_frente_base64', imageDataUrl);
+
+        fetch(validateUrl, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            signal: controller.signal,
+        })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    return { ok: response.ok, data: data };
+                });
+            })
+            .then(function (result) {
+                if (photoValidateAbort !== controller) {
+                    return;
+                }
+                photoValidateAbort = null;
+                if (result.ok && result.data.status === 'ok') {
+                    markPhotoAccepted();
+                    return;
+                }
+                markPhotoRejected(
+                    result.data && result.data.message
+                        ? ('La foto no es válida. ' + result.data.message + ' Use Tomar otra foto.')
+                        : null
+                );
+            })
+            .catch(function (err) {
+                if (err && err.name === 'AbortError') {
+                    return;
+                }
+                if (photoValidateAbort !== controller) {
+                    return;
+                }
+                photoValidateAbort = null;
+                markPhotoRejected(
+                    'No se pudo verificar la foto con el servidor. Use Tomar otra foto.'
+                );
+            });
     }
 
     function startTabletSession() {
@@ -105,7 +203,8 @@
         if (e.detail.photoType !== 'FRONT') {
             return;
         }
-        showPhoto(e.detail.image);
+        showPhotoPreview(e.detail.image);
+        validateEnrollmentPhoto(e.detail.image);
     });
 
     function showProcessState(state) {
@@ -150,6 +249,12 @@
     if (form) {
         form.addEventListener('submit', function (event) {
             event.preventDefault();
+            if (photoRejected) {
+                processErrorMessage.textContent = photoRejectMessage
+                    || 'La foto no es válida: no se detectó una cara usable. Use Tomar otra foto.';
+                openProcessModal('error');
+                return;
+            }
             if (!photoReady) {
                 processErrorMessage.textContent = 'Debe capturar la nueva foto del afiliado en la tablet.';
                 openProcessModal('error');

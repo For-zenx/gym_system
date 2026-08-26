@@ -30,7 +30,84 @@ let skipTermsAfterCapture = false;
 let lastCaptureTime = 0;
 let detectionLoopRunning = false;
 let stableSince = null;
+let enrollmentSessionId = 0;
+let postCaptureUiTimer = null;
+let enrollmentCameraResumeAt = 0;
+let cameraRetrying = false;
 const enrollmentHud = TabletFaceUtils.createEnrollmentHudController(hudText);
+
+function clearPostCaptureUiTimer() {
+    if (postCaptureUiTimer !== null) {
+        clearTimeout(postCaptureUiTimer);
+        postCaptureUiTimer = null;
+    }
+}
+
+function playCameraFeed() {
+    try {
+        const playResult = cameraFeed.play();
+        if (playResult && typeof playResult.then === 'function') {
+            return playResult.catch(function () {
+                return null;
+            });
+        }
+    } catch (err) {
+        /* ignore */
+    }
+    return Promise.resolve();
+}
+
+function cameraStreamIsLive() {
+    if (!cameraStream) {
+        return false;
+    }
+    const tracks = cameraStream.getVideoTracks();
+    let i;
+    for (i = 0; i < tracks.length; i += 1) {
+        if (tracks[i].readyState === 'live') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function tryResumeEnrollmentCamera(sessionId) {
+    if (sessionId !== enrollmentSessionId || cameraRetrying) {
+        return;
+    }
+    const now = Date.now();
+    if (now - enrollmentCameraResumeAt < 1000) {
+        return;
+    }
+    enrollmentCameraResumeAt = now;
+
+    if (cameraStreamIsLive() && cameraFeed.paused) {
+        playCameraFeed();
+        return;
+    }
+
+    cameraRetrying = true;
+    stopCamera();
+    startCamera()
+        .then(function () {
+            if (sessionId !== enrollmentSessionId) {
+                return null;
+            }
+            return playCameraFeed();
+        })
+        .catch(function (err) {
+            console.error('[Tablet Enrolamiento] Error recuperando cámara:', err);
+            if (sessionId === enrollmentSessionId) {
+                setStatus('disconnected', 'Sin cámara');
+                enrollmentHud.show('No se pudo acceder a la cámara.', Date.now(), {
+                    immediate: true,
+                });
+            }
+        })
+        .finally(function () {
+            cameraRetrying = false;
+        });
+}
 
 async function loadModels() {
     hudText.textContent = 'Cargando motor de IA...';
@@ -115,18 +192,34 @@ function requireTermsOnTablet() {
     }
 }
 
-async function detectFaceLoop() {
-    if (!isCaptureActive || !isModelsLoaded || captureCompleted) {
-        detectionLoopRunning = false;
+async function detectFaceLoop(sessionId) {
+    if (
+        sessionId !== enrollmentSessionId
+        || !isCaptureActive
+        || !isModelsLoaded
+        || captureCompleted
+    ) {
+        if (sessionId === enrollmentSessionId) {
+            detectionLoopRunning = false;
+        }
         return;
     }
 
-    if (cameraFeed.paused || cameraFeed.ended) {
-        requestAnimationFrame(detectFaceLoop);
+    if (cameraFeed.paused || cameraFeed.ended || !cameraStreamIsLive()) {
+        tryResumeEnrollmentCamera(sessionId);
+        requestAnimationFrame(function () {
+            detectFaceLoop(sessionId);
+        });
         return;
     }
 
     const displaySize = { width: cameraFeed.videoWidth, height: cameraFeed.videoHeight };
+    if (!displaySize.width || !displaySize.height) {
+        requestAnimationFrame(function () {
+            detectFaceLoop(sessionId);
+        });
+        return;
+    }
     if (overlayCanvas.width !== displaySize.width) {
         faceapi.matchDimensions(overlayCanvas, displaySize);
     }
@@ -139,6 +232,9 @@ async function detectFaceLoop() {
             cameraFeed,
             TabletFaceUtils.detectorOptions()
         ).withFaceLandmarks();
+        if (sessionId !== enrollmentSessionId) {
+            return;
+        }
         canvasCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
         if (detection && canCapture) {
@@ -155,10 +251,20 @@ async function detectFaceLoop() {
                     lastCaptureTime = now;
                     captureCompleted = true;
                     resetStability();
-                    setTimeout(function () {
+                    const sessionAtCapture = enrollmentSessionId;
+                    clearPostCaptureUiTimer();
+                    postCaptureUiTimer = setTimeout(function () {
+                        postCaptureUiTimer = null;
+                        if (enrollmentSessionId !== sessionAtCapture || !captureCompleted) {
+                            return;
+                        }
+                        if (idleOverlay && !idleOverlay.classList.contains('hidden')) {
+                            return;
+                        }
                         stopCamera();
                         faceGuide.classList.remove('active');
                         hudInstruction.classList.add('hidden');
+                        isCaptureActive = false;
                         if (skipTermsAfterCapture) {
                             showWaitingScreen();
                         } else {
@@ -197,14 +303,23 @@ async function detectFaceLoop() {
         resetStability();
     }
 
-    requestAnimationFrame(detectFaceLoop);
+    requestAnimationFrame(function () {
+        detectFaceLoop(sessionId);
+    });
 }
 
 function startDetectionLoop() {
-    if (!detectionLoopRunning && isCaptureActive && !captureCompleted) {
-        detectionLoopRunning = true;
-        requestAnimationFrame(detectFaceLoop);
+    if (!isCaptureActive || captureCompleted) {
+        return;
     }
+    if (detectionLoopRunning) {
+        return;
+    }
+    const sessionId = enrollmentSessionId;
+    detectionLoopRunning = true;
+    requestAnimationFrame(function () {
+        detectFaceLoop(sessionId);
+    });
 }
 
 function sendEnrollmentPhoto() {
@@ -227,6 +342,13 @@ function sendEnrollmentPhoto() {
 }
 
 async function startCamera() {
+    if (cameraStreamIsLive()) {
+        await playCameraFeed();
+        return;
+    }
+    if (cameraStream) {
+        stopCamera();
+    }
     const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
     });
@@ -234,9 +356,10 @@ async function startCamera() {
     cameraFeed.srcObject = stream;
     cameraFeed.classList.remove('hidden');
     overlayCanvas.classList.remove('hidden');
-    return new Promise(function (resolve) {
+    await new Promise(function (resolve) {
         cameraFeed.addEventListener('loadedmetadata', resolve, { once: true });
     });
+    await playCameraFeed();
 }
 
 function stopCamera() {
@@ -253,6 +376,8 @@ function stopCamera() {
 }
 
 function showIdleScreen() {
+    clearPostCaptureUiTimer();
+    enrollmentSessionId += 1;
     hideTermsScreen();
     hideWaitingScreen();
     idleOverlay.classList.remove('hidden');
@@ -294,6 +419,9 @@ function connectWebSocket() {
 }
 
 async function startEnrollmentSession() {
+    clearPostCaptureUiTimer();
+    enrollmentSessionId += 1;
+    const sessionId = enrollmentSessionId;
     if (cameraStream) {
         stopCamera();
     }
@@ -307,6 +435,8 @@ async function startEnrollmentSession() {
     termsAcceptedThisSession = false;
     skipTermsAfterCapture = false;
     isCaptureActive = true;
+    detectionLoopRunning = false;
+    enrollmentCameraResumeAt = 0;
     resetStability();
     setStatus('connected', 'Capturando');
 
@@ -314,12 +444,20 @@ async function startEnrollmentSession() {
         if (!isModelsLoaded) {
             await loadModels();
         }
+        if (sessionId !== enrollmentSessionId) {
+            return;
+        }
         await startCamera();
+        if (sessionId !== enrollmentSessionId) {
+            return;
+        }
         startDetectionLoop();
     } catch (err) {
         console.error('[Tablet Enrolamiento] Error iniciando sesión:', err);
-        hudText.textContent = 'No se pudo acceder a la cámara.';
-        setStatus('disconnected', 'Sin cámara');
+        if (sessionId === enrollmentSessionId) {
+            hudText.textContent = 'No se pudo acceder a la cámara.';
+            setStatus('disconnected', 'Sin cámara');
+        }
     }
 }
 

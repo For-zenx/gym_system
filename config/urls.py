@@ -34,6 +34,11 @@ urlpatterns = [
     path('', core_views.dashboard, name='dashboard'),
     path('enrolamiento/', core_views.enrollment, name='enrollment'),
     path('enrolamiento/cedula/', core_views.enrollment_cedula_check, name='enrollment_cedula_check'),
+    path(
+        'enrolamiento/validar-foto/',
+        core_views.enrollment_validate_photo,
+        name='enrollment_validate_photo',
+    ),
     path('enrolamiento/facturacion/<str:codigo_afiliado>/', core_views.enrollment_billing, name='enrollment_billing'),
     path('tablet/acceso/', access_views.tablet_access_view, name='tablet_access'),
     path('tablet/enrolamiento/', access_views.tablet_enrollment_view, name='tablet_enrollment'),

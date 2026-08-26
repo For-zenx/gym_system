@@ -120,6 +120,26 @@ def _decode_base64_to_rgb(base64_string: str) -> np.ndarray:
         raise ValueError("Error procesando la imagen con PIL: {0}".format(exc)) from exc
 
 
+def _embedding_from_rgb(image: np.ndarray, source_label: str = "foto") -> list:
+    """Genera embedding 128-d desde un arreglo RGB. No persiste nada."""
+    encodings = face_recognition.face_encodings(image, model=FACE_ENCODING_MODEL)
+
+    if not encodings:
+        raise ValueError(
+            "No se detectó ninguna cara en la foto capturada. "
+            "Asegúrese de que la cara esté bien iluminada, centrada y sin obstáculos "
+            "(archivo: {0})".format(source_label)
+        )
+    if len(encodings) > 1:
+        logger.warning(
+            "Se detectaron %d caras en %s. Se usará solo la primera.",
+            len(encodings),
+            source_label,
+        )
+
+    return encodings[0].tolist()
+
+
 def generate_embedding(image_path: Path) -> list:
     """Genera el vector de embedding facial (128 dims) desde una imagen en disco."""
     image_path = Path(image_path)
@@ -127,22 +147,39 @@ def generate_embedding(image_path: Path) -> list:
         raise FileNotFoundError("Imagen no encontrada: {0}".format(image_path))
 
     image = face_recognition.load_image_file(str(image_path))
-    encodings = face_recognition.face_encodings(image, model=FACE_ENCODING_MODEL)
+    return _embedding_from_rgb(image, source_label=image_path.name)
 
-    if not encodings:
+
+def validate_enrollment_photo_b64(base64_string: str) -> None:
+    """Comprueba que la foto produzca embedding. No guarda Client ni embedding.
+
+    Raises:
+        ValueError: foto inválida o sin cara detectable por el motor de acceso.
+    """
+    if not base64_string or not str(base64_string).strip():
+        raise ValueError("La foto capturada no es válida.")
+
+    try:
+        image = _decode_base64_to_rgb(base64_string)
+    except ValueError:
+        raise
+    except Exception as exc:
+        logger.exception("Error inesperado decodificando foto de enrolamiento")
+        raise ValueError("La foto capturada no es válida.") from exc
+
+    try:
+        _embedding_from_rgb(image, source_label="validacion")
+    except ValueError as exc:
+        logger.warning("Validación de foto de enrolamiento rechazada: sin cara usable")
+        msg = str(exc)
+        if "(archivo: validacion)" in msg:
+            msg = msg.replace(" (archivo: validacion)", "").strip()
+        raise ValueError(msg) from exc
+    except Exception as exc:
+        logger.exception("Error inesperado validando foto de enrolamiento")
         raise ValueError(
-            "No se detectó ninguna cara en la foto capturada. "
-            "Asegúrese de que la cara esté bien iluminada, centrada y sin obstáculos "
-            "(archivo: {0})".format(image_path.name)
-        )
-    if len(encodings) > 1:
-        logger.warning(
-            "Se detectaron %d caras en %s. Se usará solo la primera.",
-            len(encodings),
-            image_path.name,
-        )
-
-    return encodings[0].tolist()
+            "No se pudo analizar la foto facial. Intente tomar otra foto."
+        ) from exc
 
 
 def update_client_embeddings(client) -> None:

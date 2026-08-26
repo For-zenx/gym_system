@@ -5,7 +5,7 @@
 {% block page_title %}Enrolamiento{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.5">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.6">
 {% endblock %}
 
 {% block content %}
@@ -256,10 +256,107 @@
     const guestPassCustomToggle = document.getElementById('guest_pass_custom_toggle');
     const customValidUntilInput = document.getElementById('custom_valid_until');
     let enrollmentPhotoReady = false;
+    let enrollmentPhotoRejected = false;
+    let enrollmentPhotoRejectMessage = '';
+    let enrollmentPhotoVerifying = false;
     let enrollmentTermsMet = false;
     let memberTermsAcceptedOnTablet = false;
     let cedulaExists = false;
     let cedulaCheckTimer = null;
+    let photoValidateAbort = null;
+    const ENROLLMENT_VALIDATE_PHOTO_URL = '{% url "enrollment_validate_photo" %}';
+
+    function getCsrfToken() {
+        const input = document.querySelector('#enrollment-form input[name="csrfmiddlewaretoken"]');
+        return input ? input.value : '';
+    }
+
+    function abortPhotoValidation() {
+        if (photoValidateAbort) {
+            photoValidateAbort.abort();
+            photoValidateAbort = null;
+        }
+    }
+
+    function markEnrollmentPhotoAccepted() {
+        enrollmentPhotoReady = true;
+        enrollmentPhotoRejected = false;
+        enrollmentPhotoRejectMessage = '';
+        enrollmentPhotoVerifying = false;
+        enrollmentTermsMet = true;
+        setTermsStatus('accepted', 'Foto lista');
+        syncTermsAcceptedInput();
+        updateEnrollmentSaveState();
+    }
+
+    function markEnrollmentPhotoRejected(message) {
+        enrollmentPhotoReady = false;
+        enrollmentPhotoRejected = true;
+        enrollmentPhotoVerifying = false;
+        enrollmentPhotoRejectMessage = message
+            || 'La foto no es válida: no se detectó una cara usable. Use Tomar otra foto.';
+        enrollmentTermsMet = false;
+        setTermsStatus('rejected', enrollmentPhotoRejectMessage);
+        syncTermsAcceptedInput();
+        updateEnrollmentSaveState();
+    }
+
+    function validateEnrollmentPhoto(imageDataUrl) {
+        abortPhotoValidation();
+        enrollmentPhotoReady = false;
+        enrollmentPhotoRejected = false;
+        enrollmentPhotoRejectMessage = '';
+        enrollmentPhotoVerifying = true;
+        enrollmentTermsMet = false;
+        setTermsStatus('verifying', 'Analizando foto facial…');
+        syncTermsAcceptedInput();
+        updateEnrollmentSaveState();
+
+        const controller = new AbortController();
+        photoValidateAbort = controller;
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', getCsrfToken());
+        formData.append('foto_frente_base64', imageDataUrl);
+
+        fetch(ENROLLMENT_VALIDATE_PHOTO_URL, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            signal: controller.signal,
+        })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    return { ok: response.ok, data: data };
+                });
+            })
+            .then(function (result) {
+                if (photoValidateAbort !== controller) {
+                    return;
+                }
+                photoValidateAbort = null;
+                if (result.ok && result.data.status === 'ok') {
+                    markEnrollmentPhotoAccepted();
+                    return;
+                }
+                markEnrollmentPhotoRejected(
+                    result.data && result.data.message
+                        ? ('La foto no es válida. ' + result.data.message + ' Use Tomar otra foto.')
+                        : null
+                );
+            })
+            .catch(function (err) {
+                if (err && err.name === 'AbortError') {
+                    return;
+                }
+                if (photoValidateAbort !== controller) {
+                    return;
+                }
+                photoValidateAbort = null;
+                markEnrollmentPhotoRejected(
+                    'No se pudo verificar la foto con el servidor. Use Tomar otra foto.'
+                );
+            });
+    }
 
     function getSelectedCategory() {
         const checked = document.querySelector('#enrollment-form input[name="person_category"]:checked');
@@ -382,9 +479,11 @@
             : null;
         const termsOk = isMemberEnrollment() ? enrollmentTermsMet : enrollmentPhotoReady;
         const cedulaOk = isGuestEnrollment() ? true : !cedulaExists;
-        const canSave = enrollmentPhotoReady && termsOk && cedulaOk;
+        const photoGateOk = enrollmentPhotoReady
+            ? (termsOk && cedulaOk)
+            : (enrollmentPhotoRejected && cedulaOk && !enrollmentPhotoVerifying);
         if (saveButton) {
-            saveButton.disabled = !canSave;
+            saveButton.disabled = !photoGateOk;
         }
         syncTermsAcceptedInput();
     }
@@ -476,6 +575,7 @@
     }
 
     function clearEnrollmentPhoto() {
+        abortPhotoValidation();
         const img = document.getElementById('img-frente');
         const input = document.getElementById('input-foto-frente');
         if (!img || !input) {
@@ -488,6 +588,9 @@
         }
         input.value = '';
         enrollmentPhotoReady = false;
+        enrollmentPhotoRejected = false;
+        enrollmentPhotoRejectMessage = '';
+        enrollmentPhotoVerifying = false;
         memberTermsAcceptedOnTablet = false;
         resetEnrollmentSessionState();
     }
@@ -525,11 +628,7 @@
         imgElement.style.display = 'block';
         imgElement.previousElementSibling.style.display = 'none';
         inputElement.value = e.detail.image;
-        enrollmentPhotoReady = true;
-        enrollmentTermsMet = true;
-        setTermsStatus('accepted', 'Foto capturada');
-        syncTermsAcceptedInput();
-        updateEnrollmentSaveState();
+        validateEnrollmentPhoto(e.detail.image);
     });
 
     function reconnectTablet(btn) {
@@ -666,6 +765,12 @@
             event.preventDefault();
             if (!isGuestEnrollment() && cedulaExists) {
                 processErrorMessage.textContent = 'Esta cédula ya está registrada. Use Re-enrolar desde el perfil del afiliado.';
+                openProcessModal('error');
+                return;
+            }
+            if (enrollmentPhotoRejected) {
+                processErrorMessage.textContent = enrollmentPhotoRejectMessage
+                    || 'La foto no es válida: no se detectó una cara usable. Use Tomar otra foto.';
                 openProcessModal('error');
                 return;
             }

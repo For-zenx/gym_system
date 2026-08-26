@@ -1,3 +1,4 @@
+import json
 from datetime import date, timedelta
 
 from functools import wraps
@@ -25,6 +26,7 @@ from apps.clients.services import (
     get_person_profile_url_name,
 )
 from apps.access.models import AccessLog
+from apps.access import ai_engine
 from apps.users.decorators import permission_required
 from apps.users.permissions import has_permission
 
@@ -134,6 +136,57 @@ def enrollment_access(view_func):
         return view_func(request, *args, **kwargs)
 
     return wrapper
+
+
+def enrollment_photo_validate_access(view_func):
+    """Enrolar o re-enrolar (edit) pueden pre-validar la foto facial."""
+
+    @wraps(view_func)
+    @login_required
+    def wrapper(request, *args, **kwargs):
+        if not (
+            has_permission(request.user, "clients.enroll")
+            or has_permission(request.user, "staff_persons.enroll")
+            or has_permission(request.user, "guests.register")
+            or has_permission(request.user, "clients.edit")
+            or has_permission(request.user, "staff_persons.edit")
+        ):
+            return _enrollment_access_denied(request)
+        return view_func(request, *args, **kwargs)
+
+    return wrapper
+
+
+@enrollment_photo_validate_access
+def enrollment_validate_photo(request):
+    if request.method != "POST":
+        return JsonResponse(
+            {"status": "error", "message": "Método no permitido."},
+            status=405,
+        )
+
+    foto_frente_b64 = request.POST.get("foto_frente_base64") or ""
+    if not foto_frente_b64 and request.body:
+        try:
+            payload = json.loads(request.body.decode("utf-8"))
+            foto_frente_b64 = payload.get("foto_frente_base64") or ""
+        except (ValueError, UnicodeDecodeError):
+            foto_frente_b64 = ""
+
+    try:
+        ai_engine.validate_enrollment_photo_b64(foto_frente_b64)
+    except ValueError as exc:
+        return JsonResponse({"status": "error", "message": str(exc)}, status=400)
+    except Exception:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "No se pudo analizar la foto facial. Intente tomar otra foto.",
+            },
+            status=500,
+        )
+
+    return JsonResponse({"status": "ok"})
 
 
 @enrollment_access

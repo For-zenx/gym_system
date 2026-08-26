@@ -314,17 +314,35 @@ function attachCameraEndedHandler(stream) {
         return;
     }
     tracks[0].addEventListener("ended", function () {
-        if (cameraRetrying || currentMode !== MODE_ACCESS) {
+        if (cameraRetrying) {
+            return;
+        }
+        const recoverAccess = currentMode === MODE_ACCESS;
+        const recoverEnrollment =
+            currentMode === MODE_ENROLLMENT
+            && isEnrollmentCaptureActive
+            && !enrollmentCaptureCompleted;
+        if (!recoverAccess && !recoverEnrollment) {
             return;
         }
         cameraRetrying = true;
         // OPS_AUDIT
-        sendOpsEvent("camera_ended", "camera_ended", "—");
+        sendOpsEvent("camera_ended", "camera_ended", currentMode);
+        stopCameraTracks();
         ensureCamera()
             .then(function () {
-                if (currentMode === MODE_ACCESS) {
+                if (recoverAccess && currentMode === MODE_ACCESS) {
                     stopAccessLoop();
                     startAccessLoop();
+                    return;
+                }
+                if (
+                    recoverEnrollment
+                    && currentMode === MODE_ENROLLMENT
+                    && isEnrollmentCaptureActive
+                    && !enrollmentCaptureCompleted
+                ) {
+                    startEnrollmentDetectionLoop();
                 }
             })
             .catch(function (err) {
@@ -344,7 +362,83 @@ let skipTermsAfterCapture = false;
 let lastEnrollmentCaptureTime = 0;
 let enrollmentDetectionRunning = false;
 let stableSince = null;
+let enrollmentSessionId = 0;
+let postCaptureUiTimer = null;
+let enrollmentCameraResumeAt = 0;
 const enrollmentHud = TabletFaceUtils.createEnrollmentHudController(hudText);
+
+function clearPostCaptureUiTimer() {
+    if (postCaptureUiTimer !== null) {
+        clearTimeout(postCaptureUiTimer);
+        postCaptureUiTimer = null;
+    }
+}
+
+function playCameraFeed() {
+    try {
+        const playResult = cameraFeed.play();
+        if (playResult && typeof playResult.then === "function") {
+            return playResult.catch(function () {
+                return null;
+            });
+        }
+    } catch (err) {
+        /* autoplay bloqueado: el bucle reintenta */
+    }
+    return Promise.resolve();
+}
+
+function cameraStreamIsLive() {
+    if (!cameraStream) {
+        return false;
+    }
+    const tracks = cameraStream.getVideoTracks();
+    let i;
+    for (i = 0; i < tracks.length; i += 1) {
+        if (tracks[i].readyState === "live") {
+            return true;
+        }
+    }
+    return false;
+}
+
+function tryResumeEnrollmentCamera(sessionId) {
+    if (sessionId !== enrollmentSessionId || cameraRetrying) {
+        return;
+    }
+    const now = Date.now();
+    if (now - enrollmentCameraResumeAt < 1000) {
+        return;
+    }
+    enrollmentCameraResumeAt = now;
+
+    if (cameraStreamIsLive() && cameraFeed.paused) {
+        playCameraFeed();
+        return;
+    }
+
+    cameraRetrying = true;
+    stopCameraTracks();
+    ensureCamera()
+        .then(function () {
+            if (sessionId !== enrollmentSessionId) {
+                return null;
+            }
+            return playCameraFeed();
+        })
+        .catch(function (err) {
+            console.error("[Tablet EA] Error recuperando cámara en enrolamiento:", err);
+            if (sessionId === enrollmentSessionId) {
+                setStatus("disconnected", "Sin cámara");
+                enrollmentHud.show("No se pudo acceder a la cámara.", Date.now(), {
+                    immediate: true,
+                });
+            }
+        })
+        .finally(function () {
+            cameraRetrying = false;
+        });
+}
 
 async function loadModels() {
     const MODEL_URL = "/static/models";
@@ -1081,23 +1175,35 @@ function sendAccessBurst(images) {
     }
 }
 
-async function enrollmentDetectLoop() {
+async function enrollmentDetectLoop(sessionId) {
     if (
-        !isEnrollmentCaptureActive ||
-        !isModelsLoaded ||
-        enrollmentCaptureCompleted ||
-        currentMode !== MODE_ENROLLMENT
+        sessionId !== enrollmentSessionId
+        || !isEnrollmentCaptureActive
+        || !isModelsLoaded
+        || enrollmentCaptureCompleted
+        || currentMode !== MODE_ENROLLMENT
     ) {
-        enrollmentDetectionRunning = false;
+        if (sessionId === enrollmentSessionId) {
+            enrollmentDetectionRunning = false;
+        }
         return;
     }
 
-    if (cameraFeed.paused || cameraFeed.ended) {
-        requestAnimationFrame(enrollmentDetectLoop);
+    if (cameraFeed.paused || cameraFeed.ended || !cameraStreamIsLive()) {
+        tryResumeEnrollmentCamera(sessionId);
+        requestAnimationFrame(function () {
+            enrollmentDetectLoop(sessionId);
+        });
         return;
     }
 
     const displaySize = { width: cameraFeed.videoWidth, height: cameraFeed.videoHeight };
+    if (!displaySize.width || !displaySize.height) {
+        requestAnimationFrame(function () {
+            enrollmentDetectLoop(sessionId);
+        });
+        return;
+    }
     if (overlayCanvas.width !== displaySize.width) {
         faceapi.matchDimensions(overlayCanvas, displaySize);
     }
@@ -1109,6 +1215,9 @@ async function enrollmentDetectLoop() {
         const detection = await faceapi
             .detectSingleFace(cameraFeed, TabletFaceUtils.detectorOptions())
             .withFaceLandmarks();
+        if (sessionId !== enrollmentSessionId) {
+            return;
+        }
         canvasCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
         if (detection && canCapture) {
@@ -1132,7 +1241,17 @@ async function enrollmentDetectLoop() {
                     lastEnrollmentCaptureTime = now;
                     enrollmentCaptureCompleted = true;
                     resetStability();
-                    setTimeout(function () {
+                    const sessionAtCapture = enrollmentSessionId;
+                    clearPostCaptureUiTimer();
+                    postCaptureUiTimer = setTimeout(function () {
+                        postCaptureUiTimer = null;
+                        if (
+                            enrollmentSessionId !== sessionAtCapture
+                            || currentMode !== MODE_ENROLLMENT
+                            || !enrollmentCaptureCompleted
+                        ) {
+                            return;
+                        }
                         stopCameraTracks();
                         faceGuide.classList.remove("active");
                         faceGuide.classList.remove("face-guide-access");
@@ -1176,14 +1295,27 @@ async function enrollmentDetectLoop() {
         resetStability();
     }
 
-    requestAnimationFrame(enrollmentDetectLoop);
+    requestAnimationFrame(function () {
+        enrollmentDetectLoop(sessionId);
+    });
 }
 
 function startEnrollmentDetectionLoop() {
-    if (!enrollmentDetectionRunning && isEnrollmentCaptureActive && !enrollmentCaptureCompleted) {
-        enrollmentDetectionRunning = true;
-        requestAnimationFrame(enrollmentDetectLoop);
+    if (
+        !isEnrollmentCaptureActive
+        || enrollmentCaptureCompleted
+        || currentMode !== MODE_ENROLLMENT
+    ) {
+        return;
     }
+    if (enrollmentDetectionRunning) {
+        return;
+    }
+    const sessionId = enrollmentSessionId;
+    enrollmentDetectionRunning = true;
+    requestAnimationFrame(function () {
+        enrollmentDetectLoop(sessionId);
+    });
 }
 
 function sendEnrollmentPhoto() {
@@ -1208,8 +1340,12 @@ function sendEnrollmentPhoto() {
 }
 
 async function ensureCamera() {
-    if (cameraStream) {
+    if (cameraStreamIsLive()) {
+        await playCameraFeed();
         return;
+    }
+    if (cameraStream) {
+        stopCameraTracks();
     }
     const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -1217,9 +1353,10 @@ async function ensureCamera() {
     cameraStream = stream;
     cameraFeed.srcObject = stream;
     attachCameraEndedHandler(stream);
-    return new Promise(function (resolve) {
+    await new Promise(function (resolve) {
         cameraFeed.addEventListener("loadedmetadata", resolve, { once: true });
     });
+    await playCameraFeed();
 }
 
 function stopCameraTracks() {
@@ -1234,6 +1371,8 @@ function stopCameraTracks() {
 }
 
 function resetEnrollmentState() {
+    clearPostCaptureUiTimer();
+    enrollmentSessionId += 1;
     isEnrollmentCaptureActive = false;
     enrollmentCaptureCompleted = false;
     termsAcceptedThisSession = false;
@@ -1269,6 +1408,9 @@ async function enterAccessMode() {
 }
 
 async function startEnrollmentSession() {
+    clearPostCaptureUiTimer();
+    enrollmentSessionId += 1;
+    const sessionId = enrollmentSessionId;
     currentMode = MODE_ENROLLMENT;
     clearAccessTimers();
     clearAccessResult();
@@ -1286,17 +1428,24 @@ async function startEnrollmentSession() {
     termsAcceptedThisSession = false;
     skipTermsAfterCapture = false;
     isEnrollmentCaptureActive = true;
+    enrollmentDetectionRunning = false;
+    enrollmentCameraResumeAt = 0;
     resetStability();
     setStatus("connected", "Capturando");
 
     try {
         stopCameraTracks();
         await ensureCamera();
+        if (sessionId !== enrollmentSessionId) {
+            return;
+        }
         startEnrollmentDetectionLoop();
     } catch (err) {
         console.error("[Tablet EA] Error iniciando enrolamiento:", err);
-        hudText.textContent = "No se pudo acceder a la cámara.";
-        setStatus("disconnected", "Sin cámara");
+        if (sessionId === enrollmentSessionId) {
+            hudText.textContent = "No se pudo acceder a la cámara.";
+            setStatus("disconnected", "Sin cámara");
+        }
     }
 }
 
