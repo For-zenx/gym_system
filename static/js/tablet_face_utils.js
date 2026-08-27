@@ -162,85 +162,185 @@ const TabletFaceUtils = (function () {
         return isFrontalPose(ratio);
     }
 
+    const ENROLLMENT_COACH_CENTER = "Centre su cara";
+    const ENROLLMENT_COACH_APPROACH = "Acérquese";
+    const ENROLLMENT_COACH_RECEDE = "Aléjese";
+    const ENROLLMENT_COACH_FRONT = "Mire de frente";
+    const ENROLLMENT_COACH_HOLD = "Quédese quieto…";
+    const ENROLLMENT_BUBBLE_CAPTURING = "Capturando...";
+    const ENROLLMENT_COACH_MESSAGES = {
+        "Centre su cara": true,
+        "Acérquese": true,
+        "Aléjese": true,
+        "Mire de frente": true,
+        "Quédese quieto…": true,
+    };
+
+    function isEnrollmentCoachMessage(message) {
+        return !!(message && ENROLLMENT_COACH_MESSAGES[message]);
+    }
+
     /**
-     * Mensaje HUD de enrolamiento, o null si ya cumple criterios (el bucle pone estabilidad).
+     * Mensaje de guía de enrolamiento, o null si ya cumple criterios (el bucle pone estabilidad).
+     * Distancia (Acérquese/Aléjese) tiene prioridad sobre centrar si hay cara detectada.
      */
     function getEnrollmentHudMessage(faceResult, resizedResult, videoEl, ovalEl) {
         const detection = getFaceDetection(faceResult);
         const resizedDetection = getFaceDetection(resizedResult);
 
         if (!detection || !resizedDetection || !resizedDetection.box) {
-            return "Coloque su rostro en el óvalo";
+            return ENROLLMENT_COACH_CENTER;
         }
         if (detection.score < MIN_DETECTION_SCORE) {
-            return "Coloque su rostro en el óvalo";
-        }
-        if (!faceCenterInOval(resizedDetection.box, videoEl, ovalEl)) {
-            return "Centre su rostro en el óvalo";
+            return ENROLLMENT_COACH_CENTER;
         }
 
         const sizeStatus = getFaceOvalSizeStatus(resizedDetection.box, videoEl, ovalEl);
         if (sizeStatus === "too_small" || sizeStatus === "unknown") {
-            return "Acérquese más a la cámara";
+            return ENROLLMENT_COACH_APPROACH;
         }
         if (sizeStatus === "too_large") {
-            return "Aléjese un poco";
+            return ENROLLMENT_COACH_RECEDE;
+        }
+        if (!faceCenterInOval(resizedDetection.box, videoEl, ovalEl)) {
+            return ENROLLMENT_COACH_CENTER;
         }
 
         const ratio = getPoseRatio(faceResult);
         if (ratio === null || !isFrontalPose(ratio)) {
-            return "Mire de frente a la cámara";
+            return ENROLLMENT_COACH_FRONT;
         }
 
         return null;
     }
 
     /**
-     * Evita parpadeo del HUD: solo cambia el texto tras HOLD_MS con el mismo mensaje.
-     * Mensajes de captura/estabilidad pueden ir inmediatos.
+     * Guía grande en overlay; la burbuja inferior solo para Capturando...
      */
-    function createEnrollmentHudController(hudEl) {
-        const HOLD_MS = 550;
-        let shown = null;
-        let pending = null;
-        let pendingSince = 0;
+    function createEnrollmentHudController(hudEl, coachOptions) {
+        const COACH_HOLD_MS = 800;
+        coachOptions = coachOptions || {};
+        const coachEl = coachOptions.coachEl || null;
+        const coachTextEl = coachOptions.coachTextEl || null;
+        const hudBubbleEl = coachOptions.hudBubbleEl || (hudEl && hudEl.parentElement) || null;
 
-        function commit(message) {
-            if (!hudEl || !message || message === shown) {
+        let shown = null;
+        let coachShown = null;
+        let coachPending = null;
+        let coachPendingSince = 0;
+
+        function setCoachVisible(visible) {
+            if (!coachEl) {
+                return;
+            }
+            if (visible) {
+                coachEl.classList.remove("hidden");
+                if (hudBubbleEl) {
+                    hudBubbleEl.classList.add("hidden");
+                }
+            } else {
+                coachEl.classList.add("hidden");
+            }
+        }
+
+        function showHudBubble() {
+            if (hudBubbleEl) {
+                hudBubbleEl.classList.remove("hidden");
+            }
+        }
+
+        function hideHudBubble() {
+            if (hudBubbleEl) {
+                hudBubbleEl.classList.add("hidden");
+            }
+        }
+
+        function commitHud(message) {
+            if (!hudEl || !message) {
                 return;
             }
             shown = message;
-            pending = null;
             hudEl.textContent = message;
+            showHudBubble();
+        }
+
+        function commitCoach(label) {
+            if (!label) {
+                return;
+            }
+            if (label === coachShown) {
+                setCoachVisible(true);
+                return;
+            }
+            coachShown = label;
+            coachPending = null;
+            if (coachTextEl) {
+                coachTextEl.textContent = label;
+            }
+            setCoachVisible(true);
+        }
+
+        function hideCoachImmediate() {
+            coachShown = null;
+            coachPending = null;
+            coachPendingSince = 0;
+            setCoachVisible(false);
         }
 
         function show(message, now, options) {
             options = options || {};
+            now = now || Date.now();
             if (!message) {
                 return;
             }
-            if (options.immediate) {
-                commit(message);
+            if (isEnrollmentCoachMessage(message)) {
+                hideHudBubble();
+                if (options.immediate) {
+                    commitCoach(message);
+                    return;
+                }
+                if (message === coachShown) {
+                    coachPending = null;
+                    setCoachVisible(true);
+                    return;
+                }
+                if (message !== coachPending) {
+                    coachPending = message;
+                    coachPendingSince = now;
+                    return;
+                }
+                if (now - coachPendingSince >= COACH_HOLD_MS) {
+                    commitCoach(message);
+                }
                 return;
             }
-            if (message === shown) {
-                pending = null;
-                return;
-            }
-            if (message !== pending) {
-                pending = message;
-                pendingSince = now || Date.now();
-                return;
-            }
-            if ((now || Date.now()) - pendingSince >= HOLD_MS) {
-                commit(message);
-            }
+
+            // Burbuja solo para Capturando...; otros textos (p. ej. error cámara) también en burbuja.
+            hideCoachImmediate();
+            commitHud(message);
+        }
+
+        function hideCoach() {
+            hideCoachImmediate();
+            hideHudBubble();
+            shown = null;
         }
 
         function reset(initialMessage) {
             shown = null;
-            pending = null;
-            pendingSince = 0;
+            coachShown = null;
+            coachPending = null;
+            coachPendingSince = 0;
+            if (initialMessage && isEnrollmentCoachMessage(initialMessage)) {
+                if (coachTextEl) {
+                    coachTextEl.textContent = initialMessage;
+                }
+                coachShown = initialMessage;
+                setCoachVisible(true);
+                return;
+            }
+            setCoachVisible(false);
+            hideHudBubble();
             if (initialMessage && hudEl) {
                 shown = initialMessage;
                 hudEl.textContent = initialMessage;
@@ -250,6 +350,7 @@ const TabletFaceUtils = (function () {
         return {
             show: show,
             reset: reset,
+            hideCoach: hideCoach,
         };
     }
 
@@ -311,6 +412,9 @@ const TabletFaceUtils = (function () {
         mapFaceBoxToDisplay: mapFaceBoxToDisplay,
         faceFitsInOval: faceFitsInOval,
         meetsCaptureCriteria: meetsCaptureCriteria,
+        ENROLLMENT_COACH_CENTER: ENROLLMENT_COACH_CENTER,
+        ENROLLMENT_COACH_HOLD: ENROLLMENT_COACH_HOLD,
+        ENROLLMENT_BUBBLE_CAPTURING: ENROLLMENT_BUBBLE_CAPTURING,
         getEnrollmentHudMessage: getEnrollmentHudMessage,
         createEnrollmentHudController: createEnrollmentHudController,
         meetsAccessCaptureCriteria: meetsAccessCaptureCriteria,

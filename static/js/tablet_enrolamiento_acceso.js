@@ -49,6 +49,8 @@ const accessBannerTitle = document.getElementById("access-banner-title");
 const accessBannerSubtitle = document.getElementById("access-banner-subtitle");
 const hudInstruction = document.getElementById("hud-instruction");
 const hudText = document.getElementById("hud-text");
+const enrollmentCoach = document.getElementById("enrollment-coach");
+const enrollmentCoachText = document.getElementById("enrollment-coach-text");
 const accessProcessingOverlay = document.getElementById("access-processing-overlay");
 const accessProcessingLabel = document.getElementById("access-processing-label");
 const termsOverlay = document.getElementById("terms-overlay");
@@ -365,7 +367,11 @@ let stableSince = null;
 let enrollmentSessionId = 0;
 let postCaptureUiTimer = null;
 let enrollmentCameraResumeAt = 0;
-const enrollmentHud = TabletFaceUtils.createEnrollmentHudController(hudText);
+const enrollmentHud = TabletFaceUtils.createEnrollmentHudController(hudText, {
+    coachEl: enrollmentCoach,
+    coachTextEl: enrollmentCoachText,
+    hudBubbleEl: hudInstruction,
+});
 
 function clearPostCaptureUiTimer() {
     if (postCaptureUiTimer !== null) {
@@ -580,6 +586,7 @@ function hideWaitingScreen() {
 
 function showWaitingScreen() {
     hideTermsScreen();
+    enrollmentHud.hideCoach();
     if (waitingOverlay) {
         waitingOverlay.classList.remove("hidden");
     }
@@ -1236,7 +1243,7 @@ async function enrollmentDetectLoop(sessionId) {
                 }
 
                 if (now - stableSince >= TabletFaceUtils.STABILITY_MS) {
-                    enrollmentHud.show("Capturando...", now, { immediate: true });
+                    enrollmentHud.show(TabletFaceUtils.ENROLLMENT_BUBBLE_CAPTURING, now, { immediate: true });
                     sendEnrollmentPhoto();
                     lastEnrollmentCaptureTime = now;
                     enrollmentCaptureCompleted = true;
@@ -1256,6 +1263,7 @@ async function enrollmentDetectLoop(sessionId) {
                         faceGuide.classList.remove("active");
                         faceGuide.classList.remove("face-guide-access");
                         hudInstruction.classList.add("hidden");
+                        enrollmentHud.hideCoach();
                         isEnrollmentCaptureActive = false;
                         if (skipTermsAfterCapture) {
                             showWaitingScreen();
@@ -1264,7 +1272,7 @@ async function enrollmentDetectLoop(sessionId) {
                         }
                     }, 1200);
                 } else {
-                    enrollmentHud.show("Quédese quieto…", now, { immediate: true });
+                    enrollmentHud.show(TabletFaceUtils.ENROLLMENT_COACH_HOLD, now, { immediate: true });
                 }
             } else {
                 resetStability();
@@ -1274,7 +1282,7 @@ async function enrollmentDetectLoop(sessionId) {
                         resizedDetection,
                         cameraFeed,
                         faceGuideOval
-                    ) || "Coloque su rostro en el óvalo",
+                    ) || TabletFaceUtils.ENROLLMENT_COACH_CENTER,
                     now
                 );
             }
@@ -1286,7 +1294,7 @@ async function enrollmentDetectLoop(sessionId) {
                     null,
                     cameraFeed,
                     faceGuideOval
-                ) || "Coloque su rostro en el óvalo",
+                ) || TabletFaceUtils.ENROLLMENT_COACH_CENTER,
                 now
             );
         }
@@ -1381,6 +1389,7 @@ function resetEnrollmentState() {
     resetStability();
     hideTermsScreen();
     hideWaitingScreen();
+    enrollmentHud.hideCoach();
 }
 
 async function enterAccessMode() {
@@ -1423,7 +1432,7 @@ async function startEnrollmentSession() {
     faceGuide.classList.add("active");
     faceGuide.classList.remove("face-guide-access");
     hudInstruction.classList.remove("hidden");
-    enrollmentHud.reset("Coloque su rostro en el óvalo");
+    enrollmentHud.reset(TabletFaceUtils.ENROLLMENT_COACH_CENTER);
     enrollmentCaptureCompleted = false;
     termsAcceptedThisSession = false;
     skipTermsAfterCapture = false;
@@ -1443,7 +1452,9 @@ async function startEnrollmentSession() {
     } catch (err) {
         console.error("[Tablet EA] Error iniciando enrolamiento:", err);
         if (sessionId === enrollmentSessionId) {
-            hudText.textContent = "No se pudo acceder a la cámara.";
+            enrollmentHud.show("No se pudo acceder a la cámara.", Date.now(), {
+                immediate: true,
+            });
             setStatus("disconnected", "Sin cámara");
         }
     }
@@ -1454,6 +1465,7 @@ function finishEnrollmentWaiting() {
     hideWaitingScreen();
     faceGuide.classList.remove("active");
     hudInstruction.classList.add("hidden");
+    enrollmentHud.hideCoach();
     isEnrollmentCaptureActive = false;
     stopCameraTracks();
     setStatus("connected", termsAcceptedThisSession ? "Listo" : "Foto lista");
@@ -1473,6 +1485,7 @@ function acceptTermsOnTablet() {
     }
     faceGuide.classList.remove("active");
     hudInstruction.classList.add("hidden");
+    enrollmentHud.hideCoach();
     stopCameraTracks();
     isEnrollmentCaptureActive = false;
     showWaitingScreen();
@@ -1485,6 +1498,7 @@ function skipTermsOnTablet() {
     if (enrollmentCaptureCompleted) {
         faceGuide.classList.remove("active");
         hudInstruction.classList.add("hidden");
+        enrollmentHud.hideCoach();
         stopCameraTracks();
         isEnrollmentCaptureActive = false;
         showWaitingScreen();

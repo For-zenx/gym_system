@@ -7,7 +7,7 @@
     <title>Perfect Line II — Acceso</title>
     <!-- Inter font — self-hosted, no internet required -->
     <link rel="stylesheet" href="{% static 'library/fonts/inter/inter.css' %}">
-    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=3.2">
+    <link rel="stylesheet" href="{% static 'css/tablet.css' %}?v=3.4">
     <!-- PWA configuration for tablet mode -->
     <link rel="manifest" href="{% url 'manifest_json' %}">
     <meta name="theme-color" content="#000000">
@@ -52,7 +52,7 @@
         window.TABLET_WS_URL = "{{ ws_url }}";
     </script>
     <script src="{% static 'vendor/face-api.min.js' %}"></script>
-    <script src="{% static 'js/tablet_face_utils.js' %}?v=1.6"></script>
+    <script src="{% static 'js/tablet_face_utils.js' %}?v=1.8"></script>
     <script src="{% static 'js/tablet_access.js' %}?v=3.9"></script>
     <script>
         if ('serviceWorker' in navigator) {

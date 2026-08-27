@@ -336,6 +336,56 @@ html, body {
     pointer-events: none;
 }
 
+/* TASK-131: guía grande de enrolamiento (una voz; sin bounce) */
+.enrollment-coach {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 6vh;
+    background: rgba(0, 0, 0, 0.32);
+    pointer-events: none;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.enrollment-coach.hidden {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.enrollment-coach-text {
+    font-size: clamp(2.75rem, 12vw, 5.5rem);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    text-align: center;
+    color: #fff;
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.9);
+    padding: 0 1.25rem;
+    max-width: 96vw;
+}
+
+.enrollment-coach:not(.hidden) .enrollment-coach-text {
+    animation: enrollment-coach-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes enrollment-coach-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@media (orientation: landscape) {
+    .enrollment-coach {
+        padding-top: 3.5vh;
+    }
+
+    .enrollment-coach-text {
+        font-size: clamp(2.25rem, 7vw, 4.25rem);
+    }
+}
+
 /* --- UI Enrolamiento: Flechas Animadas --- */
 .nav-arrow {
     position: fixed;

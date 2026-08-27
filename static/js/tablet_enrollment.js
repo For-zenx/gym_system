@@ -14,6 +14,8 @@ const faceGuide = document.getElementById('face-guide');
 const faceGuideOval = document.querySelector('.face-guide-oval');
 const hudInstruction = document.getElementById('hud-instruction');
 const hudText = document.getElementById('hud-text');
+const enrollmentCoach = document.getElementById('enrollment-coach');
+const enrollmentCoachText = document.getElementById('enrollment-coach-text');
 const termsOverlay = document.getElementById('terms-overlay');
 const termsAcceptBtn = document.getElementById('terms-accept-btn');
 const waitingOverlay = document.getElementById('enrollment-waiting-overlay');
@@ -34,7 +36,11 @@ let enrollmentSessionId = 0;
 let postCaptureUiTimer = null;
 let enrollmentCameraResumeAt = 0;
 let cameraRetrying = false;
-const enrollmentHud = TabletFaceUtils.createEnrollmentHudController(hudText);
+const enrollmentHud = TabletFaceUtils.createEnrollmentHudController(hudText, {
+    coachEl: enrollmentCoach,
+    coachTextEl: enrollmentCoachText,
+    hudBubbleEl: hudInstruction,
+});
 
 function clearPostCaptureUiTimer() {
     if (postCaptureUiTimer !== null) {
@@ -137,6 +143,7 @@ function hideWaitingScreen() {
 
 function showWaitingScreen() {
     hideTermsScreen();
+    enrollmentHud.hideCoach();
     if (idleOverlay) {
         idleOverlay.classList.add('hidden');
     }
@@ -153,6 +160,7 @@ function showTermsScreen() {
 function completeEnrollmentIdle() {
     hideTermsScreen();
     hideWaitingScreen();
+    enrollmentHud.hideCoach();
     idleOverlay.classList.remove('hidden');
     const idleSubtitle = idleOverlay.querySelector('.idle-subtitle');
     if (idleSubtitle) {
@@ -246,7 +254,7 @@ async function detectFaceLoop(sessionId) {
                 }
 
                 if (now - stableSince >= TabletFaceUtils.STABILITY_MS) {
-                    enrollmentHud.show('Capturando...', now, { immediate: true });
+                    enrollmentHud.show(TabletFaceUtils.ENROLLMENT_BUBBLE_CAPTURING, now, { immediate: true });
                     sendEnrollmentPhoto();
                     lastCaptureTime = now;
                     captureCompleted = true;
@@ -264,6 +272,7 @@ async function detectFaceLoop(sessionId) {
                         stopCamera();
                         faceGuide.classList.remove('active');
                         hudInstruction.classList.add('hidden');
+                        enrollmentHud.hideCoach();
                         isCaptureActive = false;
                         if (skipTermsAfterCapture) {
                             showWaitingScreen();
@@ -272,7 +281,7 @@ async function detectFaceLoop(sessionId) {
                         }
                     }, 1200);
                 } else {
-                    enrollmentHud.show('Quédese quieto…', now, { immediate: true });
+                    enrollmentHud.show(TabletFaceUtils.ENROLLMENT_COACH_HOLD, now, { immediate: true });
                 }
             } else {
                 resetStability();
@@ -282,7 +291,7 @@ async function detectFaceLoop(sessionId) {
                         resizedDetection,
                         cameraFeed,
                         faceGuideOval
-                    ) || 'Coloque su rostro en el óvalo',
+                    ) || TabletFaceUtils.ENROLLMENT_COACH_CENTER,
                     now
                 );
             }
@@ -294,7 +303,7 @@ async function detectFaceLoop(sessionId) {
                     null,
                     cameraFeed,
                     faceGuideOval
-                ) || 'Coloque su rostro en el óvalo',
+                ) || TabletFaceUtils.ENROLLMENT_COACH_CENTER,
                 now
             );
         }
@@ -387,6 +396,7 @@ function showIdleScreen() {
     }
     faceGuide.classList.remove('active');
     hudInstruction.classList.add('hidden');
+    enrollmentHud.hideCoach();
     isCaptureActive = false;
     captureCompleted = false;
     termsAcceptedThisSession = false;
@@ -430,7 +440,7 @@ async function startEnrollmentSession() {
     idleOverlay.classList.add('hidden');
     faceGuide.classList.add('active');
     hudInstruction.classList.remove('hidden');
-    enrollmentHud.reset('Coloque su rostro en el óvalo');
+    enrollmentHud.reset(TabletFaceUtils.ENROLLMENT_COACH_CENTER);
     captureCompleted = false;
     termsAcceptedThisSession = false;
     skipTermsAfterCapture = false;
@@ -455,7 +465,9 @@ async function startEnrollmentSession() {
     } catch (err) {
         console.error('[Tablet Enrolamiento] Error iniciando sesión:', err);
         if (sessionId === enrollmentSessionId) {
-            hudText.textContent = 'No se pudo acceder a la cámara.';
+            enrollmentHud.show('No se pudo acceder a la cámara.', Date.now(), {
+                immediate: true,
+            });
             setStatus('disconnected', 'Sin cámara');
         }
     }
