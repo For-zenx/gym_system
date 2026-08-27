@@ -1,4 +1,9 @@
-"""Calidad de foto de enrolamiento — métricas y niveles para caja (Fase 2)."""
+"""Calidad de foto de enrolamiento — métricas y niveles para caja (Fase 2).
+
+Dos capas:
+- Riesgosa: piso universal (umbrales absolutos portables).
+- Aceptable / Buena / Excelente: score con norm local del gimnasio (DEFAULT_NORM).
+"""
 
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
@@ -22,12 +27,12 @@ GRADE_LABELS = {
     GRADE_EXCELLENT: "Excelente",
 }
 
-# Hard gates → Riesgosa (v1 calibrada contra corpus local; retocar tras script).
-RISKY_FACE_FRAC_W = 0.28
-RISKY_BRIGHTNESS = 50.0
-RISKY_SHARPNESS = 30.0
+# Piso universal → Riesgosa (solo fotos objetivamente malas en cualquier instalación).
+UNIVERSAL_RISKY_FACE_FRAC_W = 0.20
+UNIVERSAL_RISKY_BRIGHTNESS = 40.0
+UNIVERSAL_RISKY_SHARPNESS = 25.0
 
-# Bandas del score compuesto (0–1).
+# Bandas del score compuesto (0–1), aplicadas tras pasar el piso universal.
 SCORE_ACCEPTABLE_MAX = 0.45
 SCORE_GOOD_MAX = 0.70
 
@@ -35,11 +40,18 @@ WEIGHT_FACE_FRAC = 0.40
 WEIGHT_BRIGHTNESS = 0.30
 WEIGHT_SHARPNESS = 0.30
 
-# Anclas de normalización (p10/p90 del corpus local v1).
+# Norm local Perfect Line II (p10/p90): solo tiers Aceptable/Buena/Excelente.
 DEFAULT_NORM = {
     "face_frac_w": (0.310, 0.642),
     "brightness": (56.8, 116.6),
     "sharpness": (32.8, 136.2),
+}
+
+# Norm amplia por defecto si un gimnasio aún no tiene corpus calibrado.
+UNIVERSAL_NORM = {
+    "face_frac_w": (0.22, 0.65),
+    "brightness": (45.0, 130.0),
+    "sharpness": (25.0, 140.0),
 }
 
 
@@ -178,13 +190,17 @@ def _composite_score(
     return round(score, 4)
 
 
-def _risky_reasons(metrics: PhotoQualityMetrics) -> Tuple[str, ...]:
+def _universal_risky_reasons(metrics: PhotoQualityMetrics) -> Tuple[str, ...]:
+    """Motivos de Riesgosa según piso universal (no depende del corpus local)."""
     reasons = []
-    if metrics.face_frac_w is not None and metrics.face_frac_w < RISKY_FACE_FRAC_W:
+    if (
+        metrics.face_frac_w is not None
+        and metrics.face_frac_w < UNIVERSAL_RISKY_FACE_FRAC_W
+    ):
         reasons.append("face_small")
-    if metrics.brightness is not None and metrics.brightness < RISKY_BRIGHTNESS:
+    if metrics.brightness is not None and metrics.brightness < UNIVERSAL_RISKY_BRIGHTNESS:
         reasons.append("dark")
-    if metrics.sharpness is not None and metrics.sharpness < RISKY_SHARPNESS:
+    if metrics.sharpness is not None and metrics.sharpness < UNIVERSAL_RISKY_SHARPNESS:
         reasons.append("blurry")
     return tuple(reasons)
 
@@ -215,7 +231,7 @@ def analyze_metrics(
             can_save_direct=False,
         )
 
-    reasons = _risky_reasons(metrics)
+    reasons = _universal_risky_reasons(metrics)
     if reasons:
         return PhotoQualityAnalysis(
             grade=GRADE_RISKY,
