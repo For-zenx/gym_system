@@ -81,6 +81,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.users.middleware.SessionIdleTimeoutMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -183,8 +184,12 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
-SESSION_COOKIE_AGE = 12 * 60 * 60
+# TASK-133: browser close + idle 2h; flush al arrancar solo en settings_production.
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 8 * 60 * 60
 SESSION_SAVE_EVERY_REQUEST = True
+SESSION_IDLE_TIMEOUT_SECONDS = 8 * 60 * 60
+SESSION_FLUSH_ON_STARTUP = env_bool('SESSION_FLUSH_ON_STARTUP', False)
 
 TURNSTILE_COM_PORT = os.getenv("TURNSTILE_COM_PORT", "COM3")
 TURNSTILE_PULSE_SECONDS = float(os.getenv("TURNSTILE_PULSE_SECONDS", "1.0"))

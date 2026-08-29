@@ -19,6 +19,9 @@ verify_license_if_required()
 
 django_asgi_app = get_asgi_application()
 
+from config.session_startup import flush_sessions_on_startup_if_enabled
+flush_sessions_on_startup_if_enabled()
+
 # Importar rutas WS despues de inicializar Django evita AppRegistryNotReady.
 import apps.access.routing
 

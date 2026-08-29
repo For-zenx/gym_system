@@ -18,3 +18,6 @@ from config.licencia import verify_license_if_required
 verify_license_if_required()
 
 application = get_wsgi_application()
+
+from config.session_startup import flush_sessions_on_startup_if_enabled
+flush_sessions_on_startup_if_enabled()

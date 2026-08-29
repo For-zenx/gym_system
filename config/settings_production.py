@@ -14,6 +14,9 @@ from .settings import *  # noqa: F403,F401
 DEBUG = False
 LICENSE_REQUIRED = True
 
+# TASK-133: al iniciar daphne/Manager (tras apagón/reinicio) invalidar sesiones staff.
+SESSION_FLUSH_ON_STARTUP = True
+
 # En instalaciones reales el root sera C:\PerfectLine.
 # En pruebas locales se puede sobrescribir con variable de entorno.
 PERFECTLINE_ROOT = Path(os.getenv("PERFECTLINE_ROOT", r"C:\PerfectLine"))
