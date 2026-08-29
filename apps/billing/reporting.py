@@ -19,9 +19,17 @@ PAYMENT_ROW_ORDER = (
     (Invoice.PaymentMethod.DEBIT, "Débito", "ves"),
     (Invoice.PaymentMethod.CASHEA, "Cashea", "ves"),
     (Invoice.PaymentMethod.CASH_USD, "Efectivo $", "usd"),
+    (Invoice.PaymentMethod.ZELLE, "Zelle", "usd"),
 )
 UNKNOWN_PAYMENT_KEY = "unknown"
 UNKNOWN_PAYMENT_LABEL = "Sin registrar"
+
+USD_COLLECTED_METHODS = frozenset(
+    {
+        Invoice.PaymentMethod.CASH_USD,
+        Invoice.PaymentMethod.ZELLE,
+    }
+)
 
 
 def normalize_period_days(value) -> int:
@@ -62,11 +70,11 @@ def _invoice_usd_collected(invoice: Invoice) -> Decimal:
     if invoice.payment_method == Invoice.PaymentMethod.MIXED:
         total = Decimal("0")
         for entry in invoice.payment_splits or []:
-            if entry.get("method") == Invoice.PaymentMethod.CASH_USD:
+            if entry.get("method") in USD_COLLECTED_METHODS:
                 total += Decimal(str(entry.get("amount_usd", 0) or 0))
         return total
 
-    if invoice.payment_method != Invoice.PaymentMethod.CASH_USD:
+    if invoice.payment_method not in USD_COLLECTED_METHODS:
         return Decimal("0")
 
     if invoice.has_detail_lines():
@@ -96,6 +104,7 @@ def _aggregate_payment_totals(invoices):
         Invoice.PaymentMethod.DEBIT: {"amount": Decimal("0"), "count": 0},
         Invoice.PaymentMethod.CASHEA: {"amount": Decimal("0"), "count": 0},
         Invoice.PaymentMethod.CASH_USD: {"amount": Decimal("0"), "count": 0},
+        Invoice.PaymentMethod.ZELLE: {"amount": Decimal("0"), "count": 0},
         UNKNOWN_PAYMENT_KEY: {"amount": Decimal("0"), "count": 0},
     }
     total_ves = Decimal("0")
@@ -108,10 +117,10 @@ def _aggregate_payment_totals(invoices):
             methods_in_invoice = set()
             for entry in inv.payment_splits or []:
                 method = entry.get("method")
-                if method == Invoice.PaymentMethod.CASH_USD:
+                if method in USD_COLLECTED_METHODS:
                     usd_amount = Decimal(str(entry.get("amount_usd", 0) or 0))
                     if usd_amount > 0:
-                        buckets[Invoice.PaymentMethod.CASH_USD]["amount"] += usd_amount
+                        buckets[method]["amount"] += usd_amount
                         total_usd += usd_amount
                         methods_in_invoice.add(method)
                 elif method in buckets and method != UNKNOWN_PAYMENT_KEY:
@@ -128,10 +137,10 @@ def _aggregate_payment_totals(invoices):
             buckets[UNKNOWN_PAYMENT_KEY]["count"] += 1
             continue
 
-        if inv.payment_method == Invoice.PaymentMethod.CASH_USD:
+        if inv.payment_method in USD_COLLECTED_METHODS:
             usd_amount = _invoice_usd_collected(inv)
-            buckets[Invoice.PaymentMethod.CASH_USD]["amount"] += usd_amount
-            buckets[Invoice.PaymentMethod.CASH_USD]["count"] += 1
+            buckets[inv.payment_method]["amount"] += usd_amount
+            buckets[inv.payment_method]["count"] += 1
             total_usd += usd_amount
             continue
 

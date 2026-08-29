@@ -6,9 +6,12 @@
     ];
     const USD_SPLIT_METHOD = { value: 'CASH_USD', label: 'Efectivo $' };
 
+    const USD_CHECKOUT_METHODS = ['CASH_USD', 'ZELLE'];
+
     const METHOD_LABELS = {
         CASH_VES: 'Efectivo Bs',
         CASH_USD: 'Efectivo $',
+        ZELLE: 'Zelle',
         DEBIT: 'Débito',
         MOBILE: 'Pago móvil',
         CASHEA: 'Cashea',
@@ -85,6 +88,23 @@
         const priceTotalEl = document.getElementById('price_total_ves');
         if (priceTotalEl) {
             return parseVesText(priceTotalEl.textContent);
+        }
+        return 0;
+    }
+
+    function getCheckoutGrandTotalUsd() {
+        const totalEl = document.getElementById('checkout-grand-total-usd');
+        if (totalEl && totalEl.dataset.totalUsd) {
+            const fromData = parseFloat(totalEl.dataset.totalUsd);
+            if (!isNaN(fromData) && fromData > 0) {
+                return fromData;
+            }
+        }
+        if (totalEl) {
+            const parsed = parseUsdText(totalEl.textContent);
+            if (parsed > 0) {
+                return parsed;
+            }
         }
         return 0;
     }
@@ -400,6 +420,13 @@
             return {
                 label: METHOD_LABELS.CASHEA,
                 splits: splits,
+            };
+        }
+        if (USD_CHECKOUT_METHODS.indexOf(method) !== -1) {
+            const usdTotal = getCheckoutGrandTotalUsd();
+            return {
+                label: METHOD_LABELS[method] || method,
+                splits: usdTotal > 0 ? [{ label: 'Monto', amount: formatUsd(usdTotal) }] : [],
             };
         }
         return {

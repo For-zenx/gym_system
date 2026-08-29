@@ -715,6 +715,7 @@ def validate_payment_for_total(payment_method, payment_splits, expected_total):
                 method not in valid_methods
                 or method == Invoice.PaymentMethod.MIXED
                 or method == Invoice.PaymentMethod.CASHEA
+                or method == Invoice.PaymentMethod.ZELLE
             ):
                 raise ValidationError("El desglose de pago mixto contiene una forma inválida.")
             if method in seen_methods:

@@ -459,6 +459,7 @@ class Invoice(models.Model):
     class PaymentMethod(models.TextChoices):
         CASH_VES = "CASH_VES", "Efectivo Bs"
         CASH_USD = "CASH_USD", "Efectivo $"
+        ZELLE = "ZELLE", "Zelle"
         DEBIT = "DEBIT", "Débito"
         MOBILE = "MOBILE", "Pago móvil"
         CASHEA = "CASHEA", "Cashea"
