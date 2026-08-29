@@ -14,6 +14,45 @@
         </label>
     </div>
 
+    <div id="checkout-payment-cashea-panel" class="checkout-payment-mixed-panel" hidden>
+        <div class="checkout-payment-mixed-grid">
+            <label class="checkout-payment-mixed-row">
+                <span>Inicial (Bs)</span>
+                <input type="text" name="cashea_initial_ves" id="cashea_initial_ves" inputmode="decimal" autocomplete="off" placeholder="0,00">
+            </label>
+            <label class="checkout-payment-mixed-row checkout-payment-mixed-row--auto">
+                <span>Restante financiado (Bs) <em class="checkout-payment-auto-label">automático</em></span>
+                <input type="text" id="cashea_financed_ves" readonly tabindex="-1" placeholder="0,00" aria-live="polite" aria-readonly="true" title="Se calcula automáticamente: total del cobro menos el inicial">
+            </label>
+            <label class="checkout-payment-mixed-row">
+                <span>Cuotas</span>
+                <select name="cashea_installments" id="cashea_installments">
+                    <option value="">Seleccione</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="6">6</option>
+                    <option value="9">9</option>
+                    <option value="12">12</option>
+                    <option value="15">15</option>
+                    <option value="other">Otro…</option>
+                </select>
+            </label>
+            <label class="checkout-payment-mixed-row" id="cashea_installments_custom_wrap" hidden>
+                <span>Cantidad de cuotas</span>
+                <input type="number" name="cashea_installments_custom" id="cashea_installments_custom" min="1" max="24" step="1" inputmode="numeric" autocomplete="off" placeholder="Ej. 8" disabled>
+            </label>
+        </div>
+        <div class="checkout-payment-mixed-summary">
+            <span>Total del cobro: <strong id="checkout-payment-cashea-target">Bs 0,00</strong></span>
+            <span id="checkout-payment-cashea-diff-wrap" hidden><strong id="checkout-payment-cashea-diff"></strong></span>
+        </div>
+        <p id="checkout-payment-cashea-hint" class="checkout-payment-mixed-hint" hidden>
+            Seleccione arriba una membresía o productos para calcular el total del cobro.
+        </p>
+    </div>
+
     <div id="checkout-payment-mixed-panel" class="checkout-payment-mixed-panel" hidden>
         <div class="checkout-payment-mixed-grid">
             <label class="checkout-payment-mixed-row">

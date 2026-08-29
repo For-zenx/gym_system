@@ -848,7 +848,39 @@
     color: var(--text-muted);
 }
 
-.checkout-payment-mixed-row input {
+.checkout-payment-mixed-row[hidden] {
+    display: none !important;
+}
+
+.checkout-payment-mixed-row--auto {
+    opacity: 0.88;
+}
+
+.checkout-payment-auto-label {
+    font-style: normal;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    opacity: 0.9;
+}
+
+.checkout-payment-mixed-row--auto input[readonly] {
+    background: var(--bg-main);
+    color: var(--text-muted);
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
+    opacity: 0.82;
+    cursor: default;
+    box-shadow: none;
+}
+
+.checkout-payment-mixed-row--auto input[readonly]:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.checkout-payment-mixed-row input,
+.checkout-payment-mixed-row select {
     width: 100%;
     box-sizing: border-box;
     padding: 0.65rem 0.75rem;

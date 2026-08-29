@@ -641,6 +641,29 @@ def parse_payment_splits_from_post(post_data):
     return splits
 
 
+def parse_cashea_payment_from_post(post_data):
+    initial_raw = (post_data.get("cashea_initial_ves") or "").strip()
+    installments_raw = (post_data.get("cashea_installments") or "").strip()
+    if installments_raw == "other":
+        installments_raw = (post_data.get("cashea_installments_custom") or "").strip()
+    if initial_raw == "":
+        raise ValidationError("Indique el monto inicial de Cashea (puede ser 0).")
+    initial_ves = _parse_ves_amount(initial_raw)
+    if not installments_raw:
+        raise ValidationError("Indique la cantidad de cuotas Cashea.")
+    try:
+        installments = int(installments_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("La cantidad de cuotas Cashea no es válida.") from exc
+    return [
+        {
+            "type": "CASHEA",
+            "initial_ves": str(initial_ves),
+            "installments": installments,
+        }
+    ]
+
+
 def validate_payment_for_total(payment_method, payment_splits, expected_total):
     valid_methods = _payment_method_choices()
     if not payment_method:
@@ -649,6 +672,35 @@ def validate_payment_for_total(payment_method, payment_splits, expected_total):
         raise ValidationError("La forma de pago seleccionada no es válida.")
 
     expected_total = Decimal(expected_total).quantize(Decimal("0.01"))
+
+    if payment_method == Invoice.PaymentMethod.CASHEA:
+        if not payment_splits or len(payment_splits) != 1:
+            raise ValidationError("El pago Cashea requiere inicial y cantidad de cuotas.")
+        entry = payment_splits[0]
+        if entry.get("type") != "CASHEA":
+            raise ValidationError("El desglose Cashea no es válido.")
+        try:
+            initial = Decimal(str(entry.get("initial_ves", "0"))).quantize(Decimal("0.01"))
+        except Exception as exc:
+            raise ValidationError("El monto inicial de Cashea no es válido.") from exc
+        try:
+            installments = int(entry.get("installments"))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("La cantidad de cuotas Cashea no es válida.") from exc
+        if initial < 0:
+            raise ValidationError("El inicial de Cashea no puede ser negativo.")
+        if initial >= expected_total:
+            raise ValidationError(
+                "El inicial de Cashea debe ser menor al total del cobro. "
+                "Si paga el total, use otra forma de pago."
+            )
+        if installments < 1 or installments > 24:
+            raise ValidationError("Las cuotas Cashea deben estar entre 1 y 24.")
+        financed = (expected_total - initial).quantize(Decimal("0.01"))
+        entry["initial_ves"] = str(initial)
+        entry["financed_ves"] = str(financed)
+        entry["installments"] = installments
+        return
 
     if payment_method == Invoice.PaymentMethod.MIXED:
         if not payment_splits:
@@ -659,7 +711,11 @@ def validate_payment_for_total(payment_method, payment_splits, expected_total):
         split_total = Decimal("0.00")
         for entry in payment_splits:
             method = entry.get("method")
-            if method not in valid_methods or method == Invoice.PaymentMethod.MIXED:
+            if (
+                method not in valid_methods
+                or method == Invoice.PaymentMethod.MIXED
+                or method == Invoice.PaymentMethod.CASHEA
+            ):
                 raise ValidationError("El desglose de pago mixto contiene una forma inválida.")
             if method in seen_methods:
                 raise ValidationError("No repita la misma forma de pago en el desglose mixto.")
@@ -678,13 +734,15 @@ def validate_payment_for_total(payment_method, payment_splits, expected_total):
         return
 
     if payment_splits:
-        raise ValidationError("Solo el pago mixto admite desglose por forma de pago.")
+        raise ValidationError("Solo Mixto y Cashea admiten desglose de pago.")
 
 
 def parse_payment_method_from_post(post_data, expected_total=None):
     payment_method = (post_data.get("payment_method") or "").strip()
     if payment_method == Invoice.PaymentMethod.MIXED:
         payment_splits = parse_payment_splits_from_post(post_data)
+    elif payment_method == Invoice.PaymentMethod.CASHEA:
+        payment_splits = parse_cashea_payment_from_post(post_data)
     else:
         payment_splits = []
 
@@ -1609,22 +1667,32 @@ def apply_invoice_amount_edits(invoice, edits):
                 invoice.multa_usd = (multa_ves / tasa.tasa_ves).quantize(Decimal("0.01"))
         else:
             invoice.multa_usd = Decimal("0.00")
-        if invoice.payment_method == Invoice.PaymentMethod.MIXED:
+        if invoice.payment_method in (
+            Invoice.PaymentMethod.MIXED,
+            Invoice.PaymentMethod.CASHEA,
+        ):
             validate_payment_for_total(
                 invoice.payment_method,
                 invoice.payment_splits,
                 invoice.monto_total,
             )
+            invoice.save(update_fields=["monto_total", "multa_ves", "multa_usd", "payment_splits"])
+            return invoice
         invoice.save(update_fields=["monto_total", "multa_ves", "multa_usd"])
         return invoice
 
     if "legacy_total" in edits:
         invoice.monto_total = edits["legacy_total"]
-        if invoice.payment_method == Invoice.PaymentMethod.MIXED:
+        if invoice.payment_method in (
+            Invoice.PaymentMethod.MIXED,
+            Invoice.PaymentMethod.CASHEA,
+        ):
             validate_payment_for_total(
                 invoice.payment_method,
                 invoice.payment_splits,
                 invoice.monto_total,
             )
-        invoice.save(update_fields=["monto_total"])
+            invoice.save(update_fields=["monto_total", "payment_splits"])
+        else:
+            invoice.save(update_fields=["monto_total"])
     return invoice

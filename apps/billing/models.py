@@ -461,6 +461,7 @@ class Invoice(models.Model):
         CASH_USD = "CASH_USD", "Efectivo $"
         DEBIT = "DEBIT", "Débito"
         MOBILE = "MOBILE", "Pago móvil"
+        CASHEA = "CASHEA", "Cashea"
         MIXED = "MIXED", "Mixto"
 
     client = models.ForeignKey(
@@ -631,6 +632,37 @@ class Invoice(models.Model):
         return self.get_payment_method_display()
 
     def get_payment_split_display_items(self):
+        if self.payment_method == self.PaymentMethod.CASHEA:
+            items = []
+            for entry in self.payment_splits or []:
+                if entry.get("type") != "CASHEA":
+                    continue
+                initial = entry.get("initial_ves")
+                financed = entry.get("financed_ves")
+                installments = entry.get("installments")
+                items.append(
+                    {
+                        "label": "Inicial",
+                        "amount_ves": initial,
+                        "display": "Bs {}".format(initial),
+                    }
+                )
+                items.append(
+                    {
+                        "label": "Financiado",
+                        "amount_ves": financed,
+                        "display": "Bs {}".format(financed),
+                    }
+                )
+                items.append(
+                    {
+                        "label": "Cuotas",
+                        "amount_ves": None,
+                        "display": "{} cuotas".format(installments),
+                    }
+                )
+            return items
+
         if self.payment_method != self.PaymentMethod.MIXED:
             return []
         labels = dict(self.PaymentMethod.choices)

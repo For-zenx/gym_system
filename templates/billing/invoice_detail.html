@@ -78,7 +78,7 @@
             <div class="invoice-payment-method-block">
                 <span class="invoice-payment-method-label">Forma de pago (registro interno)</span>
                 <strong class="invoice-payment-method-value">{{ invoice.payment_method_display }}</strong>
-                {% if invoice.payment_method == 'MIXED' %}
+                {% if invoice.payment_method == 'MIXED' or invoice.payment_method == 'CASHEA' %}
                 <ul class="invoice-payment-method-splits">
                     {% for split in invoice.get_payment_split_display_items %}
                     <li>{{ split.label }} · {{ split.display }}</li>

@@ -17,6 +17,7 @@ PAYMENT_ROW_ORDER = (
     (Invoice.PaymentMethod.CASH_VES, "Efectivo Bs", "ves"),
     (Invoice.PaymentMethod.MOBILE, "Pago móvil", "ves"),
     (Invoice.PaymentMethod.DEBIT, "Débito", "ves"),
+    (Invoice.PaymentMethod.CASHEA, "Cashea", "ves"),
     (Invoice.PaymentMethod.CASH_USD, "Efectivo $", "usd"),
 )
 UNKNOWN_PAYMENT_KEY = "unknown"
@@ -93,6 +94,7 @@ def _aggregate_payment_totals(invoices):
         Invoice.PaymentMethod.CASH_VES: {"amount": Decimal("0"), "count": 0},
         Invoice.PaymentMethod.MOBILE: {"amount": Decimal("0"), "count": 0},
         Invoice.PaymentMethod.DEBIT: {"amount": Decimal("0"), "count": 0},
+        Invoice.PaymentMethod.CASHEA: {"amount": Decimal("0"), "count": 0},
         Invoice.PaymentMethod.CASH_USD: {"amount": Decimal("0"), "count": 0},
         UNKNOWN_PAYMENT_KEY: {"amount": Decimal("0"), "count": 0},
     }
