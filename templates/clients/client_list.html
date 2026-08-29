@@ -14,8 +14,22 @@
         <form method="GET" action="{% url 'clients:client_list' %}" class="client-list-search-form">
             {% if list_tipo == 'invitados' %}<input type="hidden" name="tipo" value="invitados">{% endif %}
             <input type="text" name="q" value="{{ search_query }}" placeholder="Buscar por nombre, código{% if list_tipo != 'invitados' %} o cédula{% endif %}..." class="client-list-search-input">
+            {% if list_tipo == 'afiliados' %}
+            <select name="sexo" class="client-list-filter-select" aria-label="Filtrar por sexo">
+                <option value="">Todos los sexos</option>
+                <option value="M" {% if filter_sexo == 'M' %}selected{% endif %}>Masculino</option>
+                <option value="F" {% if filter_sexo == 'F' %}selected{% endif %}>Femenino</option>
+                <option value="_blank" {% if filter_sexo == '_blank' %}selected{% endif %}>Sin especificar</option>
+            </select>
+            <select name="cedula_tipo" class="client-list-filter-select" aria-label="Filtrar por tipo de documento">
+                <option value="">Todos los documentos</option>
+                <option value="V" {% if filter_cedula_tipo == 'V' %}selected{% endif %}>V-</option>
+                <option value="J" {% if filter_cedula_tipo == 'J' %}selected{% endif %}>J-</option>
+                <option value="E" {% if filter_cedula_tipo == 'E' %}selected{% endif %}>E-</option>
+            </select>
+            {% endif %}
             <button type="submit" class="btn btn-primary">Buscar</button>
-            {% if search_query %}
+            {% if has_member_filters %}
             <a href="{% url 'clients:client_list' %}{% if list_tipo == 'invitados' %}?tipo=invitados{% endif %}" class="btn btn-secondary">Limpiar</a>
             {% endif %}
         </form>
@@ -29,7 +43,7 @@
     <div class="client-list-toolbar-secondary">
         {% if can_view_members and can_view_guests %}
         <div class="staff-list-filter-tabs" role="group" aria-label="Tipo de lista">
-            <a href="{% url 'clients:client_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if list_tipo == 'afiliados' %} is-active{% endif %}">Afiliados</a>
+            <a href="{% url 'clients:client_list' %}{% if filter_query %}?{{ filter_query }}{% endif %}" class="staff-list-filter-tab{% if list_tipo == 'afiliados' %} is-active{% endif %}">Afiliados</a>
             <a href="{% url 'clients:client_list' %}?tipo=invitados{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="staff-list-filter-tab{% if list_tipo == 'invitados' %} is-active{% endif %}">Invitados</a>
         </div>
         {% endif %}
@@ -122,8 +136,8 @@
 {% if is_paginated %}
 <div style="display: flex; justify-content: center; margin-top: 2rem; gap: 0.5rem;">
     {% if page_obj.has_previous %}
-        <a href="?page=1{% if list_tipo == 'invitados' %}&tipo=invitados{% endif %}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">&laquo; Primera</a>
-        <a href="?page={{ page_obj.previous_page_number }}{% if list_tipo == 'invitados' %}&tipo=invitados{% endif %}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">Anterior</a>
+        <a href="?page=1{% if filter_query %}&{{ filter_query }}{% endif %}" class="btn btn-secondary">&laquo; Primera</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if filter_query %}&{{ filter_query }}{% endif %}" class="btn btn-secondary">Anterior</a>
     {% endif %}
 
     <span class="btn btn-secondary" style="cursor: default; background-color: var(--border-color);">
@@ -131,8 +145,8 @@
     </span>
 
     {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if list_tipo == 'invitados' %}&tipo=invitados{% endif %}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">Siguiente</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}{% if list_tipo == 'invitados' %}&tipo=invitados{% endif %}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn btn-secondary">Última &raquo;</a>
+        <a href="?page={{ page_obj.next_page_number }}{% if filter_query %}&{{ filter_query }}{% endif %}" class="btn btn-secondary">Siguiente</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if filter_query %}&{{ filter_query }}{% endif %}" class="btn btn-secondary">Última &raquo;</a>
     {% endif %}
 </div>
 {% endif %}

@@ -368,6 +368,63 @@ def build_report_context_for_date(target_date) -> dict:
     }
 
 
+def normalize_date_range(start_date, end_date):
+    if start_date and end_date and start_date > end_date:
+        return end_date, start_date
+    return start_date, end_date
+
+
+def _report_meta_for_date_range(start_date, end_date):
+    gym_name = getattr(settings, "GYM_NAME", "Perfect Line II")
+    start_date, end_date = normalize_date_range(start_date, end_date)
+    if start_date == end_date:
+        period_label = start_date.strftime("%d/%m/%Y")
+    else:
+        period_label = "Rango personalizado"
+    date_range = (
+        f"{start_date.strftime('%d/%m/%Y')} — {end_date.strftime('%d/%m/%Y')}"
+    )
+    return {
+        "gym_name": gym_name,
+        "period_days": (end_date - start_date).days + 1,
+        "period_label": period_label,
+        "date_range": date_range,
+        "generated_at": timezone.localtime().strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+def build_report_context_for_date_range(start_date, end_date) -> dict:
+    start_date, end_date = normalize_date_range(start_date, end_date)
+    start, _ = _date_bounds(start_date)
+    _, end = _date_bounds(end_date)
+    invoices = (
+        Invoice.objects.filter(
+            fecha_emision__gte=start, fecha_emision__lte=end, esta_anulada=False
+        )
+        .prefetch_related("lines")
+        .order_by("-fecha_emision")
+    )
+    totals, invoice_rows = _aggregate_report_totals_and_rows(invoices)
+    new_clients = Client.objects.filter(
+        fecha_ingreso__gte=start_date,
+        fecha_ingreso__lte=end_date,
+    ).count()
+
+    return {
+        **_report_meta_for_date_range(start_date, end_date),
+        "new_clients": new_clients,
+        "totals": {
+            **totals,
+            "total_ves_fmt": _fmt_ves(totals["total_ves"]),
+            "membership_ves_fmt": _fmt_ves(totals["membership_ves"]),
+            "product_ves_fmt": _fmt_ves(totals["product_ves"]),
+            "late_fee_ves_fmt": _fmt_ves(totals["late_fee_ves"]),
+        },
+        "invoice_rows": invoice_rows[:50],
+        "invoice_rows_truncated": len(invoice_rows) > 50,
+    }
+
+
 def _build_email_context(meta: dict, invoices, start_date, end_date) -> dict:
     payment_rows, total_ves, total_usd = _aggregate_payment_totals(invoices)
     new_clients = Client.objects.filter(
@@ -408,6 +465,25 @@ def build_report_email_context_for_date(target_date) -> dict:
     return _build_email_context(_report_meta_for_date(target_date), invoices, target_date, target_date)
 
 
+def build_report_email_context_for_date_range(start_date, end_date) -> dict:
+    start_date, end_date = normalize_date_range(start_date, end_date)
+    start, _ = _date_bounds(start_date)
+    _, end = _date_bounds(end_date)
+    invoices = (
+        Invoice.objects.filter(
+            fecha_emision__gte=start, fecha_emision__lte=end, esta_anulada=False
+        )
+        .prefetch_related("lines")
+        .order_by("-fecha_emision")
+    )
+    return _build_email_context(
+        _report_meta_for_date_range(start_date, end_date),
+        invoices,
+        start_date,
+        end_date,
+    )
+
+
 def is_smtp_configured() -> bool:
     return bool(getattr(settings, "EMAIL_HOST_USER", "") and getattr(settings, "EMAIL_HOST_PASSWORD", ""))
 
@@ -439,12 +515,21 @@ def _send_result(*, success: bool, items: list, daily_send_count_value: int | No
     return payload
 
 
-def send_report_email(*, user, period_days: int | None = None, target_date=None) -> dict:
+def send_report_email(
+    *,
+    user,
+    period_days: int | None = None,
+    target_date=None,
+    fecha_desde=None,
+    fecha_hasta=None,
+) -> dict:
     cfg = ReportEmailSettings.get_settings()
     recipients = cfg.recipient_emails_list
     items: list[dict] = []
 
-    if target_date is not None:
+    if fecha_desde is not None and fecha_hasta is not None:
+        context = build_report_email_context_for_date_range(fecha_desde, fecha_hasta)
+    elif target_date is not None:
         context = build_report_email_context_for_date(target_date)
     else:
         period_days = normalize_period_days(period_days if period_days is not None else 7)

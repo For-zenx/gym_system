@@ -7,15 +7,24 @@
 {% block content %}
 <div class="invoice-page">
 
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-        <div>
-            <form method="GET" action="{% url 'billing:invoice_list' %}" style="display: flex; gap: 0.5rem;">
-                <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nro. factura, nombre, cédula o código..."
-                       style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main); width: 300px;">
-                <button type="submit" class="btn btn-primary">Buscar</button>
-                {% if query %}<a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">Limpiar</a>{% endif %}
-            </form>
-        </div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; gap: 1rem; flex-wrap: wrap;">
+        <form method="GET" action="{% url 'billing:invoice_list' %}" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nro. factura, nombre, cédula o código..."
+                   style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main); width: 280px;">
+            <input type="date" name="fecha" value="{{ filter_fecha }}"
+                   style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main);">
+            <select name="payment_method"
+                    style="padding: 0.625rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-surface); color: var(--text-main);">
+                <option value="">Todas las formas de pago</option>
+                {% for value, label in payment_method_choices %}
+                <option value="{{ value }}" {% if filter_payment_method == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            {% if has_filters %}
+            <a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">Limpiar</a>
+            {% endif %}
+        </form>
         <span style="font-size: 0.85rem; color: var(--text-muted);">{{ paginator.count }} factura{{ paginator.count|pluralize:"s" }} en total</span>
     </div>
 
@@ -58,7 +67,7 @@
                 {% empty %}
                 <tr>
                     <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                        {% if query %}No se encontraron facturas para "{{ query }}"{% else %}No hay facturas registradas aún{% endif %}
+                        {% if has_filters %}No se encontraron facturas con los filtros aplicados.{% else %}No hay facturas registradas aún{% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -69,8 +78,8 @@
     {% if is_paginated %}
     <div class="pagination-wrapper">
         {% if page_obj.has_previous %}
-            <a href="?{% if query %}q={{ query }}&{% endif %}page=1" class="page-btn">« Primera</a>
-            <a href="?{% if query %}q={{ query }}&{% endif %}page={{ page_obj.previous_page_number }}" class="page-btn">‹ Anterior</a>
+            <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page=1" class="page-btn">« Primera</a>
+            <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ page_obj.previous_page_number }}" class="page-btn">‹ Anterior</a>
         {% else %}
             <span class="page-btn disabled">« Primera</span>
             <span class="page-btn disabled">‹ Anterior</span>
@@ -80,13 +89,13 @@
             {% if page_obj.number == num %}
                 <span class="page-btn active">{{ num }}</span>
             {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
-                <a href="?{% if query %}q={{ query }}&{% endif %}page={{ num }}" class="page-btn">{{ num }}</a>
+                <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ num }}" class="page-btn">{{ num }}</a>
             {% endif %}
         {% endfor %}
 
         {% if page_obj.has_next %}
-            <a href="?{% if query %}q={{ query }}&{% endif %}page={{ page_obj.next_page_number }}" class="page-btn">Siguiente ›</a>
-            <a href="?{% if query %}q={{ query }}&{% endif %}page={{ paginator.num_pages }}" class="page-btn">Última »</a>
+            <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ page_obj.next_page_number }}" class="page-btn">Siguiente ›</a>
+            <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ paginator.num_pages }}" class="page-btn">Última »</a>
         {% else %}
             <span class="page-btn disabled">Siguiente ›</span>
             <span class="page-btn disabled">Última »</span>

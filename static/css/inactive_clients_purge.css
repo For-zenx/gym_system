@@ -153,6 +153,15 @@
     box-sizing: border-box;
 }
 
+.client-list-filter-select {
+    padding: 0.625rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-surface);
+    color: var(--text-main);
+    box-sizing: border-box;
+}
+
 .staff-list-filter-tabs {
     display: flex;
     flex-wrap: wrap;

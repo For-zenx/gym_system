@@ -17,6 +17,7 @@
             <option value="" {% if not request.GET.resultado %}selected{% endif %}>Todos los resultados</option>
             <option value="concedido" {% if request.GET.resultado == 'concedido' %}selected{% endif %}>Concedido</option>
             <option value="denegado" {% if request.GET.resultado == 'denegado' %}selected{% endif %}>Denegado</option>
+            <option value="no_reconocido" {% if request.GET.resultado == 'no_reconocido' %}selected{% endif %}>No reconocido</option>
         </select>
 
         <input type="date" name="fecha" value="{{ request.GET.fecha }}"

@@ -69,7 +69,9 @@ class AccessLogListView(PermissionRequiredMixin, ListView):
         if resultado == 'concedido':
             queryset = queryset.filter(resultado=True)
         elif resultado == 'denegado':
-            queryset = queryset.filter(resultado=False)
+            queryset = queryset.filter(resultado=False, client__isnull=False)
+        elif resultado == 'no_reconocido':
+            queryset = queryset.filter(resultado=False, client__isnull=True)
 
         fecha = self.request.GET.get('fecha', '').strip()
         if fecha:

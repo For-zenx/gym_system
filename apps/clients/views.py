@@ -149,15 +149,49 @@ class ClientListView(LoginRequiredMixin, ListView):
                 | Q(codigo_afiliado__icontains=q)
                 | Q(nombre__icontains=q)
             )
+
+        sexo = (self.request.GET.get("sexo") or "").strip().upper()
+        if sexo == "M" or sexo == "F":
+            queryset = queryset.filter(sexo=sexo)
+        elif sexo == "_blank":
+            queryset = queryset.filter(Q(sexo="") | Q(sexo__isnull=True))
+
+        cedula_tipo = (self.request.GET.get("cedula_tipo") or "").strip().upper()
+        if cedula_tipo in ("V", "J", "E"):
+            queryset = queryset.filter(cedula__startswith="{}-".format(cedula_tipo))
+
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         tipo = self._resolve_list_tipo(self.request)
-        context['search_query'] = self.request.GET.get('q', '')
+        query = self.request.GET.get('q', '').strip()
+        sexo = (self.request.GET.get("sexo") or "").strip()
+        cedula_tipo = (self.request.GET.get("cedula_tipo") or "").strip().upper()
+        if cedula_tipo not in ("V", "J", "E"):
+            cedula_tipo = ""
+
+        context['search_query'] = query
+        context['filter_sexo'] = sexo
+        context['filter_cedula_tipo'] = cedula_tipo
         context['list_tipo'] = tipo
         context['can_view_members'] = has_permission(self.request.user, "clients.view_list")
         context['can_view_guests'] = has_permission(self.request.user, "guests.view_list")
+
+        filter_params = {}
+        if tipo == "invitados":
+            filter_params["tipo"] = "invitados"
+        if query:
+            filter_params["q"] = query
+        if tipo == "afiliados":
+            if sexo:
+                filter_params["sexo"] = sexo
+            if cedula_tipo:
+                filter_params["cedula_tipo"] = cedula_tipo
+        context["filter_query"] = urlencode(filter_params)
+        context["has_member_filters"] = bool(
+            query or (tipo == "afiliados" and (sexo or cedula_tipo))
+        )
 
         if tipo == "invitados":
             guest_ids = [g.pk for g in context["clients"]]

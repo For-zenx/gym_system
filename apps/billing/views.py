@@ -653,6 +653,8 @@ class InvoiceListView(PermissionRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
+        from .reporting import _date_bounds
+
         queryset = (
             Invoice.objects.select_related("client", "membership__plan")
             .prefetch_related("lines")
@@ -669,11 +671,40 @@ class InvoiceListView(PermissionRequiredMixin, ListView):
                 Q(client_cedula_snapshot__icontains=q) |
                 Q(client_codigo_snapshot__icontains=q)
             )
+
+        target_date = _parse_target_date(self.request.GET.get("fecha"))
+        if target_date is not None:
+            start, end = _date_bounds(target_date)
+            queryset = queryset.filter(fecha_emision__gte=start, fecha_emision__lte=end)
+
+        payment_method = (self.request.GET.get("payment_method") or "").strip()
+        if payment_method in Invoice.PaymentMethod.values:
+            queryset = queryset.filter(payment_method=payment_method)
+
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['query'] = self.request.GET.get('q', '')
+        query = self.request.GET.get('q', '').strip()
+        fecha_raw = (self.request.GET.get("fecha") or "").strip()
+        payment_method = (self.request.GET.get("payment_method") or "").strip()
+        if payment_method not in Invoice.PaymentMethod.values:
+            payment_method = ""
+
+        context['query'] = query
+        context['filter_fecha'] = fecha_raw
+        context['filter_payment_method'] = payment_method
+        context['payment_method_choices'] = Invoice.PaymentMethod.choices
+
+        filter_params = {}
+        if query:
+            filter_params['q'] = query
+        if fecha_raw:
+            filter_params['fecha'] = fecha_raw
+        if payment_method:
+            filter_params['payment_method'] = payment_method
+        context['filter_query'] = urlencode(filter_params)
+        context['has_filters'] = bool(filter_params)
         return context
 
 
@@ -945,6 +976,7 @@ class SummaryReportView(PermissionRequiredMixin, View):
             REPORT_PERIOD_CHOICES,
             build_report_context,
             build_report_context_for_date,
+            build_report_context_for_date_range,
             can_send_report_today,
             daily_send_count,
             is_smtp_configured,
@@ -953,12 +985,21 @@ class SummaryReportView(PermissionRequiredMixin, View):
         from .models import ReportEmailSettings
 
         period_days = normalize_period_days(request.GET.get("period", 7))
+        fecha_desde = _parse_target_date(request.GET.get("fecha_desde"))
+        fecha_hasta = _parse_target_date(request.GET.get("fecha_hasta"))
         target_date = _parse_target_date(request.GET.get("fecha"))
-        report = (
-            build_report_context_for_date(target_date)
-            if target_date is not None
-            else build_report_context(period_days)
-        )
+        range_requested = "fecha_desde" in request.GET or "fecha_hasta" in request.GET
+
+        if range_requested and fecha_desde and fecha_hasta:
+            report = build_report_context_for_date_range(fecha_desde, fecha_hasta)
+            report_mode = "range"
+        elif target_date is not None:
+            report = build_report_context_for_date(target_date)
+            report_mode = "single"
+        else:
+            report = build_report_context(period_days)
+            report_mode = "period"
+
         cfg = ReportEmailSettings.get_settings()
         can_send, send_block_reason = can_send_report_today()
 
@@ -970,6 +1011,9 @@ class SummaryReportView(PermissionRequiredMixin, View):
                 "period_choices": REPORT_PERIOD_CHOICES,
                 "period_days": period_days,
                 "target_date": target_date,
+                "fecha_desde": fecha_desde,
+                "fecha_hasta": fecha_hasta,
+                "report_mode": report_mode,
                 "recipient_emails": cfg.recipient_emails_list,
                 "recipient_emails_display": cfg.recipient_emails_display,
                 "daily_send_limit": cfg.daily_send_limit,
@@ -1046,8 +1090,22 @@ class ReportSendView(PermissionRequiredMixin, View):
     def post(self, request):
         from .reporting import normalize_period_days, send_report_email
 
+        fecha_desde = _parse_target_date(request.POST.get("fecha_desde"))
+        fecha_hasta = _parse_target_date(request.POST.get("fecha_hasta"))
         target_date = _parse_target_date(request.POST.get("fecha"))
-        if target_date is not None:
+
+        if fecha_desde is not None and fecha_hasta is not None:
+            result = send_report_email(
+                fecha_desde=fecha_desde,
+                fecha_hasta=fecha_hasta,
+                user=request.user,
+            )
+            redirect_url = "{}?fecha_desde={}&fecha_hasta={}".format(
+                reverse("billing:summary_report"),
+                fecha_desde.isoformat(),
+                fecha_hasta.isoformat(),
+            )
+        elif target_date is not None:
             result = send_report_email(target_date=target_date, user=request.user)
             redirect_url = "{}?fecha={}".format(
                 reverse("billing:summary_report"),

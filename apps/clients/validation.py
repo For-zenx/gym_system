@@ -1,8 +1,8 @@
 import re
 from datetime import date, datetime, timedelta
 
-CEDULA_PREFIXES = ('V-', 'J-')
-CEDULA_PATTERN = re.compile(r'^[VJ]-\d{6,10}$')
+CEDULA_PREFIXES = ('V-', 'J-', 'E-')
+CEDULA_PATTERN = re.compile(r'^[VJE]-\d{6,10}$')
 NAME_PATTERN = re.compile(r"^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s'\-]+$")
 PHONE_DIGITS_PATTERN = re.compile(r'^[\d\s+\-]+$')
 VALID_SEX_VALUES = ('', 'M', 'F')
@@ -33,7 +33,7 @@ def split_cedula(stored):
     for prefix in CEDULA_PREFIXES:
         if stored.startswith(prefix):
             return prefix, stored[len(prefix):]
-    if len(stored) >= 2 and stored[0] in ('V', 'J') and stored[1] in '-':
+    if len(stored) >= 2 and stored[0] in ('V', 'J', 'E') and stored[1] in '-':
         prefix = stored[0] + '-'
         return prefix, stored[2:]
     digits = re.sub(r'\D', '', stored)
@@ -42,7 +42,7 @@ def split_cedula(stored):
 
 def build_cedula(prefix, number):
     prefix = (prefix or 'V-').strip().upper()
-    if prefix in ('V', 'J'):
+    if prefix in ('V', 'J', 'E'):
         prefix = prefix + '-'
     if prefix not in CEDULA_PREFIXES:
         prefix = 'V-'
@@ -66,7 +66,7 @@ def validate_client_data(nombre, cedula_prefix, cedula_numero, telefono, fecha_n
 
     cedula = build_cedula(cedula_prefix, cedula_numero)
     if not CEDULA_PATTERN.match(cedula):
-        errors['cedula'] = 'La cédula/RIF debe tener formato V-12345678 o J-401234567 (6 a 10 dígitos).'
+        errors['cedula'] = 'La cédula/RIF debe tener formato V-12345678, J-401234567 o E-12345678 (6 a 10 dígitos).'
     else:
         cleaned['cedula'] = cedula
 
@@ -196,7 +196,7 @@ def validate_guest_data(
     else:
         cedula = build_cedula(cedula_prefix, cedula_numero)
         if not CEDULA_PATTERN.match(cedula):
-            errors['cedula'] = 'La cédula/RIF debe tener formato V-12345678 o J-401234567 (6 a 10 dígitos).'
+            errors['cedula'] = 'La cédula/RIF debe tener formato V-12345678, J-401234567 o E-12345678 (6 a 10 dígitos).'
         else:
             cleaned['cedula'] = cedula
 

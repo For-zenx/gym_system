@@ -379,4 +379,49 @@
         if (target.closest("a, button, input, select, textarea")) return;
         window.location.href = row.getAttribute("data-href");
     });
+
+    var rangeForm = document.getElementById("report-range-form");
+    var fechaDesdeInput = document.getElementById("fecha_desde");
+    var fechaHastaInput = document.getElementById("fecha_hasta");
+
+    function syncReportDateRange(changedField) {
+        if (!fechaDesdeInput || !fechaHastaInput) {
+            return;
+        }
+        var desde = fechaDesdeInput.value;
+        var hasta = fechaHastaInput.value;
+        if (!desde || !hasta) {
+            return;
+        }
+        if (desde > hasta) {
+            if (changedField === "desde") {
+                fechaHastaInput.value = desde;
+            } else {
+                fechaDesdeInput.value = hasta;
+            }
+        }
+    }
+
+    if (fechaDesdeInput) {
+        fechaDesdeInput.addEventListener("change", function () {
+            syncReportDateRange("desde");
+        });
+    }
+    if (fechaHastaInput) {
+        fechaHastaInput.addEventListener("change", function () {
+            syncReportDateRange("hasta");
+        });
+    }
+    if (rangeForm) {
+        rangeForm.addEventListener("submit", function () {
+            syncReportDateRange("desde");
+            if (fechaDesdeInput && fechaHastaInput) {
+                if (fechaDesdeInput.value && !fechaHastaInput.value) {
+                    fechaHastaInput.value = fechaDesdeInput.value;
+                } else if (!fechaDesdeInput.value && fechaHastaInput.value) {
+                    fechaDesdeInput.value = fechaHastaInput.value;
+                }
+            }
+        });
+    }
 })();

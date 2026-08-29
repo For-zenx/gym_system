@@ -5,7 +5,7 @@
 {% block page_title %}Resumen{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1.9">
+<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1.12">
 {% endblock %}
 
 {% block content %}
@@ -17,53 +17,66 @@
     </div>
 
     <div class="card report-email-section">
-        <div class="report-section-header" style="padding: 1rem 1.25rem 0;">
-            <h2>Resumen</h2>
-            <p class="report-muted" style="margin: 0.35rem 0 0;">
-                Vista previa operativa de cobros en Perfect Line.
-            </p>
-        </div>
-
-        <div class="report-toolbar">
-            <form method="get" action="{% url 'billing:summary_report' %}" class="report-period-form">
-                <label for="period">Período</label>
-                <select name="period" id="period" onchange="this.form.submit()">
-                    {% for days in period_choices %}
-                    <option value="{{ days }}" {% if period_days == days and not target_date %}selected{% endif %}>
-                        {% if days == 1 %}Último día{% else %}Últimos {{ days }} días{% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-            </form>
-
-            <form method="get" action="{% url 'billing:summary_report' %}" class="report-period-form">
-                <label for="fecha">Día específico</label>
-                <input type="date" name="fecha" id="fecha" value="{{ target_date|date:'Y-m-d' }}">
-                <button type="submit" class="btn btn-secondary btn-sm">Ver</button>
-            </form>
-
-            <div class="report-toolbar-meta">
-                <p><strong>{{ report.period_label }}</strong> — {{ report.date_range }}</p>
-                <p class="report-muted" id="report-send-count">Envíos hoy: {{ daily_send_count }} / {{ daily_send_limit }}</p>
+        <div class="report-page-header">
+            <div class="report-section-header report-page-intro">
+                <h2>Resumen</h2>
+                <p class="report-muted">Vista previa operativa de cobros en Perfect Line.</p>
             </div>
 
-            {% if 'reports.send' in user_permissions %}
-            <form method="post" action="{{ send_url }}" class="report-send-form" id="report-send-form">
-                {% csrf_token %}
-                <input type="hidden" name="period_days" value="{{ period_days }}">
-                {% if target_date %}
-                <input type="hidden" name="fecha" value="{{ target_date|date:'Y-m-d' }}">
+            <div class="report-page-send">
+                {% if 'reports.send' in user_permissions %}
+                <form method="post" action="{{ send_url }}" class="report-send-form" id="report-send-form">
+                    {% csrf_token %}
+                    {% if report_mode == 'range' and fecha_desde and fecha_hasta %}
+                    <input type="hidden" name="fecha_desde" value="{{ fecha_desde|date:'Y-m-d' }}">
+                    <input type="hidden" name="fecha_hasta" value="{{ fecha_hasta|date:'Y-m-d' }}">
+                    {% elif report_mode == 'single' and target_date %}
+                    <input type="hidden" name="fecha" value="{{ target_date|date:'Y-m-d' }}">
+                    {% else %}
+                    <input type="hidden" name="period_days" value="{{ period_days }}">
+                    {% endif %}
+                    <button
+                        type="submit"
+                        class="btn-f2 btn-nav-subtle report-send-subtle-btn"
+                        id="report-send-btn"
+                        {% if not can_send %}disabled title="{{ send_block_reason }}"{% endif %}
+                    >
+                        Enviar por correo
+                    </button>
+                </form>
                 {% endif %}
-                <button
-                    type="submit"
-                    class="btn-f2 btn-nav-subtle report-send-subtle-btn"
-                    id="report-send-btn"
-                    {% if not can_send %}disabled title="{{ send_block_reason }}"{% endif %}
-                >
-                    Enviar por correo
-                </button>
-            </form>
-            {% endif %}
+                <p class="report-muted report-send-count" id="report-send-count">Envíos hoy: {{ daily_send_count }} / {{ daily_send_limit }}</p>
+            </div>
+        </div>
+
+        <div class="report-toolbar report-toolbar-structured">
+            <section class="report-toolbar-section report-toolbar-section-filters" aria-labelledby="report-filters-heading">
+                <h3 class="report-toolbar-block-title" id="report-filters-heading">Filtros</h3>
+                <div class="report-filter-stack">
+                    <form method="get" action="{% url 'billing:summary_report' %}" class="report-period-form">
+                        <label for="period">Período rápido</label>
+                        <select name="period" id="period" onchange="this.form.submit()">
+                            {% for days in period_choices %}
+                            <option value="{{ days }}" {% if report_mode == 'period' and period_days == days %}selected{% endif %}>
+                                {% if days == 1 %}Último día{% else %}Últimos {{ days }} días{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </form>
+
+                    <form method="get" action="{% url 'billing:summary_report' %}" class="report-range-form" id="report-range-form">
+                        <span class="report-range-field">
+                            <label for="fecha_desde">Desde</label>
+                            <input type="date" name="fecha_desde" id="fecha_desde" value="{{ fecha_desde|date:'Y-m-d' }}">
+                        </span>
+                        <span class="report-range-field">
+                            <label for="fecha_hasta">Hasta</label>
+                            <input type="date" name="fecha_hasta" id="fecha_hasta" value="{{ fecha_hasta|date:'Y-m-d' }}">
+                        </span>
+                        <button type="submit" class="btn btn-secondary btn-sm">Ver</button>
+                    </form>
+                </div>
+            </section>
         </div>
 
         <div class="report-preview-card">
@@ -98,5 +111,5 @@
 
 {% block extra_js %}
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
-<script src="{% static 'js/reports.js' %}?v=1.6"></script>
+<script src="{% static 'js/reports.js' %}?v=1.7"></script>
 {% endblock %}

@@ -17,6 +17,7 @@
                     <select id="edit_cedula_prefix" name="cedula_prefix" aria-label="Tipo de documento">
                         <option value="V-" {% if form_cedula_prefix == 'V-' %}selected{% endif %}>V-</option>
                         <option value="J-" {% if form_cedula_prefix == 'J-' %}selected{% endif %}>J-</option>
+                        <option value="E-" {% if form_cedula_prefix == 'E-' %}selected{% endif %}>E- (extranjero)</option>
                     </select>
                     <input type="text" id="edit_cedula_numero" name="cedula_numero" required inputmode="numeric" placeholder="12345678" value="{{ form_cedula_numero }}">
                 </div>

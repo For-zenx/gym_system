@@ -77,6 +77,17 @@
         }, 300);
     });
 
+    function formatPersonMeta(person) {
+        const parts = [];
+        if (person.cedula) {
+            parts.push('Cédula ' + person.cedula);
+        }
+        if (person.codigo_afiliado) {
+            parts.push('Código ' + person.codigo_afiliado);
+        }
+        return parts.join(' · ') || '—';
+    }
+
     function renderResults(results) {
         resultsContainer.innerHTML = '';
 
@@ -98,7 +109,7 @@
                         : '<span class="search-result-avatar search-result-avatar-placeholder" aria-hidden="true">?</span>'}
                     <div class="info">
                         <strong>${person.nombre}</strong>
-                        <span class="meta">${person.cedula || "—"} · ${person.codigo_afiliado}</span>
+                        <span class="meta">${formatPersonMeta(person)}</span>
                     </div>
                 </div>
                 <span class="category-badge">${person.categoria}</span>
