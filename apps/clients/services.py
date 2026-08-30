@@ -6,8 +6,9 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Exists, Max, OuterRef
+from django.db.models import Exists, Max, OuterRef, Q
 from django.db.models.functions import Coalesce
+from django.urls import reverse
 
 from apps.billing.models import Membership
 
@@ -68,6 +69,43 @@ def get_person_profile_url_name(client):
     if client.person_category == PersonCategory.GUEST:
         return "guests:profile"
     return "staff_persons:profile"
+
+
+def _profile_url_for_client(client):
+    return reverse(
+        get_person_profile_url_name(client),
+        kwargs={"codigo_afiliado": client.codigo_afiliado},
+    )
+
+
+def get_profile_neighbors(client):
+    """Previous/next profile URLs within the same person_category (list order)."""
+    base = Client.objects.filter(person_category=client.person_category)
+
+    next_client = (
+        base.filter(
+            Q(fecha_ingreso__lt=client.fecha_ingreso)
+            | Q(fecha_ingreso=client.fecha_ingreso, pk__lt=client.pk)
+        )
+        .order_by("-fecha_ingreso", "-pk")
+        .first()
+    )
+
+    prev_client = (
+        base.filter(
+            Q(fecha_ingreso__gt=client.fecha_ingreso)
+            | Q(fecha_ingreso=client.fecha_ingreso, pk__gt=client.pk)
+        )
+        .order_by("fecha_ingreso", "pk")
+        .first()
+    )
+
+    return {
+        "profile_prev_url": _profile_url_for_client(prev_client) if prev_client else None,
+        "profile_next_url": _profile_url_for_client(next_client) if next_client else None,
+        "profile_has_prev": prev_client is not None,
+        "profile_has_next": next_client is not None,
+    }
 
 
 def guest_pass_is_valid(guest_pass, on_date=None):

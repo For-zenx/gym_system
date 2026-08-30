@@ -24,6 +24,7 @@ from .services import (
     delete_client,
     get_active_guest_pass,
     get_person_profile_url_name,
+    get_profile_neighbors,
     issue_guest_pass,
     replace_client_front_photo,
     revoke_guest_pass,
@@ -58,6 +59,13 @@ STAFF_LIST_TYPES = {
     "entrenador": PersonCategory.TRAINER,
     "socio": PersonCategory.PARTNER,
 }
+
+
+class ProfileNavigationMixin:
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(get_profile_neighbors(self.object))
+        return context
 
 
 def _edit_permission_for_client(client):
@@ -210,7 +218,7 @@ class ClientListView(LoginRequiredMixin, ListView):
         return context
 
 
-class ClientProfileView(PermissionRequiredMixin, DetailView):
+class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailView):
     required_permission = "clients.view_profile"
     model = Client
     template_name = 'clients/client_profile.html'
@@ -647,7 +655,7 @@ class StaffPersonListView(PermissionRequiredMixin, ListView):
         return context
 
 
-class StaffPersonProfileView(PermissionRequiredMixin, DetailView):
+class StaffPersonProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailView):
     required_permission = "staff_persons.view_profile"
     model = Client
     template_name = "clients/staff_person_profile.html"
@@ -735,7 +743,7 @@ class GuestRegisterRedirectView(LoginRequiredMixin, RedirectView):
         return "{}?tipo=invitado".format(reverse("enrollment"))
 
 
-class GuestProfileView(PermissionRequiredMixin, DetailView):
+class GuestProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailView):
     required_permission = "guests.view_profile"
     model = Client
     template_name = "clients/guest_profile.html"

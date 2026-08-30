@@ -5,11 +5,15 @@
 {% block page_title %}Perfil del Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.0">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.2">
 {% endblock %}
 
 {% block content %}
 <div class="profile-container">
+
+    <div class="profile-page-toolbar">
+        {% include "clients/includes/profile_nav_arrows.html" %}
+    </div>
 
     {% if messages %}
     <div class="messages">

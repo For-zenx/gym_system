@@ -5,12 +5,16 @@
 {% block page_title %}Perfil de invitado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.0">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.2">
 <link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.3">
 {% endblock %}
 
 {% block content %}
 <div class="profile-container">
+
+    <div class="profile-page-toolbar">
+        {% include "clients/includes/profile_nav_arrows.html" %}
+    </div>
 
     {% if messages %}
     <div class="messages">
