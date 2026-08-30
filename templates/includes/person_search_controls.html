@@ -1,0 +1,24 @@
+<div class="search-input-group" data-person-search-root>
+    <select class="quick-search-mode-select" data-person-search-mode aria-label="Tipo de búsqueda">
+        <option value="auto" selected>Automático</option>
+        <option value="code:M">Afiliado (M-)</option>
+        <option value="code:E">Empleado (E-)</option>
+        <option value="code:T">Entrenador (T-)</option>
+        {% if include_guest %}
+        <option value="code:G">Invitado (G-)</option>
+        {% endif %}
+        <option value="code:S">Socio (S-)</option>
+    </select>
+    <div class="search-input-wrapper">
+        <span class="search-code-prefix" data-person-search-prefix hidden aria-hidden="true">M-</span>
+        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text"
+               class="quick-search-input"
+               data-person-search-input
+               placeholder="Buscar por nombre, cédula o código..."
+               autocomplete="off">
+    </div>
+</div>

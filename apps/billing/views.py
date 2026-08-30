@@ -10,6 +10,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from apps.clients.models import Client, PersonCategory
+from apps.clients.search import SEARCH_MODE_AUTO, SEARCH_MODE_CODE, person_search_min_length, search_clients_for_modal
 from apps.clients.services import get_person_profile_url_name
 from django.db.models import Q
 from .models import Plan, Membership, ExchangeRate, Invoice, SaleItem
@@ -1144,19 +1145,18 @@ class GlobalPersonSearchView(PermissionRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         query = request.GET.get("q", "").strip()
-        if len(query) < 2:
+        mode = (request.GET.get("mode") or SEARCH_MODE_AUTO).strip()
+        code_prefix = (request.GET.get("prefix") or "").strip().upper()
+        if mode not in (SEARCH_MODE_AUTO, SEARCH_MODE_CODE):
+            mode = SEARCH_MODE_AUTO
+        if len(query) < person_search_min_length(mode):
             return JsonResponse({"results": []})
 
-        # Filtrar Client por nombre, cedula o codigo_afiliado.
-        # Excluir explícitamente PersonCategory.GUEST.
-        persons = (
-            Client.objects.filter(
-                Q(cedula__icontains=query)
-                | Q(codigo_afiliado__icontains=query)
-                | Q(nombre__icontains=query)
-            )
-            .exclude(person_category=PersonCategory.GUEST)
-            .order_by("nombre")[:8]
+        persons = search_clients_for_modal(
+            query,
+            mode=mode,
+            code_prefix=code_prefix if mode == SEARCH_MODE_CODE else None,
+            exclude_guests=True,
         )
 
         results = []
@@ -1182,16 +1182,18 @@ class PersonProfileSearchView(View):
 
     def get(self, request, *args, **kwargs):
         query = request.GET.get("q", "").strip()
-        if len(query) < 2:
+        mode = (request.GET.get("mode") or SEARCH_MODE_AUTO).strip()
+        code_prefix = (request.GET.get("prefix") or "").strip().upper()
+        if mode not in (SEARCH_MODE_AUTO, SEARCH_MODE_CODE):
+            mode = SEARCH_MODE_AUTO
+        if len(query) < person_search_min_length(mode):
             return JsonResponse({"results": []})
 
-        persons = (
-            Client.objects.filter(
-                Q(cedula__icontains=query)
-                | Q(codigo_afiliado__icontains=query)
-                | Q(nombre__icontains=query)
-            )
-            .order_by("nombre")[:8]
+        persons = search_clients_for_modal(
+            query,
+            mode=mode,
+            code_prefix=code_prefix if mode == SEARCH_MODE_CODE else None,
+            exclude_guests=False,
         )
 
         results = []
