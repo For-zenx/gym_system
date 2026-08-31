@@ -119,6 +119,7 @@ PERMISSION_GROUPS = {
             ("corporate.manage_groups", "Crear, disolver y gestionar grupos"),
             ("corporate.add_members", "Agregar miembros a grupos"),
             ("corporate.remove_members", "Retirar miembros de grupos"),
+            ("corporate.grant_admin_access", "Asignar acceso administrativo corporativo sin cobro"),
         ],
     },
     "statistics": {

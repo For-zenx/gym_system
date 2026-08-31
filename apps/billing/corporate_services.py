@@ -30,6 +30,7 @@ from .models import (
     Plan,
     ExchangeRate,
     ClientBillingEvent,
+    ClientServicePeriod,
 )
 from apps.clients.models import Client
 
@@ -358,6 +359,107 @@ def get_group_for_client(client):
     return _get_active_corporate_group_for_client(client)
 
 
+def collect_group_clients(group):
+    """Suscriptor principal + sub-afiliados activos del grupo."""
+    member_ids = list(
+        group.active_members.values_list("client_id", flat=True)
+    )
+    client_ids = [group.subscriber_id] + member_ids
+    return list(Client.objects.filter(pk__in=client_ids).order_by("nombre", "pk"))
+
+
+@transaction.atomic
+def grant_corporate_admin_access(group, valid_until, user):
+    """Asigna acceso administrativo corporativo sin cobro a todo el grupo.
+
+    - Limpia service periods y todas las membresías de cada miembro activo.
+    - Crea Membership CORPORATE con las mismas fechas para todos.
+    - Sincroniza fixed_plan y fecha_corte_dia en clientes y grupo.
+    - Activa el grupo si estaba suspendido. No crea Invoice.
+    """
+    from datetime import date as date_cls
+
+    from .services import delete_membership_with_audit, log_billing_event
+
+    if group.status == CorporateGroup.Status.DISSOLVED:
+        raise ValidationError("No se puede asignar acceso administrativo a un grupo disuelto.")
+
+    if not group.plan or group.plan.billing_type != Plan.BillingType.CORPORATE:
+        raise ValidationError("El grupo no tiene un plan corporativo válido.")
+
+    if not isinstance(valid_until, date_cls):
+        raise ValidationError("La fecha de vigencia no es válida.")
+
+    today = timezone.localdate()
+    clients = collect_group_clients(group)
+    if not clients:
+        raise ValidationError("El grupo no tiene miembros para asignar acceso.")
+
+    cut_day = max(1, min(valid_until.day, 28))
+    fecha_inicio = valid_until if valid_until < today else today
+    client_pks = [client.pk for client in clients]
+
+    for client in clients:
+        deleted_period_ids = list(
+            client.service_periods.values_list("id", flat=True)
+        )
+        ClientServicePeriod.objects.filter(client=client).delete()
+
+        deleted_membership_ids = []
+        memberships = list(
+            client.memberships.select_related("plan").order_by("fecha_inicio")
+        )
+        for membership in memberships:
+            deleted_membership_ids.append(membership.pk)
+            delete_membership_with_audit(membership, user)
+
+        new_membership = Membership(
+            client=client,
+            plan=group.plan,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=valid_until,
+        )
+        new_membership.full_clean()
+        new_membership.save()
+
+        log_billing_event(
+            client,
+            ClientBillingEvent.EventType.ADMIN_ACCESS_GRANTED,
+            payload={
+                "corporate": True,
+                "group_id": group.pk,
+                "plan_id": group.plan.pk,
+                "plan_name": group.plan.nombre,
+                "fecha_inicio": fecha_inicio.isoformat(),
+                "fecha_fin": valid_until.isoformat(),
+                "membership_id": new_membership.pk,
+                "deleted_membership_ids": deleted_membership_ids,
+                "deleted_service_period_ids": deleted_period_ids,
+                "fecha_corte_dia": cut_day,
+                "member_count": len(clients),
+            },
+            motivo="Acceso administrativo corporativo sin cobro (grupo #{}) por {}".format(
+                group.pk,
+                user.username if user else "sistema",
+            ),
+            user=user,
+        )
+
+    Client.objects.filter(pk__in=client_pks).update(
+        fixed_plan=group.plan,
+        fecha_corte_dia=cut_day,
+    )
+
+    group.fecha_corte_dia = cut_day
+    update_fields = ["fecha_corte_dia", "updated_at"]
+    if group.status == CorporateGroup.Status.SUSPENDED:
+        group.status = CorporateGroup.Status.ACTIVE
+        update_fields.append("status")
+    group.save(update_fields=update_fields)
+
+    return clients
+
+
 def get_hard_reset_preview(client):
     """Preview sin ejecutar: qué membresías fijas perdería al unirse a un grupo."""
     today = timezone.localdate()
@@ -542,14 +644,21 @@ def get_corporate_group_billing_context(group):
         plan=group.plan,
     ).order_by("-fecha_fin").first()
 
-    next_cut = next_cut_on_or_after(today, group.fecha_corte_dia)
-    
-    if last_membership is None:
+    if active_membership:
+        next_cut = next_cut_on_or_after(active_membership.fecha_fin, group.fecha_corte_dia)
+        next_cut_display = next_cut.strftime("%d/%m/%Y")
+        covered_until_display = active_membership.fecha_fin.strftime("%d/%m/%Y")
+        is_active = True
+    elif last_membership is None:
+        next_cut = next_cut_on_or_after(today, group.fecha_corte_dia)
         next_cut_display = "Requiere cobro inicial"
+        covered_until_display = None
         is_active = False
     else:
+        next_cut = next_cut_on_or_after(today, group.fecha_corte_dia)
         next_cut_display = next_cut.strftime("%d/%m/%Y")
-        is_active = active_membership is not None
+        covered_until_display = None
+        is_active = False
 
     return {
         "group": group,
@@ -558,6 +667,7 @@ def get_corporate_group_billing_context(group):
         "fecha_corte_dia": group.fecha_corte_dia,
         "next_cut": next_cut,
         "next_cut_display": next_cut_display,
+        "covered_until_display": covered_until_display,
         "is_active": is_active,
         "total_members": group.total_active_count,
         "plan": group.plan,

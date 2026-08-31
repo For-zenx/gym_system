@@ -24,6 +24,7 @@ from .views import (
     VoidInvoiceView,
     UnbindFixedPlanView,
     GlobalPersonSearchView,
+    CorporateAffiliateSearchView,
     PersonProfileSearchView,
     ReportView,
     ReportSendView,
@@ -37,6 +38,7 @@ from .views import (
     CorporateGroupAddMemberView,
     CorporateGroupRemoveMemberView,
     CorporateGroupDissolveView,
+    CorporateGroupGrantAdminAccessView,
     CorporateGroupPreviewResetView,
 )
 
@@ -45,6 +47,7 @@ app_name = 'billing'
 urlpatterns = [
     path('cobro/<str:codigo_afiliado>/', ChargeCheckoutView.as_view(), name='charge_checkout'),
     path('buscar-persona/', GlobalPersonSearchView.as_view(), name='person_search'),
+    path('buscar-afiliado-corporativo/', CorporateAffiliateSearchView.as_view(), name='corporate_affiliate_search'),
     path('buscar-perfil/', PersonProfileSearchView.as_view(), name='person_profile_search'),
     path('renovar/<str:codigo_afiliado>/', RenewPlanView.as_view(), name='renew_plan'),
     path('preview-cobro/<str:codigo_afiliado>/', PaymentPeriodPreviewView.as_view(), name='payment_preview'),
@@ -82,5 +85,6 @@ urlpatterns = [
     path('corporativo/<int:pk>/', CorporateGroupDetailView.as_view(), name='corporate_group_detail'),
     path('corporativo/<int:pk>/agregar-miembro/', CorporateGroupAddMemberView.as_view(), name='corporate_group_add_member'),
     path('corporativo/<int:pk>/quitar-miembro/', CorporateGroupRemoveMemberView.as_view(), name='corporate_group_remove_member'),
+    path('corporativo/<int:pk>/acceso-administrativo/', CorporateGroupGrantAdminAccessView.as_view(), name='corporate_group_grant_admin_access'),
     path('corporativo/<int:pk>/disolver/', CorporateGroupDissolveView.as_view(), name='corporate_group_dissolve'),
 ]

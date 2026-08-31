@@ -50,5 +50,10 @@ def create_membership(db):
 
 
 @pytest.fixture
+def create_corporate_group(db):
+    return factories.create_corporate_group
+
+
+@pytest.fixture
 def exchange_rate(db):
     return factories.create_exchange_rate()

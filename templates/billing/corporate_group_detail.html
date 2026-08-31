@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Grupo #{{ group.id }} - Perfect Line II{% endblock %}
 {% block page_title %}Grupo Corporativo #{{ group.id }}{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.3">
 <style>
     .group-header-card {
         background: rgba(15,23,42,0.6);
@@ -34,6 +36,8 @@
     .role-badge-owner { background: rgba(16,185,129,0.15); color: var(--primary); border: 1px solid rgba(16,185,129,0.3); font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: 0.3rem; font-weight: 600; }
     .danger-zone { border: 1px solid rgba(239,68,68,0.3); border-radius: 0.75rem; padding: 1.25rem 1.5rem; margin-top: 1.5rem; }
     .danger-zone-title { font-size: 0.8rem; font-weight: 700; color: var(--danger); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.75rem 0; }
+    .member-profile-link { padding: 0.35rem 0.7rem; font-size: 0.8rem; white-space: nowrap; }
+    .member-actions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
 </style>
 {% endblock %}
 
@@ -43,6 +47,9 @@
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
         {% if can_charge and not group.is_dissolved %}
         <a href="{% url 'billing:charge_checkout' group.subscriber.codigo_afiliado %}?origin=profile" class="btn btn-primary">Pagar Grupo</a>
+        {% endif %}
+        {% if can_grant_corporate_admin_access %}
+        <button type="button" class="btn btn-admin-access" onclick="openCorporateAdminAccessModal()">Acceso administrativo corporativo</button>
         {% endif %}
     </div>
 </div>
@@ -91,7 +98,12 @@
         </div>
         {% if billing_context.next_cut %}
         <div style="margin-top:1rem; font-size:0.85rem; color:var(--text-muted);">
+            {% if billing_context.is_active and billing_context.covered_until_display %}
+            Al día hasta <strong style="color:var(--text-main);">{{ billing_context.covered_until_display }}</strong>
+            · Próximo vencimiento: <strong style="color:var(--text-main);">{{ billing_context.next_cut_display }}</strong>
+            {% else %}
             Próximo vencimiento: <strong style="color:var(--text-main);">{{ billing_context.next_cut_display }}</strong>
+            {% endif %}
             {% if billing_context.is_active %}
                 <span class="badge badge-success" style="margin-left:0.5rem;">Al día</span>
             {% elif billing_context.is_initial_charge %}
@@ -123,7 +135,9 @@
                     <th style="width:130px;">Rol</th>
                     <th style="width:110px;">Estado</th>
                     {% if can_remove_members and not group.is_dissolved %}
-                    <th style="text-align:right; width:100px;">Acciones</th>
+                    <th style="text-align:right; width:180px;">Acciones</th>
+                    {% elif 'clients.view_profile' in user_permissions %}
+                    <th style="text-align:right; width:120px;">Acciones</th>
                     {% endif %}
                 </tr>
             </thead>
@@ -136,11 +150,20 @@
                     <td><span class="badge badge-success">Activo</span></td>
                     {% if can_manage_groups and not group.is_dissolved %}
                     <td style="text-align:right;">
-                        <form method="POST" action="{% url 'billing:corporate_group_dissolve' group.id %}"
-                            onsubmit="return confirm('⚠ El suscriptor principal sale del grupo. Esto DISOLVERÁ todo el grupo y cancelará las membresías de todos los miembros. ¿Continuar?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger" style="padding:0.35rem 0.7rem; font-size:0.8rem;">Disolver</button>
-                        </form>
+                        <div class="member-actions">
+                            {% if 'clients.view_profile' in user_permissions %}
+                            <a href="{% url 'clients:profile' group.subscriber.codigo_afiliado %}" class="btn btn-secondary member-profile-link">Ver Perfil</a>
+                            {% endif %}
+                            <form method="POST" action="{% url 'billing:corporate_group_dissolve' group.id %}"
+                                onsubmit="return confirm('⚠ El suscriptor principal sale del grupo. Esto DISOLVERÁ todo el grupo y cancelará las membresías de todos los miembros. ¿Continuar?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger" style="padding:0.35rem 0.7rem; font-size:0.8rem;">Disolver</button>
+                            </form>
+                        </div>
+                    </td>
+                    {% elif 'clients.view_profile' in user_permissions %}
+                    <td style="text-align:right;">
+                        <a href="{% url 'clients:profile' group.subscriber.codigo_afiliado %}" class="btn btn-secondary member-profile-link">Ver Perfil</a>
                     </td>
                     {% endif %}
                 </tr>
@@ -154,12 +177,21 @@
                     <td><span class="badge badge-success">Activo</span></td>
                     {% if can_remove_members and not group.is_dissolved %}
                     <td style="text-align:right;">
-                        <form method="POST" action="{% url 'billing:corporate_group_remove_member' group.id %}"
-                            onsubmit="return confirm('¿Quitar a {{ member.client.nombre }} del grupo?');">
-                            {% csrf_token %}
-                            <input type="hidden" name="client_id" value="{{ member.client.id }}">
-                            <button type="submit" class="btn btn-secondary" style="padding:0.35rem 0.7rem; font-size:0.8rem;">Quitar</button>
-                        </form>
+                        <div class="member-actions">
+                            {% if 'clients.view_profile' in user_permissions %}
+                            <a href="{% url 'clients:profile' member.client.codigo_afiliado %}" class="btn btn-secondary member-profile-link">Ver Perfil</a>
+                            {% endif %}
+                            <form method="POST" action="{% url 'billing:corporate_group_remove_member' group.id %}"
+                                onsubmit="return confirm('¿Quitar a {{ member.client.nombre }} del grupo?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="client_id" value="{{ member.client.id }}">
+                                <button type="submit" class="btn btn-secondary" style="padding:0.35rem 0.7rem; font-size:0.8rem;">Quitar</button>
+                            </form>
+                        </div>
+                    </td>
+                    {% elif 'clients.view_profile' in user_permissions %}
+                    <td style="text-align:right;">
+                        <a href="{% url 'clients:profile' member.client.codigo_afiliado %}" class="btn btn-secondary member-profile-link">Ver Perfil</a>
                     </td>
                     {% endif %}
                 </tr>
@@ -167,7 +199,7 @@
                 {% endfor %}
                 {% if group.total_active_count == 1 %}
                 <tr>
-                    <td colspan="{% if can_remove_members and not group.is_dissolved %}5{% else %}4{% endif %}" style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.9rem;">
+                    <td colspan="{% if can_remove_members and not group.is_dissolved or 'clients.view_profile' in user_permissions %}5{% else %}4{% endif %}" style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.9rem;">
                         Solo el suscriptor. Agrega sub-afiliados abajo.
                     </td>
                 </tr>
@@ -259,19 +291,16 @@
             <input type="hidden" name="confirmed" id="add-confirmed" value="0">
             <input type="hidden" name="codigo_afiliado" id="add-codigo">
             
-            <div class="quick-search-container">
-                <div class="search-input-wrapper">
-                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    <input type="text" id="add-search-input" class="quick-search-input" placeholder="Buscar por nombre, cédula o código..." autocomplete="off">
-                </div>
-                <div id="add-results" class="quick-search-results" hidden></div>
-                <div id="add-search-empty" class="quick-search-empty" hidden>No se encontraron resultados.</div>
+            <div class="quick-search-container" id="add-search-container">
+                {% include "includes/person_search_controls.html" with members_only=True %}
+
+                <div id="add-results" class="quick-search-results" data-person-search-results hidden></div>
+                <div id="add-search-empty" class="quick-search-empty" data-person-search-empty hidden>No se encontraron afiliados.</div>
+                <div id="add-search-loading" class="quick-search-loading" data-person-search-loading hidden>Buscando...</div>
             </div>
 
             <div id="add-preview" style="display:none; margin-top:1rem; padding:0.75rem 1rem; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:0.5rem; align-items:center; gap:0.75rem;">
+                <img id="add-preview-photo" class="search-result-avatar" alt="" hidden>
                 <div style="width:36px; height:36px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.95rem; flex-shrink:0; color:#fff;" id="add-preview-avatar">?</div>
                 <div style="flex-grow:1;">
                     <div id="add-preview-name" style="font-weight:600; font-size:0.95rem;"></div>
@@ -281,7 +310,7 @@
             </div>
 
             <p class="quick-search-help" style="margin-top:0.75rem;">
-                Cupos disponibles: <strong>{{ group.capacity_remaining }}</strong> de {{ group.plan.max_members }}
+                Solo afiliados (M-). Cupos disponibles: <strong>{{ group.capacity_remaining }}</strong> de {{ group.plan.max_members }}
             </p>
 
             <div class="modal-footer">
@@ -308,23 +337,114 @@
         </div>
     </div>
 </div>
+
+{% if can_grant_corporate_admin_access %}
+{% include "billing/includes/corporate_admin_access_modal.html" with group=group corp_admin_access_clients=corp_admin_access_clients today=today %}
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/modal.js' %}?v=1.0"></script>
 <script>
+    {% if can_grant_corporate_admin_access %}
+    function openCorporateAdminAccessModal() {
+        document.getElementById('corporateAdminAccessModal').classList.add('show');
+    }
+
+    function closeCorporateAdminAccessModal() {
+        document.getElementById('corporateAdminAccessModal').classList.remove('show');
+    }
+
+    (function () {
+        var dateInput = document.getElementById('corporate_admin_access_valid_until');
+        var summary = document.getElementById('corporate-admin-access-summary');
+        if (!dateInput || !summary) return;
+        var todayIso = '{{ today|date:"Y-m-d" }}';
+        var todayDisplay = '{{ today|date:"d/m/Y" }}';
+
+        function formatVe(isoDate) {
+            if (!isoDate || isoDate.length < 10) return '—';
+            var parts = isoDate.split('-');
+            return parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+
+        function cutDayFromIso(isoDate) {
+            if (!isoDate || isoDate.length < 10) return null;
+            var day = parseInt(isoDate.split('-')[2], 10);
+            if (isNaN(day)) return null;
+            if (day < 1) return 1;
+            if (day > 28) return 28;
+            return day;
+        }
+
+        function updateSummary() {
+            var untilIso = dateInput.value;
+            var untilDisplay = formatVe(untilIso);
+            var cutDay = cutDayFromIso(untilIso);
+            var startDisplay = (untilIso && untilIso < todayIso) ? untilDisplay : todayDisplay;
+            var cutText = cutDay
+                ? ' La fecha de corte del grupo quedará el día ' + cutDay + ' de cada mes.'
+                : '';
+            summary.textContent = 'Acceso desde ' + startDisplay + ' hasta ' + untilDisplay + ' para todo el grupo.' + cutText;
+        }
+
+        dateInput.addEventListener('change', updateSummary);
+        dateInput.addEventListener('input', updateSummary);
+        updateSummary();
+    })();
+
+    bindDismissibleModalById('corporateAdminAccessModal', { onClose: closeCorporateAdminAccessModal });
+    {% endif %}
+
     window.closeAddMemberModal = function() {
         document.getElementById('add-member-form-modal').classList.remove('show');
-        const addSearchInput = document.getElementById('add-search-input');
-        if(addSearchInput) { addSearchInput.value = ''; addSearchInput.style.display = 'block'; }
+        if (window.addMemberSearchBar) window.addMemberSearchBar.reset();
         const addCodigo = document.getElementById('add-codigo');
         if(addCodigo) addCodigo.value = '';
         const addPreview = document.getElementById('add-preview');
         if(addPreview) addPreview.style.display = 'none';
         const addBtn = document.getElementById('add-member-btn');
         if(addBtn) addBtn.style.display = 'none';
-        const resultsDiv = document.getElementById('add-results');
-        if(resultsDiv) { resultsDiv.innerHTML = ''; resultsDiv.hidden = true; }
+        const searchContainer = document.getElementById('add-search-container');
+        if (searchContainer) searchContainer.style.display = 'block';
     };
+
+    function setAffiliatePreview(person) {
+        const addPreview = document.getElementById('add-preview');
+        const addPreviewName = document.getElementById('add-preview-name');
+        const addPreviewCode = document.getElementById('add-preview-code');
+        const addPreviewAvatar = document.getElementById('add-preview-avatar');
+        const addPreviewPhoto = document.getElementById('add-preview-photo');
+        const searchContainer = document.getElementById('add-search-container');
+
+        addPreviewName.textContent = person.nombre;
+        addPreviewCode.textContent = person.codigo_afiliado + ' · CI: ' + person.cedula;
+        if (person.photo_url) {
+            addPreviewPhoto.src = person.photo_url;
+            addPreviewPhoto.hidden = false;
+            addPreviewAvatar.style.display = 'none';
+        } else {
+            addPreviewPhoto.hidden = true;
+            addPreviewAvatar.style.display = 'flex';
+            addPreviewAvatar.textContent = person.nombre.charAt(0).toUpperCase();
+        }
+        if (searchContainer) searchContainer.style.display = 'none';
+        addPreview.style.display = 'flex';
+    }
+
+    function clearAffiliatePreview() {
+        const addPreview = document.getElementById('add-preview');
+        const addPreviewPhoto = document.getElementById('add-preview-photo');
+        const addPreviewAvatar = document.getElementById('add-preview-avatar');
+        const searchContainer = document.getElementById('add-search-container');
+        if (addPreviewPhoto) {
+            addPreviewPhoto.hidden = true;
+            addPreviewPhoto.removeAttribute('src');
+        }
+        if (addPreviewAvatar) addPreviewAvatar.style.display = 'flex';
+        if (addPreview) addPreview.style.display = 'none';
+        if (searchContainer) searchContainer.style.display = 'block';
+    }
 
     // Wire standard close buttons
     document.querySelectorAll('#add-member-form-modal [data-modal-close]').forEach(function(btn) {
@@ -346,90 +466,40 @@
     const addBtn = document.getElementById('add-member-btn');
     const addForm = document.getElementById('add-member-form');
     const addCodigo = document.getElementById('add-codigo');
-    const addSearchInput = document.getElementById('add-search-input');
-    const addPreview = document.getElementById('add-preview');
-    const addPreviewName = document.getElementById('add-preview-name');
-    const addPreviewCode = document.getElementById('add-preview-code');
-    const addPreviewAvatar = document.getElementById('add-preview-avatar');
     const addClearBtn = document.getElementById('add-clear-btn');
     const addConfirmed = document.getElementById('add-confirmed');
     const addModal = document.getElementById('add-member-modal');
     const addModalBody = document.getElementById('add-modal-body');
     const addConfirmBtn = document.getElementById('add-confirm-btn');
+    const addMemberModal = document.getElementById('add-member-form-modal');
+    const searchRoot = addMemberModal ? addMemberModal.querySelector('[data-person-search-root]') : null;
 
-    if (!addBtn) return;
-    
-    // Add person search logic
-    let searchTimeout = null;
-    const resultsDiv = document.getElementById('add-results');
-    const emptyDiv = document.getElementById('add-search-empty');
-    
-    addSearchInput.addEventListener('input', function () {
-        clearTimeout(searchTimeout);
-        const q = addSearchInput.value.trim();
-        if (q.length < 2) {
-            resultsDiv.innerHTML = '';
-            resultsDiv.hidden = true;
-            if (emptyDiv) emptyDiv.hidden = true;
-            return;
+    if (!addBtn || !searchRoot || typeof window.initPersonSearchBar !== 'function') return;
+
+    window.addMemberSearchBar = initPersonSearchBar({
+        root: searchRoot,
+        searchUrl: '{% url "billing:corporate_affiliate_search" %}',
+        resultsContainer: addMemberModal.querySelector('[data-person-search-results]'),
+        emptyState: addMemberModal.querySelector('[data-person-search-empty]'),
+        loadingState: addMemberModal.querySelector('[data-person-search-loading]'),
+        onResultClick: function (person) {
+            addCodigo.value = person.codigo_afiliado;
+            setAffiliatePreview(person);
+            addBtn.style.display = 'inline-block';
         }
-        
-        searchTimeout = setTimeout(() => {
-            fetch(`{% url 'billing:person_search' %}?q=${encodeURIComponent(q)}`)
-                .then(r => r.json())
-                .then(data => {
-                    resultsDiv.innerHTML = '';
-                    if (!data.results || data.results.length === 0) {
-                        resultsDiv.hidden = true;
-                        if (emptyDiv) emptyDiv.hidden = false;
-                        return;
-                    }
-                    if (emptyDiv) emptyDiv.hidden = true;
-                    data.results.forEach(person => {
-                        const item = document.createElement('button');
-                        item.type = 'button';
-                        item.className = 'quick-search-item';
-                        item.innerHTML = `<div class="info"><strong>${person.nombre}</strong><span class="meta">${person.codigo_afiliado} &middot; ${person.cedula}</span></div>`;
-                        item.addEventListener('click', () => {
-                            addCodigo.value = person.codigo_afiliado;
-                            addSearchInput.value = '';
-                            addSearchInput.closest('.quick-search-container').style.display = 'none';
-                            resultsDiv.innerHTML = '';
-                            resultsDiv.hidden = true;
-                            if (emptyDiv) emptyDiv.hidden = true;
-                            
-                            addPreviewName.textContent = person.nombre;
-                            addPreviewCode.textContent = `${person.codigo_afiliado} · CI: ${person.cedula}`;
-                            addPreviewAvatar.textContent = person.nombre.charAt(0).toUpperCase();
-                            addPreview.style.display = 'flex';
-                            addBtn.style.display = 'inline-block';
-                        });
-                        resultsDiv.appendChild(item);
-                    });
-                    resultsDiv.hidden = false;
-                });
-        }, 300);
     });
 
-    if(addClearBtn) {
+    if (addClearBtn) {
         addClearBtn.addEventListener('click', function() {
             addCodigo.value = '';
-            addPreview.style.display = 'none';
-            const searchContainer = addSearchInput.closest('.quick-search-container');
-            if (searchContainer) searchContainer.style.display = 'block';
-            addSearchInput.value = '';
-            addSearchInput.focus();
+            clearAffiliatePreview();
+            if (window.addMemberSearchBar) {
+                window.addMemberSearchBar.reset();
+                window.addMemberSearchBar.focus();
+            }
             addBtn.style.display = 'none';
         });
     }
-    
-    // Hide results when clicking outside
-    document.addEventListener('click', function(e) {
-        if (e.target !== addSearchInput && !resultsDiv.contains(e.target)) {
-            resultsDiv.hidden = true;
-            resultsDiv.innerHTML = '';
-        }
-    });
 
     addBtn.addEventListener('click', async function () {
         const codigo = addCodigo.value.trim();

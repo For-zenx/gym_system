@@ -2,12 +2,14 @@
     <select class="quick-search-mode-select" data-person-search-mode aria-label="Tipo de búsqueda">
         <option value="auto" selected>Automático</option>
         <option value="code:M">Afiliado (M-)</option>
+        {% if not members_only %}
         <option value="code:E">Empleado (E-)</option>
         <option value="code:T">Entrenador (T-)</option>
         {% if include_guest %}
         <option value="code:G">Invitado (G-)</option>
         {% endif %}
         <option value="code:S">Socio (S-)</option>
+        {% endif %}
     </select>
     <div class="search-input-wrapper">
         <span class="search-code-prefix" data-person-search-prefix hidden aria-hidden="true">M-</span>

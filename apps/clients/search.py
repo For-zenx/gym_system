@@ -45,9 +45,17 @@ def person_search_min_length(mode=SEARCH_MODE_AUTO):
     return 1 if mode == SEARCH_MODE_CODE else 2
 
 
-def search_clients_for_modal(query, mode=SEARCH_MODE_AUTO, code_prefix=None, exclude_guests=False):
+def search_clients_for_modal(
+    query,
+    mode=SEARCH_MODE_AUTO,
+    code_prefix=None,
+    exclude_guests=False,
+    members_only=False,
+):
     queryset = Client.objects.all()
-    if exclude_guests:
+    if members_only:
+        queryset = queryset.filter(person_category=PersonCategory.MEMBER)
+    elif exclude_guests:
         queryset = queryset.exclude(person_category=PersonCategory.GUEST)
         if mode == SEARCH_MODE_CODE and (code_prefix or "").strip().upper() == "G":
             return []

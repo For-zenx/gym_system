@@ -1081,6 +1081,39 @@
     margin-top: 0.2rem;
 }
 
+.billing-field-hint {
+    margin: 0 0 1rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    font-size: 0.85rem;
+}
+
+.corp-admin-affected-list {
+    margin: 0 0 1.25rem;
+    padding: 0;
+    list-style: none;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.corp-admin-affected-list li {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.corp-admin-affected-list li:last-child {
+    border-bottom: none;
+}
+
+.corp-admin-affected-list .role-badge-owner {
+    font-size: 0.68rem;
+    padding: 0.15rem 0.4rem;
+}
+
 /* Profile navigation arrows */
 .profile-page-toolbar {
     display: flex;

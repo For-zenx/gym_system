@@ -1,0 +1,53 @@
+<div class="modal-overlay" id="corporateAdminAccessModal">
+    <div class="modal-content">
+        {% include "includes/modal_header.html" with modal_title="Acceso administrativo corporativo" %}
+        <div class="modal-body">
+            <p class="profile-danger-text" style="margin-top: 0;">
+                Esto eliminará todas las membresías anteriores de <strong>todo el grupo</strong>,
+                reseteará suscripciones vinculadas y <strong>no generará cobro</strong>.
+            </p>
+            {% if corp_admin_access_clients %}
+            <p class="billing-field-hint">
+                Plan: <strong>{{ group.plan.nombre }}</strong> · Grupo #{{ group.pk }}
+            </p>
+            <p class="billing-field-hint">
+                <strong>Personas afectadas ({{ corp_admin_access_clients|length }}):</strong>
+            </p>
+            <ul class="corp-admin-affected-list">
+                {% for member in corp_admin_access_clients %}
+                <li>
+                    {{ member.nombre }} ({{ member.codigo_afiliado }})
+                    {% if member.pk == group.subscriber_id %}<span class="role-badge-owner">Suscriptor</span>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            <form method="POST" action="{% url 'billing:corporate_group_grant_admin_access' group.pk %}" id="corporate-admin-access-form">
+                {% csrf_token %}
+                {% if redirect_next %}
+                <input type="hidden" name="next" value="{{ redirect_next }}">
+                {% endif %}
+                <div class="form-group">
+                    <label for="corporate_admin_access_valid_until">Válido hasta</label>
+                    <input type="date" id="corporate_admin_access_valid_until" name="valid_until" class="form-control" required value="{{ today|date:'Y-m-d' }}">
+                    <p class="billing-field-hint" id="corporate-admin-access-summary" style="margin-top: 0.35rem;">
+                        Acceso desde {{ today|date:"d/m/Y" }} hasta {{ today|date:"d/m/Y" }}.
+                    </p>
+                </div>
+                <label class="profile-danger-ack">
+                    <input type="checkbox" id="corporate_admin_access_ack" name="confirm_corporate_admin_access" value="1" required>
+                    <span>Entiendo que se borrarán membresías anteriores de todo el grupo y no se generará un cobro.</span>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCorporateAdminAccessModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="corporate-admin-access-submit">Asignar acceso al grupo</button>
+                </div>
+            </form>
+            {% else %}
+            <p class="billing-field-hint">No hay miembros activos en el grupo.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeCorporateAdminAccessModal()">Cerrar</button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

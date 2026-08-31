@@ -1,13 +1,15 @@
 from urllib.parse import urlencode
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.views import View
 from apps.users.mixins import PermissionRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 from apps.clients.models import Client, PersonCategory
 from apps.clients.search import SEARCH_MODE_AUTO, SEARCH_MODE_CODE, person_search_min_length, search_clients_for_modal
@@ -1173,6 +1175,53 @@ class GlobalPersonSearchView(PermissionRequiredMixin, View):
         return JsonResponse({"results": results})
 
 
+class CorporateAffiliateSearchView(LoginRequiredMixin, View):
+    """Búsqueda de afiliados (solo M-) para flujos corporativos."""
+
+    permission_denied_message = "No tienes permiso para buscar afiliados corporativos."
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not (
+            has_permission(request.user, "corporate.manage_groups")
+            or has_permission(request.user, "corporate.add_members")
+        ):
+            raise PermissionDenied(self.permission_denied_message)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        query = request.GET.get("q", "").strip()
+        mode = (request.GET.get("mode") or SEARCH_MODE_AUTO).strip()
+        code_prefix = (request.GET.get("prefix") or "").strip().upper()
+        if mode not in (SEARCH_MODE_AUTO, SEARCH_MODE_CODE):
+            mode = SEARCH_MODE_AUTO
+        if mode == SEARCH_MODE_CODE and code_prefix != "M":
+            return JsonResponse({"results": []})
+        if len(query) < person_search_min_length(mode):
+            return JsonResponse({"results": []})
+
+        persons = search_clients_for_modal(
+            query,
+            mode=mode,
+            code_prefix=code_prefix if mode == SEARCH_MODE_CODE else None,
+            members_only=True,
+        )
+
+        results = []
+        for person in persons:
+            results.append({
+                "id": person.pk,
+                "nombre": person.nombre,
+                "cedula": person.cedula or "",
+                "codigo_afiliado": person.codigo_afiliado,
+                "categoria": person.get_person_category_display(),
+                "photo_url": person.foto_frente.url if person.foto_frente else "",
+            })
+
+        return JsonResponse({"results": results})
+
+
 class PersonProfileSearchView(View):
     """Búsqueda de personas (incluye invitados) para navegar a su perfil.
 
@@ -1326,6 +1375,11 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
         can_add_members = has_permission(request.user, "corporate.add_members")
         can_remove_members = has_permission(request.user, "corporate.remove_members")
         can_charge = has_permission(request.user, "billing.charge")
+        can_grant_corporate_admin_access = (
+            has_permission(request.user, "corporate.grant_admin_access")
+            and not group.is_dissolved
+        )
+        from .corporate_services import collect_group_clients
         return render(request, "billing/corporate_group_detail.html", {
             "group": group,
             "members": members,
@@ -1335,6 +1389,9 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
             "can_add_members": can_add_members,
             "can_remove_members": can_remove_members,
             "can_charge": can_charge,
+            "can_grant_corporate_admin_access": can_grant_corporate_admin_access,
+            "corp_admin_access_clients": collect_group_clients(group),
+            "today": timezone.localdate(),
         })
 
 
@@ -1396,6 +1453,53 @@ class CorporateGroupRemoveMemberView(PermissionRequiredMixin, View):
         except ValidationError as e:
             messages.error(request, str(e))
         return redirect("billing:corporate_group_detail", pk=pk)
+
+
+class CorporateGroupGrantAdminAccessView(PermissionRequiredMixin, View):
+    required_permission = "corporate.grant_admin_access"
+
+    def post(self, request, pk):
+        from .models import CorporateGroup
+        from .corporate_services import grant_corporate_admin_access
+
+        group = get_object_or_404(CorporateGroup, pk=pk)
+        detail_url = reverse("billing:corporate_group_detail", kwargs={"pk": pk})
+
+        if request.POST.get("confirm_corporate_admin_access") != "1":
+            messages.error(
+                request,
+                "Debes confirmar que entiendes que se eliminarán membresías anteriores "
+                "en todo el grupo y no se generará cobro.",
+            )
+            return redirect(request.POST.get("next") or detail_url)
+
+        valid_until = parse_date((request.POST.get("valid_until") or "").strip())
+        if not valid_until:
+            messages.error(request, "Indique la fecha de vigencia.")
+            return redirect(request.POST.get("next") or detail_url)
+
+        try:
+            clients = grant_corporate_admin_access(group, valid_until, request.user)
+        except ValidationError as exc:
+            message = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            messages.error(request, message)
+            return redirect(request.POST.get("next") or detail_url)
+
+        messages.success(
+            request,
+            "Acceso administrativo corporativo asignado a {} persona(s) del grupo hasta el {} (sin cobro).".format(
+                len(clients),
+                valid_until.strftime("%d/%m/%Y"),
+            ),
+        )
+
+        next_url = (request.POST.get("next") or "").strip()
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+        ):
+            return redirect(next_url)
+        return redirect(detail_url)
 
 
 class CorporateGroupDissolveView(PermissionRequiredMixin, View):

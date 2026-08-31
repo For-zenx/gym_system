@@ -265,8 +265,11 @@
                 <button type="button" class="btn btn-primary" disabled title="No hay planes disponibles para cobrar">Registrar cobro</button>
                 {% endif %}
                 {% endif %}
-                {% if can_grant_admin_access %}
+                {% if can_grant_admin_access and not corp_group %}
                 <button type="button" class="btn btn-admin-access" onclick="openAdminAccessModal()" {% if not admin_access_fixed_plans %}disabled title="No hay planes fijos activos"{% endif %}>Acceso administrativo</button>
+                {% endif %}
+                {% if can_grant_corporate_admin_access %}
+                <button type="button" class="btn btn-admin-access" onclick="openCorporateAdminAccessModal()">Acceso administrativo corporativo</button>
                 {% endif %}
                 {% if 'billing.change_cut_date' in user_permissions %}
                 <button type="button" class="btn btn-link-muted" onclick="openCutDateModal()">Cambiar fecha de corte</button>
@@ -509,7 +512,7 @@
     </div>
     {% endif %}
 
-    {% if can_grant_admin_access %}
+    {% if can_grant_admin_access and not corp_group %}
     <div class="modal-overlay" id="adminAccessModal">
         <div class="modal-content">
             {% include "includes/modal_header.html" with modal_title="Acceso administrativo" %}
@@ -555,6 +558,10 @@
             {% endif %}
         </div>
     </div>
+    {% endif %}
+
+    {% if can_grant_corporate_admin_access %}
+    {% include "billing/includes/corporate_admin_access_modal.html" with group=corp_group corp_admin_access_clients=corp_admin_access_clients today=today redirect_next=request.path %}
     {% endif %}
 
     <div class="modal-overlay" id="manageMembershipsModal">
@@ -623,7 +630,7 @@
 {% block extra_js %}
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
 <script>
-    {% if can_grant_admin_access %}
+    {% if can_grant_admin_access and not corp_group %}
     function openAdminAccessModal() {
         document.getElementById('adminAccessModal').classList.add('show');
     }
@@ -663,6 +670,54 @@
                 ? ' La fecha de corte quedará el día ' + cutDay + ' de cada mes.'
                 : '';
             summary.textContent = 'Acceso desde ' + startDisplay + ' hasta ' + untilDisplay + '.' + cutText;
+        }
+
+        dateInput.addEventListener('change', updateSummary);
+        dateInput.addEventListener('input', updateSummary);
+        updateSummary();
+    })();
+    {% endif %}
+
+    {% if can_grant_corporate_admin_access %}
+    function openCorporateAdminAccessModal() {
+        document.getElementById('corporateAdminAccessModal').classList.add('show');
+    }
+
+    function closeCorporateAdminAccessModal() {
+        document.getElementById('corporateAdminAccessModal').classList.remove('show');
+    }
+
+    (function () {
+        var dateInput = document.getElementById('corporate_admin_access_valid_until');
+        var summary = document.getElementById('corporate-admin-access-summary');
+        if (!dateInput || !summary) return;
+        var todayIso = '{{ today|date:"Y-m-d" }}';
+        var todayDisplay = '{{ today|date:"d/m/Y" }}';
+
+        function formatVe(isoDate) {
+            if (!isoDate || isoDate.length < 10) return '—';
+            var parts = isoDate.split('-');
+            return parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+
+        function cutDayFromIso(isoDate) {
+            if (!isoDate || isoDate.length < 10) return null;
+            var day = parseInt(isoDate.split('-')[2], 10);
+            if (isNaN(day)) return null;
+            if (day < 1) return 1;
+            if (day > 28) return 28;
+            return day;
+        }
+
+        function updateSummary() {
+            var untilIso = dateInput.value;
+            var untilDisplay = formatVe(untilIso);
+            var cutDay = cutDayFromIso(untilIso);
+            var startDisplay = (untilIso && untilIso < todayIso) ? untilDisplay : todayDisplay;
+            var cutText = cutDay
+                ? ' La fecha de corte del grupo quedará el día ' + cutDay + ' de cada mes.'
+                : '';
+            summary.textContent = 'Acceso desde ' + startDisplay + ' hasta ' + untilDisplay + ' para todo el grupo.' + cutText;
         }
 
         dateInput.addEventListener('change', updateSummary);
@@ -734,8 +789,11 @@
     {% if 'billing.change_cut_date' in user_permissions %}
     bindDismissibleModalById('cutDateModal', { onClose: closeCutDateModal });
     {% endif %}
-    {% if can_grant_admin_access %}
+    {% if can_grant_admin_access and not corp_group %}
     bindDismissibleModalById('adminAccessModal', { onClose: closeAdminAccessModal });
+    {% endif %}
+    {% if can_grant_corporate_admin_access %}
+    bindDismissibleModalById('corporateAdminAccessModal', { onClose: closeCorporateAdminAccessModal });
     {% endif %}
     {% if 'clients.block' in user_permissions and not client.is_blocked %}
     bindDismissibleModalById('blockModal', { onClose: closeBlockModal });

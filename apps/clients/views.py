@@ -287,11 +287,19 @@ class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailV
 
             context["class_registrations"] = get_client_class_registrations(self.object)
         
-        from apps.billing.corporate_services import get_group_for_client
+        from apps.billing.corporate_services import get_group_for_client, collect_group_clients
         corp_group = get_group_for_client(self.object)
         if corp_group:
             context['corp_group'] = corp_group
             context['is_corp_owner'] = corp_group.subscriber_id == self.object.pk
+            context['can_grant_corporate_admin_access'] = (
+                not corp_group.is_dissolved
+                and has_permission(self.request.user, "corporate.grant_admin_access")
+            )
+            if context['can_grant_corporate_admin_access']:
+                context['corp_admin_access_clients'] = collect_group_clients(corp_group)
+        else:
+            context['can_grant_corporate_admin_access'] = False
             
         can_view_phone = has_permission(self.request.user, "clients.view_phone")
         context['today'] = date.today()

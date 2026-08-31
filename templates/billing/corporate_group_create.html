@@ -29,14 +29,12 @@
     .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .form-control { box-sizing: border-box; width: 100%; padding: 0.8rem 1rem; font-size: 0.95rem; font-weight: 500; border-radius: 0.5rem; border: 1px solid var(--border-color); background-color: var(--bg-main); color: var(--text-main); transition: all 0.2s ease; }
     .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
-    .subscriber-preview { padding: 1rem; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); border-radius: 0.5rem; display: none; }
-    .subscriber-preview.visible { display: flex; align-items: center; gap: 0.75rem; }
-    .subscriber-avatar { width: 40px; height: 40px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+    .subscriber-preview { padding: 1rem; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); border-radius: 0.5rem; display: none; align-items: center; gap: 0.75rem; }
+    .subscriber-preview.visible { display: flex; }
+    .subscriber-avatar { width: 40px; height: 40px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; color: #fff; }
+    .subscriber-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
     .info-hint { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.3rem; }
     .plan-card { padding: 0.8rem 1rem; background: rgba(30,41,59,0.4); border: 1px solid var(--border-color); border-radius: 0.5rem; margin-top: 0.5rem; display: none; }
-    /* Modal custom box */
-    .modal-box { background:var(--bg-card,#1e293b); border:1px solid var(--border-color); border-radius:1rem; padding:2rem; max-width:500px; width:90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
-    .modal-title { font-size:1.1rem; font-weight:700; margin:0 0 1rem 0; }
     .reset-item { padding: 0.6rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size:0.9rem; }
     .reset-item:last-child { border-bottom: none; }
 </style>
@@ -59,16 +57,22 @@
 
         <div class="form-group">
             <label for="subscriber-search">Suscriptor Principal</label>
-            <input type="text" id="subscriber-search" class="form-control" placeholder="Buscar por código o nombre..." autocomplete="off">
-            <div class="info-hint">El suscriptor es quien responde por el pago del plan. Sus membresías fijas actuales serán canceladas automáticamente.</div>
-            <div id="subscriber-results" style="position:relative;"></div>
+            <div class="quick-search-container" id="subscriber-search-container">
+                {% include "includes/person_search_controls.html" with members_only=True %}
+
+                <div id="subscriber-results" class="quick-search-results" data-person-search-results hidden></div>
+                <div id="subscriber-empty" class="quick-search-empty" data-person-search-empty hidden>No se encontraron afiliados.</div>
+                <div id="subscriber-loading" class="quick-search-loading" data-person-search-loading hidden>Buscando...</div>
+            </div>
+            <div class="info-hint">Solo afiliados (M-). El suscriptor responde por el pago del plan. Sus membresías fijas actuales serán canceladas automáticamente.</div>
             <div class="subscriber-preview" id="subscriber-preview">
+                <img id="subscriber-photo" class="subscriber-photo" alt="" hidden>
                 <div class="subscriber-avatar" id="subscriber-avatar">?</div>
-                <div>
+                <div style="flex:1;">
                     <div id="subscriber-name" style="font-weight:600;"></div>
                     <div id="subscriber-code" style="font-size:0.82rem; color:var(--text-muted);"></div>
                 </div>
-                <button type="button" id="clear-subscriber" style="margin-left:auto; background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem;">✕</button>
+                <button type="button" id="clear-subscriber" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem;">✕</button>
             </div>
         </div>
 
@@ -90,8 +94,6 @@
             {% endif %}
         </div>
 
-
-
         <div style="display:flex; gap:1rem; justify-content:flex-end; margin-top:1rem;">
             <a href="{% url 'billing:corporate_group_list' %}" class="btn btn-secondary">Cancelar</a>
             <button type="button" id="submit-btn" class="btn btn-primary">Crear Grupo Corporativo</button>
@@ -99,7 +101,6 @@
     </form>
 </div>
 
-<!-- Hard Reset Warning Modal -->
 <div class="modal-overlay" id="reset-modal">
     <div class="modal-content">
         {% include "includes/modal_header.html" with modal_title="Aviso: Membresías activas serán canceladas" %}
@@ -124,13 +125,13 @@
 {% block extra_js %}
 <script>
 (function () {
-    const searchInput = document.getElementById('subscriber-search');
     const subscriberIdInput = document.getElementById('subscriber_id');
     const preview = document.getElementById('subscriber-preview');
+    const photoEl = document.getElementById('subscriber-photo');
     const avatarEl = document.getElementById('subscriber-avatar');
     const nameEl = document.getElementById('subscriber-name');
     const codeEl = document.getElementById('subscriber-code');
-    const resultsDiv = document.getElementById('subscriber-results');
+    const searchContainer = document.getElementById('subscriber-search-container');
     const clearBtn = document.getElementById('clear-subscriber');
     const planSelect = document.getElementById('id_plan_id');
     const planInfo = document.getElementById('plan-info');
@@ -142,66 +143,66 @@
     const confirmBtn = document.getElementById('confirm-btn');
     const resetList = document.getElementById('reset-list');
     const otherGroupWarn = document.getElementById('other-group-warning');
+    const searchRoot = document.querySelector('[data-person-search-root]');
 
-    let searchTimeout = null;
     let selectedClient = null;
 
-    // Plan info display
     planSelect.addEventListener('change', function () {
         const opt = planSelect.options[planSelect.selectedIndex];
         if (opt.value) {
-            planInfoText.textContent = `Capacidad: ${opt.dataset.max} personas · Precio: $${opt.dataset.price}/mes`;
+            planInfoText.textContent = 'Capacidad: ' + opt.dataset.max + ' personas · Precio: $' + opt.dataset.price + '/mes';
             planInfo.style.display = 'block';
         } else {
             planInfo.style.display = 'none';
         }
     });
 
-    // Subscriber search
-    searchInput.addEventListener('input', function () {
-        clearTimeout(searchTimeout);
-        const q = searchInput.value.trim();
-        if (q.length < 2) { resultsDiv.innerHTML = ''; return; }
-        searchTimeout = setTimeout(() => {
-            fetch(`{% url 'billing:person_search' %}?q=${encodeURIComponent(q)}`)
-                .then(r => r.json())
-                .then(data => {
-                    resultsDiv.innerHTML = '';
-                    if (!data.results || data.results.length === 0) return;
-                    const ul = document.createElement('ul');
-                    ul.style.cssText = 'list-style:none; padding:0; margin:0.5rem 0 0 0; background:var(--bg-card,#1e293b); border:1px solid var(--border-color); border-radius:0.5rem; overflow:hidden;';
-                    data.results.forEach(person => {
-                        const li = document.createElement('li');
-                        li.style.cssText = 'padding:0.75rem 1rem; cursor:pointer; border-bottom:1px solid var(--border-color); transition:background 0.15s;';
-                        li.innerHTML = `<strong>${person.nombre}</strong> <span style="color:var(--text-muted); font-size:0.85rem;">${person.codigo_afiliado} · ${person.cedula}</span>`;
-                        li.addEventListener('mouseenter', () => li.style.background = 'rgba(16,185,129,0.08)');
-                        li.addEventListener('mouseleave', () => li.style.background = '');
-                        li.addEventListener('click', () => selectSubscriber(person));
-                        ul.appendChild(li);
-                    });
-                    resultsDiv.appendChild(ul);
-                });
-        }, 300);
-    });
-
     function selectSubscriber(person) {
         selectedClient = person;
         subscriberIdInput.value = person.id;
-        searchInput.value = '';
-        resultsDiv.innerHTML = '';
-        avatarEl.textContent = person.nombre.charAt(0).toUpperCase();
         nameEl.textContent = person.nombre;
-        codeEl.textContent = `${person.codigo_afiliado} · CI: ${person.cedula}`;
+        codeEl.textContent = person.codigo_afiliado + ' · CI: ' + person.cedula;
+        if (person.photo_url) {
+            photoEl.src = person.photo_url;
+            photoEl.hidden = false;
+            avatarEl.style.display = 'none';
+        } else {
+            photoEl.hidden = true;
+            photoEl.removeAttribute('src');
+            avatarEl.style.display = 'flex';
+            avatarEl.textContent = person.nombre.charAt(0).toUpperCase();
+        }
+        if (searchContainer) searchContainer.style.display = 'none';
         preview.classList.add('visible');
     }
 
-    clearBtn.addEventListener('click', function () {
+    function clearSubscriber() {
         selectedClient = null;
         subscriberIdInput.value = '';
         preview.classList.remove('visible');
-    });
+        photoEl.hidden = true;
+        photoEl.removeAttribute('src');
+        avatarEl.style.display = 'flex';
+        if (searchContainer) searchContainer.style.display = 'block';
+        if (window.subscriberSearchBar) {
+            window.subscriberSearchBar.reset();
+            window.subscriberSearchBar.focus();
+        }
+    }
 
-    // Submit logic: check for reset preview
+    if (searchRoot && typeof window.initPersonSearchBar === 'function') {
+        window.subscriberSearchBar = initPersonSearchBar({
+            root: searchRoot,
+            searchUrl: '{% url "billing:corporate_affiliate_search" %}',
+            resultsContainer: document.querySelector('[data-person-search-results]'),
+            emptyState: document.querySelector('[data-person-search-empty]'),
+            loadingState: document.querySelector('[data-person-search-loading]'),
+            onResultClick: selectSubscriber
+        });
+    }
+
+    clearBtn.addEventListener('click', clearSubscriber);
+
     submitBtn.addEventListener('click', async function () {
         if (!subscriberIdInput.value) {
             alert('Seleccione un suscriptor principal.');
@@ -211,32 +212,22 @@
             alert('Seleccione un plan corporativo.');
             return;
         }
-        if (!planSelect.value) {
-            alert('Seleccione un plan corporativo.');
-            return;
-        }
 
-        // Check preview
         const codigo = selectedClient ? selectedClient.codigo_afiliado : '';
         if (!codigo) { form.submit(); return; }
 
         try {
-            const resp = await fetch(`{% url 'billing:corporate_preview_reset' %}?codigo=${encodeURIComponent(codigo)}`);
+            const resp = await fetch('{% url "billing:corporate_preview_reset" %}?codigo=' + encodeURIComponent(codigo));
             const data = await resp.json();
             if ((data.memberships && data.memberships.length > 0) || data.already_in_group) {
-                // Show modal
                 resetList.innerHTML = '';
-                (data.memberships || []).forEach(m => {
+                (data.memberships || []).forEach(function(m) {
                     const div = document.createElement('div');
                     div.className = 'reset-item';
-                    div.innerHTML = `📋 <strong>${m.plan_nombre}</strong> — hasta ${m.fecha_fin}`;
+                    div.innerHTML = '📋 <strong>' + m.plan_nombre + '</strong> — hasta ' + m.fecha_fin;
                     resetList.appendChild(div);
                 });
-                if (data.already_in_group) {
-                    otherGroupWarn.style.display = 'block';
-                } else {
-                    otherGroupWarn.style.display = 'none';
-                }
+                otherGroupWarn.style.display = data.already_in_group ? 'block' : 'none';
                 modal.classList.add('show');
             } else {
                 form.submit();
@@ -255,7 +246,6 @@
     window.closeModal = function () {
         modal.classList.remove('show');
     };
-    // Wire standard close/backdrop behavior
     modal.querySelectorAll('[data-modal-close]').forEach(function(btn) {
         btn.addEventListener('click', window.closeModal);
     });
