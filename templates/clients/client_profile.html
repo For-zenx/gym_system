@@ -259,7 +259,9 @@
 
             <div class="profile-caja-actions">
                 {% if 'billing.charge' in user_permissions %}
-                {% if has_chargeable_plans %}
+                {% if corp_group %}
+                <a href="{% url 'billing:charge_checkout' client.codigo_afiliado %}?origin=profile" class="btn btn-primary">Pagar grupo corporativo</a>
+                {% elif has_chargeable_plans %}
                 <a href="{% url 'billing:charge_checkout' client.codigo_afiliado %}?origin=profile" class="btn btn-primary">Registrar cobro</a>
                 {% else %}
                 <button type="button" class="btn btn-primary" disabled title="No hay planes disponibles para cobrar">Registrar cobro</button>

@@ -45,7 +45,7 @@ from django.conf import settings as django_settings
 from apps.billing.fiscal.hardware import execute_fiscal_report
 
 
-def _charge_form_context(client, planes):
+def _charge_form_context(client, planes, corp_group=None):
     import json
 
     from .services import (
@@ -55,13 +55,18 @@ def _charge_form_context(client, planes):
 
     ctx = get_client_billing_context(client)
     chargeable = get_chargeable_plans(client, planes)
-    default_cut_day = client.fecha_corte_dia or timezone.localdate().day
+    if corp_group and corp_group.plan_id:
+        default_cut_day = corp_group.fecha_corte_dia or client.fecha_corte_dia or timezone.localdate().day
+    else:
+        default_cut_day = client.fecha_corte_dia or timezone.localdate().day
     plan_previews = {}
     for plan in chargeable:
+        cut_override = default_cut_day if plan.is_fixed or plan.is_corporate else None
         preview = preview_membership_period(
             client,
             plan,
-            cut_day_override=default_cut_day if plan.is_fixed else None,
+            cut_day_override=cut_override,
+            corp_group=corp_group,
         )
         plan_previews[str(plan.id)] = {
             "inicio": preview["fecha_inicio"].strftime("%d/%m/%Y"),
@@ -254,18 +259,18 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
             )
         origin = _normalize_checkout_origin(request.GET.get("origin", "profile"))
         next_url = _get_safe_next_url(request, request.GET.get("next", ""))
-        from apps.billing.corporate_services import get_group_for_client
-        corp_group = get_group_for_client(client)
-        is_sub_affiliate = bool(corp_group and corp_group.subscriber_id != client.pk)
+        from apps.billing.corporate_services import get_corporate_checkout_context
 
-        # Si tiene un plan corporativo asignado, pero no es dueño de ningún grupo (o es sub-afiliado),
-        # limpiamos esa referencia porque es un dato residual (dangling) o no le corresponde pagarlo.
-        if client.fixed_plan and client.fixed_plan.billing_type == Plan.BillingType.CORPORATE:
-            if not corp_group or is_sub_affiliate:
-                client.fixed_plan = None
-                Client.objects.filter(pk=client.pk).update(fixed_plan=None, fecha_corte_dia=None)
-        
-        if client.can_purchase_membership and not is_sub_affiliate:
+        corp_checkout = get_corporate_checkout_context(client)
+        corp_group = corp_checkout["corp_group"]
+        is_sub_affiliate = bool(corp_group and corp_group.subscriber_id != client.pk)
+        is_corp_owner = bool(corp_group and corp_group.subscriber_id == client.pk)
+        is_corp_member = bool(corp_group and corp_checkout["can_pay_corporate"])
+        is_corporate_checkout = is_corp_member
+
+        if is_corp_member and corp_group.plan.is_active:
+            planes = Plan.objects.filter(pk=corp_group.plan_id, is_active=True)
+        elif client.can_purchase_membership and not is_sub_affiliate:
             if client.fixed_plan_id:
                 if client.fixed_plan and client.fixed_plan.is_active:
                     planes = Plan.objects.filter(pk=client.fixed_plan_id, is_active=True)
@@ -277,11 +282,8 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
                 planes = Plan.objects.filter(is_active=True).exclude(billing_type=Plan.BillingType.CORPORATE)
         else:
             planes = Plan.objects.none()
-            
-        products_only = not client.can_purchase_membership or is_sub_affiliate
 
-        is_corp_owner = bool(corp_group and corp_group.subscriber_id == client.pk)
-        is_corp_member = bool(corp_group)
+        products_only = not client.can_purchase_membership and not is_corp_member
 
         context = {
             "client": client,
@@ -292,6 +294,7 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
             "products_only_checkout": products_only,
             "is_corp_owner": is_corp_owner,
             "is_corp_member": is_corp_member,
+            "is_corporate_checkout": is_corporate_checkout,
             "checkout_return_url": _checkout_return_path(client, origin, next_url),
             "page_heading": "Cobro inicial" if origin == "enrollment" else "Registrar cobro",
             "submit_label": "Cobrar e imprimir" if origin == "enrollment" else "Confirmar cobro",
@@ -301,7 +304,7 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
             "is_sub_affiliate": is_sub_affiliate,
         }
         context.update(_checkout_back_context(client, origin, next_url))
-        context.update(_charge_form_context(client, planes))
+        context.update(_charge_form_context(client, planes, corp_group=corp_group))
 
         from apps.clients.validation import client_form_context
         from apps.billing.services import get_profile_subscription_summary
@@ -413,7 +416,15 @@ class PaymentPeriodPreviewView(PermissionRequiredMixin, View):
         else:
             if cut_day is None:
                 cut_day = client.fecha_corte_dia or timezone.localdate().day
-            preview = preview_membership_period(client, plan, cut_day_override=cut_day, cut_current_period_only=cut_current_period_only)
+            from apps.billing.corporate_services import get_group_for_client
+            corp_group = get_group_for_client(client) if plan.is_corporate else None
+            preview = preview_membership_period(
+                client,
+                plan,
+                cut_day_override=cut_day,
+                cut_current_period_only=cut_current_period_only,
+                corp_group=corp_group,
+            )
 
         payload = {
             "inicio": preview["fecha_inicio"].strftime("%d/%m/%Y"),

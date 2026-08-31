@@ -24,6 +24,14 @@
     {% endfor %}
     {% endif %}
 
+    {% if is_corporate_checkout and corp_group %}
+    <div class="alert alert-info" style="margin-bottom: 1rem; padding: 1rem; background: rgba(59,130,246,0.1); border-left: 4px solid #3b82f6; color: var(--text-main); border-radius: 6px; font-size: 0.92rem;">
+        Cobro del plan grupal <strong>{{ corp_group.plan.nombre }}</strong> para
+        <strong>{{ corp_group.total_active_count }}</strong> persona{{ corp_group.total_active_count|pluralize }}.
+        Renueva el acceso de todo el grupo. La factura quedará a nombre de <strong>{{ client.nombre }}</strong>.
+    </div>
+    {% endif %}
+
     {% if can_checkout %}
     <div class="charge-checkout-stack">
         <div class="charge-checkout-client-card">

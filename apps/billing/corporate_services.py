@@ -17,7 +17,6 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .cycle import (
-    billing_period_start,
     next_cut_on_or_after,
     subscription_period_bounds,
 )
@@ -368,6 +367,118 @@ def collect_group_clients(group):
     return list(Client.objects.filter(pk__in=client_ids).order_by("nombre", "pk"))
 
 
+def is_corporate_group_member(client, group):
+    """True si el cliente es suscriptor o sub-afiliado activo del grupo."""
+    if group is None or group.is_dissolved:
+        return False
+    if group.subscriber_id == client.pk:
+        return True
+    return group.active_members.filter(client_id=client.pk).exists()
+
+
+def get_corporate_checkout_context(client):
+    """Contexto de cobro corporativo para un afiliado."""
+    corp_group = get_group_for_client(client)
+    if not corp_group or corp_group.is_dissolved:
+        return {
+            "corp_group": None,
+            "plan": None,
+            "can_pay_corporate": False,
+        }
+    return {
+        "corp_group": corp_group,
+        "plan": corp_group.plan,
+        "can_pay_corporate": is_corporate_group_member(client, corp_group),
+    }
+
+
+def apply_corporate_group_payment(
+    group,
+    payer,
+    payment_cut_day,
+    acting_user=None,
+    payment_cut_motivo="",
+):
+    """Crea membresías corporativas para todos los miembros activos del grupo.
+
+    Retorna dict con payer_membership, plan, fechas y conteo para facturación.
+    """
+    from .services import apply_cut_day_from_payment
+
+    if not isinstance(payment_cut_day, int) or payment_cut_day < 1 or payment_cut_day > 31:
+        raise ValidationError("El día de corte debe ser un número entre 1 y 31.")
+
+    if group.status == CorporateGroup.Status.DISSOLVED:
+        raise ValidationError("No se puede cobrar un grupo disuelto.")
+
+    if not is_corporate_group_member(payer, group):
+        raise ValidationError("Solo un miembro activo del grupo puede pagar este plan corporativo.")
+
+    hoy = timezone.localdate()
+    latest = (
+        group.subscriber.memberships.filter(plan=group.plan)
+        .order_by("-fecha_fin")
+        .first()
+    )
+    if latest and latest.fecha_fin >= hoy:
+        period_start = next_cut_on_or_after(latest.fecha_fin, payment_cut_day)
+    else:
+        period_start = hoy
+    fecha_inicio, fecha_fin = subscription_period_bounds(payment_cut_day, period_start)
+
+    group.fecha_corte_dia = payment_cut_day
+    group.save(update_fields=["fecha_corte_dia", "updated_at"])
+
+    apply_cut_day_from_payment(
+        group.subscriber, payment_cut_day, acting_user, motivo=payment_cut_motivo
+    )
+
+    active_member_ids = list(
+        group.active_members.values_list("client_id", flat=True)
+    )
+    all_client_ids = [group.subscriber_id] + active_member_ids
+    all_clients = list(Client.objects.filter(pk__in=all_client_ids))
+
+    plan = group.plan
+    payer_membership = None
+    for member_client in all_clients:
+        membership = Membership(
+            client=member_client,
+            plan=plan,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+        )
+        membership.full_clean()
+        membership.save()
+        Client.objects.filter(pk=member_client.pk).update(
+            fixed_plan=plan,
+            fecha_corte_dia=payment_cut_day,
+        )
+        if member_client.pk == payer.pk:
+            payer_membership = membership
+
+    if payer_membership is None:
+        payer_membership = Membership.objects.filter(
+            client=payer,
+            plan=plan,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+        ).first()
+
+    if group.status == CorporateGroup.Status.SUSPENDED:
+        group.status = CorporateGroup.Status.ACTIVE
+        group.save(update_fields=["status", "updated_at"])
+
+    return {
+        "group": group,
+        "plan": plan,
+        "payer_membership": payer_membership,
+        "fecha_inicio": fecha_inicio,
+        "fecha_fin": fecha_fin,
+        "member_count": len(all_clients),
+    }
+
+
 @transaction.atomic
 def grant_corporate_admin_access(group, valid_until, user):
     """Asigna acceso administrativo corporativo sin cobro a todo el grupo.
@@ -511,77 +622,35 @@ def register_corporate_checkout(
 
     ``payer`` puede ser cualquier miembro del grupo (suscriptor o sub-afiliado).
     """
-    from .services import (
-        validate_payment_for_total,
-        apply_cut_day_from_payment,
-    )
+    from .services import validate_payment_for_total
 
     tasa = ExchangeRate.get_latest()
     if not tasa:
         raise ValidationError("No hay una tasa de cambio registrada en el sistema.")
 
-    if not isinstance(payment_cut_day, int) or payment_cut_day < 1 or payment_cut_day > 31:
-        raise ValidationError("El día de corte debe ser un número entre 1 y 31.")
-
-    if group.status == CorporateGroup.Status.DISSOLVED:
-        raise ValidationError("No se puede cobrar un grupo disuelto.")
-
-    hoy = timezone.localdate()
-
-    # Calcular período usando la lógica de billing_period_start igual que un plan fijo
-    period_start = billing_period_start(payment_cut_day, hoy)
-    fecha_inicio, fecha_fin = subscription_period_bounds(payment_cut_day, period_start)
-
-    # Actualizar fecha de corte del grupo
-    old_cut = group.fecha_corte_dia
-    group.fecha_corte_dia = payment_cut_day
-    group.save(update_fields=["fecha_corte_dia", "updated_at"])
-
-    # Actualizar fecha de corte del suscriptor (como referencia)
-    apply_cut_day_from_payment(
-        group.subscriber, payment_cut_day, acting_user, motivo=payment_cut_motivo
+    payment_result = apply_corporate_group_payment(
+        group,
+        payer,
+        payment_cut_day,
+        acting_user=acting_user,
+        payment_cut_motivo=payment_cut_motivo,
     )
+    plan = payment_result["plan"]
+    payer_membership = payment_result["payer_membership"]
+    fecha_inicio = payment_result["fecha_inicio"]
+    fecha_fin = payment_result["fecha_fin"]
+    member_count = payment_result["member_count"]
 
-    # Colectar todos los clientes a los que hay que crear membresía
-    active_member_ids = list(
-        group.active_members.values_list("client_id", flat=True)
-    )
-    all_client_ids = [group.subscriber_id] + active_member_ids
-    all_clients = list(Client.objects.filter(pk__in=all_client_ids))
-
-    # Precio total = precio del plan (precio grupal, no por persona)
-    plan = group.plan
     monto_total_ves = plan.precio_usd * tasa.tasa_ves
     payment_splits = payment_splits or []
     validate_payment_for_total(payment_method, payment_splits, monto_total_ves)
 
-    # Crear membresías para todos los miembros activos
-    memberships = []
-    for client in all_clients:
-        membership = Membership(
-            client=client,
-            plan=plan,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-        )
-        membership.full_clean()
-        membership.save()
-        memberships.append(membership)
-
-        # Actualizar fixed_plan del cliente para reflejar el plan corporativo
-        Client.objects.filter(pk=client.pk).update(fixed_plan=plan, fecha_corte_dia=payment_cut_day)
-        client.fixed_plan = plan
-        client.fecha_corte_dia = payment_cut_day
-
-    # Emisión de la factura a nombre del pagador
-    subscriber_membership = memberships[0] if memberships else None
-
     invoice = Invoice(
         client=payer,
-        membership=subscriber_membership,
+        membership=payer_membership,
         corporate_group=group,
         plan_snapshot="{} (Corporativo, {} personas)".format(
-            plan.nombre, len(all_clients)
+            plan.nombre, member_count
         ),
         monto_total=monto_total_ves,
         payment_method=payment_method,
@@ -597,11 +666,10 @@ def register_corporate_checkout(
     )
     invoice.save(update_fields=["nro_control"])
 
-    # Línea de factura de membresía corporativa
     desc = "Cuota Corporativa {} — {} persona{} ({} al {})".format(
         plan.nombre,
-        len(all_clients),
-        "s" if len(all_clients) != 1 else "",
+        member_count,
+        "s" if member_count != 1 else "",
         fecha_inicio.strftime("%d/%m/%Y"),
         fecha_fin.strftime("%d/%m/%Y"),
     )
@@ -612,42 +680,35 @@ def register_corporate_checkout(
         quantity=1,
         unit_price_usd=plan.precio_usd,
         amount_ves=monto_total_ves,
-        membership=subscriber_membership,
+        membership=payer_membership,
     )
-
-    # Activar el grupo si estaba suspendido
-    if group.status == CorporateGroup.Status.SUSPENDED:
-        group.status = CorporateGroup.Status.ACTIVE
-        group.save(update_fields=["status", "updated_at"])
 
     return invoice
 
 
 def get_corporate_group_billing_context(group):
     """Contexto de facturación análogo a get_client_billing_context pero para grupos."""
-    from .cycle import (
-        is_subscription_suspended,
-        next_cut_on_or_after,
-        unpaid_fixed_periods,
-    )
+    from .cycle import next_cut_on_or_after
 
     today = timezone.localdate()
 
-    # Membresía activa del suscriptor principal del plan corporativo
+    # Membresía que cubre hoy (puede ser solo el periodo actual, sin prepago).
     active_membership = group.subscriber.memberships.filter(
         plan=group.plan,
         fecha_inicio__lte=today,
         fecha_fin__gte=today,
-    ).first()
+    ).order_by("-fecha_fin").first()
 
+    # Cobertura total: el prepago puede dejar membresías futuras más allá de hoy.
     last_membership = group.subscriber.memberships.filter(
         plan=group.plan,
     ).order_by("-fecha_fin").first()
 
-    if active_membership:
-        next_cut = next_cut_on_or_after(active_membership.fecha_fin, group.fecha_corte_dia)
+    if last_membership and last_membership.fecha_fin >= today:
+        covered_until = last_membership.fecha_fin
+        next_cut = next_cut_on_or_after(covered_until, group.fecha_corte_dia)
         next_cut_display = next_cut.strftime("%d/%m/%Y")
-        covered_until_display = active_membership.fecha_fin.strftime("%d/%m/%Y")
+        covered_until_display = covered_until.strftime("%d/%m/%Y")
         is_active = True
     elif last_membership is None:
         next_cut = next_cut_on_or_after(today, group.fecha_corte_dia)

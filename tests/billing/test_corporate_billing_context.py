@@ -6,6 +6,7 @@ from apps.billing.corporate_services import (
     get_corporate_group_billing_context,
     register_corporate_checkout,
 )
+from apps.billing.cycle import next_cut_on_or_after
 from apps.billing.models import CorporateGroup, Membership, Plan
 from tests import factories
 
@@ -30,6 +31,49 @@ def test_corporate_billing_context__next_cut_uses_paid_period_end(create_corpora
     assert ctx["covered_until_display"] == "30/09/2026"
     assert ctx["next_cut_display"] == "30/09/2026"
     assert ctx["active_membership"].pk == membership.pk
+
+
+@pytest.mark.django_db
+def test_corporate_billing_context__prepaid_uses_furthest_coverage(create_corporate_group):
+    from django.utils import timezone
+
+    group = create_corporate_group()
+    group.fecha_corte_dia = 31
+    group.save(update_fields=["fecha_corte_dia"])
+
+    today = timezone.localdate()
+    period1_end = today + datetime.timedelta(days=30)
+    period2_end = period1_end + datetime.timedelta(days=31)
+    period3_end = period2_end + datetime.timedelta(days=30)
+
+    Membership.objects.create(
+        client=group.subscriber,
+        plan=group.plan,
+        fecha_inicio=today,
+        fecha_fin=period1_end,
+    )
+    Membership.objects.create(
+        client=group.subscriber,
+        plan=group.plan,
+        fecha_inicio=period1_end,
+        fecha_fin=period2_end,
+    )
+    Membership.objects.create(
+        client=group.subscriber,
+        plan=group.plan,
+        fecha_inicio=period2_end,
+        fecha_fin=period3_end,
+    )
+
+    ctx = get_corporate_group_billing_context(group)
+
+    assert ctx["is_active"] is True
+    assert ctx["covered_until_display"] == period3_end.strftime("%d/%m/%Y")
+    assert ctx["next_cut_display"] == next_cut_on_or_after(
+        period3_end, group.fecha_corte_dia
+    ).strftime("%d/%m/%Y")
+    assert ctx["active_membership"].fecha_fin == period1_end
+    assert ctx["last_membership"].fecha_fin == period3_end
 
 
 @pytest.mark.django_db

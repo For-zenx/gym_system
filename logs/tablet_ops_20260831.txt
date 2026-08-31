@@ -1,0 +1,8 @@
+timestamp	event	role	reason	detail
+2026-08-31 11:27:16	disconnect	dashboard	ws_close	close_code=1001
+2026-08-31 11:27:16	connect	dashboard	ws_accept	—
+2026-08-31 11:27:43	connect	dashboard	ws_accept	—
+2026-08-31 11:27:52	connect	dashboard	ws_accept	—
+2026-08-31 11:28:02	connect	dashboard	ws_accept	—
+2026-08-31 11:28:04	connect	dashboard	ws_accept	—
+2026-08-31 11:28:06	connect	dashboard	ws_accept	—

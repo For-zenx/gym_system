@@ -264,9 +264,17 @@ class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailV
             or context['locker_rentals']
         )
         context['all_memberships'] = self.object.memberships.select_related('plan').order_by('-fecha_inicio')
-        context['has_chargeable_plans'] = bool(
-            get_chargeable_plans(self.object, active_plans)
-        )
+
+        from apps.billing.corporate_services import get_corporate_checkout_context
+
+        corp_checkout = get_corporate_checkout_context(self.object)
+        chargeable_plans = list(get_chargeable_plans(self.object, active_plans))
+        corp_plan = corp_checkout.get("plan")
+        if corp_checkout["can_pay_corporate"] and corp_plan and corp_plan.is_active:
+            if not any(plan.pk == corp_plan.pk for plan in chargeable_plans):
+                chargeable_plans.append(corp_plan)
+        context['has_chargeable_plans'] = bool(chargeable_plans)
+        context['can_pay_corporate_group'] = corp_checkout["can_pay_corporate"]
         context['admin_access_fixed_plans'] = Plan.objects.filter(
             is_active=True,
             billing_type=Plan.BillingType.FIXED,

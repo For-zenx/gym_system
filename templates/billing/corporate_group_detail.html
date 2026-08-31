@@ -38,13 +38,16 @@
     .danger-zone-title { font-size: 0.8rem; font-weight: 700; color: var(--danger); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.75rem 0; }
     .member-profile-link { padding: 0.35rem 0.7rem; font-size: 0.8rem; white-space: nowrap; }
     .member-actions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
+    .group-toolbar { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem; }
+    .group-toolbar-actions { display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; }
+    .group-pay-hint { font-size:0.82rem; color:var(--text-muted); margin:0 0 1rem 0; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+<div class="group-toolbar">
     <a href="{% url 'billing:corporate_group_list' %}" class="btn btn-secondary">&larr; Volver a grupos</a>
-    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+    <div class="group-toolbar-actions">
         {% if can_charge and not group.is_dissolved %}
         <a href="{% url 'billing:charge_checkout' group.subscriber.codigo_afiliado %}?origin=profile" class="btn btn-primary">Pagar Grupo</a>
         {% endif %}
@@ -53,6 +56,9 @@
         {% endif %}
     </div>
 </div>
+{% if can_charge and not group.is_dissolved %}
+<p class="group-pay-hint">Cualquier miembro del grupo puede pagar desde su perfil o buscando su código en caja.</p>
+{% endif %}
 
 {% if messages %}
 {% for message in messages %}
