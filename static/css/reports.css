@@ -311,6 +311,84 @@
 
 .report-table {
     margin-top: 0.75rem;
+    width: 100%;
+    table-layout: fixed;
+    font-size: 0.9375rem;
+}
+
+.report-table th,
+.report-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+    padding: 0.7rem 0.85rem;
+}
+
+.report-table thead th {
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+}
+
+.report-table td[colspan] {
+    white-space: normal;
+}
+
+.report-table .report-col-date {
+    width: 8rem;
+}
+
+.report-table .report-col-control {
+    width: 10.5rem;
+    padding-right: 1.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.report-table .report-col-code {
+    width: 6.5rem;
+    padding-left: 1rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.report-table thead .report-col-code {
+    color: var(--text-muted);
+}
+
+.report-table .report-col-client {
+    width: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.report-table .report-col-status {
+    width: 5.75rem;
+}
+
+.report-table .report-col-status .badge {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+}
+
+.report-table .report-col-total {
+    width: 6.25rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.report-table tfoot .report-table-total td {
+    border-top: 2px solid var(--border-color);
+    font-weight: 700;
+    color: var(--text-main);
+    font-size: 0.95rem;
+    padding-top: 0.8rem;
+}
+
+.report-table tfoot .report-table-total td:last-child {
+    color: var(--primary);
+    font-size: 1rem;
 }
 
 .report-table tbody tr.report-table-row-link {
@@ -321,21 +399,8 @@
     color: var(--primary);
 }
 
-.report-table tbody tr.report-table-row-link:hover td:first-child {
+.report-table tbody tr.report-table-row-link:hover td.report-col-client {
     text-decoration: underline;
-}
-
-.report-table tfoot .report-table-total td {
-    border-top: 2px solid var(--border-color);
-    padding-top: 0.85rem;
-    font-weight: 700;
-    font-size: 1rem;
-    color: var(--text-main);
-}
-
-.report-table tfoot .report-table-total td:last-child {
-    color: var(--primary);
-    font-size: 1.1rem;
 }
 
 /* Modal de envío */
@@ -573,4 +638,29 @@
 .btn-sm {
     padding: 0.4rem 0.85rem;
     font-size: 0.875rem;
+}
+
+/* TASK-144: anuladas en listados + descuadre fiscal */
+.report-row-voided td {
+    color: var(--text-muted);
+    opacity: 0.72;
+}
+
+.report-table tbody tr.report-row-voided.report-table-row-link:hover td {
+    color: var(--text-muted);
+    opacity: 0.9;
+}
+
+.report-amount-voided {
+    text-decoration: line-through;
+}
+
+.report-section-mismatch {
+    margin-top: 0.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px dashed var(--border-color);
+}
+
+.report-section-mismatch h3 {
+    margin: 0 0 0.35rem;
 }

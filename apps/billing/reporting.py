@@ -58,6 +58,15 @@ def _fmt_ves(amount) -> str:
     return "Bs " + text.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _fmt_ves_compact(amount) -> str:
+    """Monto sin prefijo Bs (la columna ya indica Total Bs)."""
+    if amount is None:
+        return "0,00"
+    value = Decimal(amount)
+    text = f"{value:,.2f}"
+    return text.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def _fmt_usd(amount) -> str:
     if amount is None:
         return "$ 0,00"
@@ -230,17 +239,39 @@ def _report_meta(period_days: int, start_date, end_date):
     }
 
 
-def _period_invoices(period_days: int):
+def _period_invoices(period_days: int, *, include_voided: bool = False):
     period_days = normalize_period_days(period_days)
     start, end, start_date, end_date = get_period_bounds(period_days)
+    filters = {
+        "fecha_emision__gte": start,
+        "fecha_emision__lte": end,
+    }
+    if not include_voided:
+        filters["esta_anulada"] = False
     invoices = (
-        Invoice.objects.filter(
-            fecha_emision__gte=start, fecha_emision__lte=end, esta_anulada=False
-        )
+        Invoice.objects.filter(**filters)
         .prefetch_related("lines")
-        .order_by("-fecha_emision")
+        .order_by("-fecha_emision", "-id")
     )
     return period_days, start_date, end_date, invoices
+
+
+def _invoice_status_fields(invoice: Invoice) -> dict:
+    if invoice.esta_anulada:
+        status = "voided"
+        status_label = "Anulada"
+    elif invoice.esta_impresa:
+        status = "printed"
+        status_label = "Impresa"
+    else:
+        status = "pending"
+        status_label = "Pendiente"
+    return {
+        "status": status,
+        "status_label": status_label,
+        "is_voided": bool(invoice.esta_anulada),
+        "is_printed": bool(invoice.esta_impresa),
+    }
 
 
 def _aggregate_report_totals_and_rows(invoices):
@@ -257,18 +288,24 @@ def _aggregate_report_totals_and_rows(invoices):
     invoice_rows = []
 
     for inv in invoices:
-        totals["invoice_count"] += 1
-        totals["total_ves"] += inv.monto_total
+        status_fields = _invoice_status_fields(inv)
         invoice_rows.append(
             {
                 "pk": inv.pk,
                 "number": inv.nro_control,
-                "date": timezone.localtime(inv.fecha_emision).strftime("%d/%m/%Y %H:%M"),
+                "date": timezone.localtime(inv.fecha_emision).strftime("%d/%m/%y %H:%M"),
                 "client": _invoice_client_label(inv),
                 "client_code": inv.receptor_codigo,
-                "total_ves": _fmt_ves(inv.monto_total),
+                "total_ves": _fmt_ves_compact(inv.monto_total),
+                **status_fields,
             }
         )
+
+        if inv.esta_anulada:
+            continue
+
+        totals["invoice_count"] += 1
+        totals["total_ves"] += inv.monto_total
 
         if inv.has_detail_lines():
             for line in inv.lines.all():
@@ -299,8 +336,28 @@ def _aggregate_report_totals_and_rows(invoices):
     return totals, invoice_rows
 
 
+def _finalize_report_context(meta, new_clients, totals, invoice_rows, **extra):
+    return {
+        **meta,
+        "new_clients": new_clients,
+        "totals": {
+            **totals,
+            "total_ves_fmt": _fmt_ves(totals["total_ves"]),
+            "total_ves_compact": _fmt_ves_compact(totals["total_ves"]),
+            "membership_ves_fmt": _fmt_ves(totals["membership_ves"]),
+            "product_ves_fmt": _fmt_ves(totals["product_ves"]),
+            "late_fee_ves_fmt": _fmt_ves(totals["late_fee_ves"]),
+        },
+        "invoice_rows": invoice_rows[:50],
+        "invoice_rows_truncated": len(invoice_rows) > 50,
+        **extra,
+    }
+
+
 def build_report_context(period_days: int) -> dict:
-    period_days, start_date, end_date, invoices = _period_invoices(period_days)
+    period_days, start_date, end_date, invoices = _period_invoices(
+        period_days, include_voided=True
+    )
     totals, invoice_rows = _aggregate_report_totals_and_rows(invoices)
 
     new_clients = Client.objects.filter(
@@ -308,19 +365,13 @@ def build_report_context(period_days: int) -> dict:
         fecha_ingreso__lte=end_date,
     ).count()
 
-    return {
-        **_report_meta(period_days, start_date, end_date),
-        "new_clients": new_clients,
-        "totals": {
-            **totals,
-            "total_ves_fmt": _fmt_ves(totals["total_ves"]),
-            "membership_ves_fmt": _fmt_ves(totals["membership_ves"]),
-            "product_ves_fmt": _fmt_ves(totals["product_ves"]),
-            "late_fee_ves_fmt": _fmt_ves(totals["late_fee_ves"]),
-        },
-        "invoice_rows": invoice_rows[:50],
-        "invoice_rows_truncated": len(invoice_rows) > 50,
-    }
+    return _finalize_report_context(
+        _report_meta(period_days, start_date, end_date),
+        new_clients,
+        totals,
+        invoice_rows,
+        report_kind="summary",
+    )
 
 
 def _date_bounds(target_date):
@@ -342,30 +393,53 @@ def _report_meta_for_date(target_date):
 
 
 def build_report_context_for_date(target_date) -> dict:
+    """Resumen / referencia interna de un día (incluye anuladas en lista, no en totales)."""
     start, end = _date_bounds(target_date)
     invoices = (
-        Invoice.objects.filter(
-            fecha_emision__gte=start, fecha_emision__lte=end, esta_anulada=False
-        )
+        Invoice.objects.filter(fecha_emision__gte=start, fecha_emision__lte=end)
         .prefetch_related("lines")
-        .order_by("-fecha_emision")
+        .order_by("-fecha_emision", "-id")
     )
     totals, invoice_rows = _aggregate_report_totals_and_rows(invoices)
     new_clients = Client.objects.filter(fecha_ingreso=target_date).count()
 
-    return {
-        **_report_meta_for_date(target_date),
-        "new_clients": new_clients,
-        "totals": {
-            **totals,
-            "total_ves_fmt": _fmt_ves(totals["total_ves"]),
-            "membership_ves_fmt": _fmt_ves(totals["membership_ves"]),
-            "product_ves_fmt": _fmt_ves(totals["product_ves"]),
-            "late_fee_ves_fmt": _fmt_ves(totals["late_fee_ves"]),
-        },
-        "invoice_rows": invoice_rows[:50],
-        "invoice_rows_truncated": len(invoice_rows) > 50,
-    }
+    return _finalize_report_context(
+        _report_meta_for_date(target_date),
+        new_clients,
+        totals,
+        invoice_rows,
+        report_kind="summary",
+    )
+
+
+def build_fiscal_report_context_for_date(target_date) -> dict:
+    """Cierre fiscal: totales = impresas vigentes; bloque aparte = impresas luego anuladas."""
+    start, end = _date_bounds(target_date)
+    day_qs = Invoice.objects.filter(
+        fecha_emision__gte=start, fecha_emision__lte=end
+    ).prefetch_related("lines")
+
+    printed_active = day_qs.filter(esta_impresa=True, esta_anulada=False).order_by(
+        "-fecha_emision", "-id"
+    )
+    printed_voided = day_qs.filter(esta_impresa=True, esta_anulada=True).order_by(
+        "-fecha_emision", "-id"
+    )
+
+    totals, invoice_rows = _aggregate_report_totals_and_rows(printed_active)
+    _, voided_printed_rows = _aggregate_report_totals_and_rows(printed_voided)
+    new_clients = Client.objects.filter(fecha_ingreso=target_date).count()
+
+    return _finalize_report_context(
+        _report_meta_for_date(target_date),
+        new_clients,
+        totals,
+        invoice_rows,
+        report_kind="fiscal",
+        voided_printed_rows=voided_printed_rows[:50],
+        voided_printed_count=len(voided_printed_rows),
+        voided_printed_truncated=len(voided_printed_rows) > 50,
+    )
 
 
 def normalize_date_range(start_date, end_date):
@@ -398,11 +472,9 @@ def build_report_context_for_date_range(start_date, end_date) -> dict:
     start, _ = _date_bounds(start_date)
     _, end = _date_bounds(end_date)
     invoices = (
-        Invoice.objects.filter(
-            fecha_emision__gte=start, fecha_emision__lte=end, esta_anulada=False
-        )
+        Invoice.objects.filter(fecha_emision__gte=start, fecha_emision__lte=end)
         .prefetch_related("lines")
-        .order_by("-fecha_emision")
+        .order_by("-fecha_emision", "-id")
     )
     totals, invoice_rows = _aggregate_report_totals_and_rows(invoices)
     new_clients = Client.objects.filter(
@@ -410,19 +482,13 @@ def build_report_context_for_date_range(start_date, end_date) -> dict:
         fecha_ingreso__lte=end_date,
     ).count()
 
-    return {
-        **_report_meta_for_date_range(start_date, end_date),
-        "new_clients": new_clients,
-        "totals": {
-            **totals,
-            "total_ves_fmt": _fmt_ves(totals["total_ves"]),
-            "membership_ves_fmt": _fmt_ves(totals["membership_ves"]),
-            "product_ves_fmt": _fmt_ves(totals["product_ves"]),
-            "late_fee_ves_fmt": _fmt_ves(totals["late_fee_ves"]),
-        },
-        "invoice_rows": invoice_rows[:50],
-        "invoice_rows_truncated": len(invoice_rows) > 50,
-    }
+    return _finalize_report_context(
+        _report_meta_for_date_range(start_date, end_date),
+        new_clients,
+        totals,
+        invoice_rows,
+        report_kind="summary",
+    )
 
 
 def _build_email_context(meta: dict, invoices, start_date, end_date) -> dict:

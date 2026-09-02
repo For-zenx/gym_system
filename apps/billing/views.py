@@ -956,14 +956,14 @@ class FiscalReportView(PermissionRequiredMixin, View):
     required_permission = "reports.view"
 
     def get(self, request):
-        from .reporting import build_report_context_for_date, can_send_report_today, daily_send_count, is_smtp_configured
+        from .reporting import build_fiscal_report_context_for_date, can_send_report_today, daily_send_count, is_smtp_configured
         from .models import ReportEmailSettings
 
         target_date = _parse_target_date(request.GET.get("fecha")) or timezone.localdate()
         can_print_x = has_permission(request.user, "reports.print_x")
         can_print_z = has_permission(request.user, "reports.print_z")
         show_fiscal_reports = can_print_x or can_print_z
-        report = build_report_context_for_date(target_date)
+        report = build_fiscal_report_context_for_date(target_date)
         cfg = ReportEmailSettings.get_settings()
         can_send, send_block_reason = can_send_report_today()
 

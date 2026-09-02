@@ -1,6 +1,6 @@
 <section class="report-section">
     <header class="report-section-header">
-        <h2>Resumen contable</h2>
+        <h2>{% if report.report_kind == 'fiscal' %}Referencia fiscal (impresas){% else %}Resumen contable{% endif %}</h2>
         <p class="report-muted">{{ report.date_range }} · Generado {{ report.generated_at }}</p>
     </header>
 
@@ -28,44 +28,91 @@
 </section>
 
 <section class="report-section">
-    <h3>Facturas del período</h3>
+    <h3>{% if report.report_kind == 'fiscal' %}Facturas impresas{% else %}Facturas del período{% endif %}</h3>
     {% if report.invoice_rows_truncated %}
-    <p class="report-muted">Mostrando las 50 más recientes. El total incluye todas las facturas del período.</p>
+    <p class="report-muted">Mostrando las 50 más recientes.</p>
     {% endif %}
     <div class="table-container">
         <table class="data-table report-table">
             <thead>
                 <tr>
-                    <th>Fecha</th>
-                    <th>Nro. control</th>
-                    <th>COD.</th>
-                    <th>Afiliado</th>
-                    <th style="text-align: right;">Total</th>
+                    <th class="report-col-date">Fecha</th>
+                    <th class="report-col-control">Control</th>
+                    <th class="report-col-code">COD.</th>
+                    <th class="report-col-client">Afiliado</th>
+                    <th class="report-col-status">Estado</th>
+                    <th class="report-col-total">Total Bs</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in report.invoice_rows %}
-                <tr{% if 'billing.view_invoice_detail' in user_permissions %} class="report-table-row-link" data-href="{% url 'billing:invoice_detail' pk=row.pk %}"{% endif %}>
-                    <td>{{ row.date }}</td>
-                    <td style="font-family: monospace;">{{ row.number }}</td>
-                    <td style="font-family: monospace;">{{ row.client_code }}</td>
-                    <td>{{ row.client }}</td>
-                    <td style="text-align: right;">{{ row.total_ves }}</td>
+                <tr class="{% if row.is_voided %}report-row-voided{% endif %}{% if 'billing.view_invoice_detail' in user_permissions %} report-table-row-link{% endif %}"{% if 'billing.view_invoice_detail' in user_permissions %} data-href="{% url 'billing:invoice_detail' pk=row.pk %}"{% endif %}>
+                    <td class="report-col-date">{{ row.date }}</td>
+                    <td class="report-col-control">{{ row.number }}</td>
+                    <td class="report-col-code">{{ row.client_code }}</td>
+                    <td class="report-col-client" title="{{ row.client }}">{{ row.client }}</td>
+                    <td class="report-col-status">
+                        {% if row.status == 'voided' %}
+                        <span class="badge badge-danger">{{ row.status_label }}</span>
+                        {% elif row.status == 'printed' %}
+                        <span class="badge badge-print">{{ row.status_label }}</span>
+                        {% else %}
+                        <span class="badge badge-success">{{ row.status_label }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="report-col-total{% if row.is_voided %} report-amount-voided{% endif %}">{{ row.total_ves }}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="report-muted" style="text-align: center; padding: 1.5rem;">
+                    <td colspan="6" class="report-muted" style="text-align: center; padding: 1.5rem;">
+                        {% if report.report_kind == 'fiscal' %}
+                        No hay facturas impresas vigentes en esta fecha.
+                        {% else %}
                         No hay facturas en este período.
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
                 <tr class="report-table-total">
-                    <td colspan="4">Total generado</td>
-                    <td style="text-align: right;">{{ report.totals.total_ves_fmt }}</td>
+                    <td colspan="5">{% if report.report_kind == 'fiscal' %}Total vigentes{% else %}Total{% endif %}</td>
+                    <td class="report-col-total">{{ report.totals.total_ves_compact }}</td>
                 </tr>
             </tfoot>
         </table>
     </div>
 </section>
+
+{% if report.report_kind == 'fiscal' and report.voided_printed_count %}
+<section class="report-section report-section-mismatch">
+    <h3>Impresas luego anuladas</h3>
+    <p class="report-muted">No suman al total. Pueden figurar en el Z de la máquina fiscal.</p>
+    <div class="table-container">
+        <table class="data-table report-table">
+            <thead>
+                <tr>
+                    <th class="report-col-date">Fecha</th>
+                    <th class="report-col-control">Control</th>
+                    <th class="report-col-code">COD.</th>
+                    <th class="report-col-client">Afiliado</th>
+                    <th class="report-col-status">Estado</th>
+                    <th class="report-col-total">Total Bs</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in report.voided_printed_rows %}
+                <tr class="report-row-voided{% if 'billing.view_invoice_detail' in user_permissions %} report-table-row-link{% endif %}"{% if 'billing.view_invoice_detail' in user_permissions %} data-href="{% url 'billing:invoice_detail' pk=row.pk %}"{% endif %}>
+                    <td class="report-col-date">{{ row.date }}</td>
+                    <td class="report-col-control">{{ row.number }}</td>
+                    <td class="report-col-code">{{ row.client_code }}</td>
+                    <td class="report-col-client" title="{{ row.client }}">{{ row.client }}</td>
+                    <td class="report-col-status"><span class="badge badge-danger">{{ row.status_label }}</span></td>
+                    <td class="report-col-total report-amount-voided">{{ row.total_ves }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
