@@ -5,7 +5,7 @@
 {% block page_title %}Enrolamiento{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.16">
+<link rel="stylesheet" href="{% static 'css/enrollment.css' %}?v=3.17">
 {% endblock %}
 
 {% block content %}
@@ -184,6 +184,21 @@
             </div>
             </div>
 
+            <div id="enrollment-fixed-plan-fields" class="enrollment-fixed-plan-fields"{% if person_category != 'MEMBER' %} hidden{% endif %}>
+                <div class="form-group">
+                    <label for="fixed_plan_id">Plan fijo (opcional)</label>
+                    <select id="fixed_plan_id" name="fixed_plan_id"{% if person_category != 'MEMBER' %} disabled{% endif %}>
+                        <option value="" {% if not form_fixed_plan_id %}selected{% endif %}>Sin plan (asignar en cobro)</option>
+                        {% for plan in fixed_plans %}
+                        <option value="{{ plan.id }}" {% if form_fixed_plan_id == plan.id|stringformat:"s" %}selected{% endif %}>
+                            {{ plan.nombre }} ({{ plan.duracion_display }}) — ${{ plan.precio_usd|stringformat:".2f" }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="enrollment-field-hint">Puedes vincular un plan ahora o dejarlo para el cobro. No genera cobro ni fecha de corte.</p>
+                </div>
+            </div>
+
             <div id="enrollment-guest-fields" class="enrollment-guest-fields" hidden>
                 {% include "includes/guest_pass_validity_fields.html" %}
 
@@ -253,6 +268,8 @@
     const enrollmentSuccessText = document.getElementById('enrollment-success-text');
     const standardFieldsEl = document.getElementById('enrollment-standard-fields');
     const standardExtraFieldsEl = document.getElementById('enrollment-standard-extra-fields');
+    const fixedPlanFieldsEl = document.getElementById('enrollment-fixed-plan-fields');
+    const fixedPlanSelect = document.getElementById('fixed_plan_id');
     const guestFieldsEl = document.getElementById('enrollment-guest-fields');
     const validFromInput = document.getElementById('valid_from');
     const validUntilInput = document.getElementById('valid_until');
@@ -376,6 +393,13 @@
         }
         setEnrollmentSection(standardFieldsEl, !isGuest);
         setEnrollmentSection(standardExtraFieldsEl, !isGuest);
+        setEnrollmentSection(fixedPlanFieldsEl, isMember);
+        if (fixedPlanSelect) {
+            fixedPlanSelect.disabled = !isMember;
+            if (!isMember) {
+                fixedPlanSelect.value = '';
+            }
+        }
         setEnrollmentSection(guestFieldsEl, isGuest);
         setGuestFieldEnabled(isGuest);
         if (cedulaWarningEl) {

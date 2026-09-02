@@ -251,7 +251,7 @@
             fetchPeriodPreview(select.value, billingType);
 
             const showSuspended = isFixed && billingContext.fixed_status === 'SUSPENDED';
-            const showFlexibleWarn = billingType === 'FLEXIBLE' && billingContext.warnings_on_flexible_purchase;
+            const showFlexibleWarn = billingType === 'FLEXIBLE';
 
             if (alertSuspended) {
                 const hasContent = showSuspended && billingContext.unpaid_period_count > 0;

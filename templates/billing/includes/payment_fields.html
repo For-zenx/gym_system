@@ -1,7 +1,7 @@
 <div class="form-group">
     <div class="billing-cut-day-header">
         <label for="plan_id">Seleccione el Plan</label>
-        {% if client.fixed_plan_id and client.fixed_plan.is_active and planes|length == 1 and not is_corp_member %}
+        {% if client.fixed_plan_id and client.fixed_plan.is_active and not is_corp_member %}
         <button type="button" class="btn-link-muted billing-cut-day-edit-btn" id="btnUnbindPlan" data-plan-name="{{ client.fixed_plan.nombre }} ({{ client.fixed_plan.duracion_display }})" style="color: var(--color-danger, #dc3545);">Cambiar plan</button>
         {% endif %}
     </div>
@@ -49,7 +49,7 @@
 </div>
 <div id="payment-alert-suspended" class="billing-alert billing-alert-warning" style="display: none;"></div>
 <div id="payment-alert-flexible" class="billing-alert billing-alert-info" style="display: none;">
-    Suscripción fija suspendida: el pase flexible otorgará acceso temporal.
+    El pase flexible no modifica el plan fijo ni la fecha de corte; otorga acceso por su duración.
 </div>
 
 <div id="payment-late-fee-section" class="billing-late-fee" style="display: none;">

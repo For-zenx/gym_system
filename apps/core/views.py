@@ -34,6 +34,7 @@ from apps.access.enrollment_photo_quality import (
 )
 from apps.users.decorators import permission_required
 from apps.users.permissions import has_permission
+from apps.billing.models import Plan
 
 
 STAFF_ENROLLMENT_CATEGORIES = (
@@ -102,6 +103,10 @@ def _enrollment_page_context(request, post_data=None, person_category=None):
     context["can_set_custom_pass_expiry"] = has_permission(
         request.user, "guests.set_custom_pass_expiry"
     )
+    context["fixed_plans"] = Plan.objects.filter(
+        is_active=True,
+        billing_type=Plan.BillingType.FIXED,
+    ).order_by("nombre")
     today = date.today()
     context["default_valid_from"] = today.isoformat()
     context["default_valid_until"] = (today + timedelta(days=1)).isoformat()
@@ -111,8 +116,10 @@ def _enrollment_page_context(request, post_data=None, person_category=None):
         if post_data.get("valid_until"):
             context["default_valid_until"] = post_data.get("valid_until")
         context["form_notes"] = post_data.get("notes", "")
+        context["form_fixed_plan_id"] = (post_data.get("fixed_plan_id") or "").strip()
     else:
         context["form_notes"] = ""
+        context["form_fixed_plan_id"] = ""
     return context
 
 
@@ -398,6 +405,33 @@ def enrollment(request):
                 client_kwargs["terms_accepted_at"] = timezone.now()
             client = Client(**client_kwargs)
             client.save()
+
+            if person_category == PersonCategory.MEMBER:
+                raw_plan_id = (request.POST.get("fixed_plan_id") or "").strip()
+                if raw_plan_id:
+                    try:
+                        plan_pk = int(raw_plan_id)
+                    except (TypeError, ValueError):
+                        client.delete()
+                        return _enrollment_error_response(
+                            request,
+                            "El plan seleccionado no es válido.",
+                            post_data=request.POST,
+                        )
+                    plan = Plan.objects.filter(
+                        pk=plan_pk,
+                        is_active=True,
+                        billing_type=Plan.BillingType.FIXED,
+                    ).first()
+                    if plan is None:
+                        client.delete()
+                        return _enrollment_error_response(
+                            request,
+                            "El plan seleccionado no es válido o no está activo.",
+                            post_data=request.POST,
+                        )
+                    client.fixed_plan = plan
+                    client.save(update_fields=["fixed_plan"])
 
             try:
                 apply_front_photo_from_b64(client, foto_frente_b64)

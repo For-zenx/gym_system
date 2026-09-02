@@ -122,9 +122,13 @@ def _checkout_back_context(client, origin, next_url=""):
     if next_url:
         return {"back_url": next_url, "back_label": "Volver"}
     if origin == "enrollment":
+        profile_url = reverse(
+            get_person_profile_url_name(client),
+            kwargs={"codigo_afiliado": client.codigo_afiliado},
+        )
         return {
-            "back_url": reverse("enrollment"),
-            "back_label": "Volver al enrolamiento",
+            "back_url": profile_url,
+            "back_label": "Ir al perfil",
         }
     if origin == "list":
         list_url = (
@@ -182,10 +186,6 @@ def _process_checkout_charge(request, client, origin):
 
     if not plan and not product_lines:
         messages.error(request, "Seleccione un plan y/o al menos un producto para cobrar.")
-        return None
-
-    if origin == "enrollment" and not plan:
-        messages.error(request, "El enrolamiento requiere seleccionar un plan de membresía.")
         return None
 
     apply_late_fee, late_fee_usd = parse_late_fee_from_post(request.POST)
@@ -273,7 +273,11 @@ class ChargeCheckoutView(PermissionRequiredMixin, View):
         elif client.can_purchase_membership and not is_sub_affiliate:
             if client.fixed_plan_id:
                 if client.fixed_plan and client.fixed_plan.is_active:
-                    planes = Plan.objects.filter(pk=client.fixed_plan_id, is_active=True)
+                    planes = Plan.objects.filter(
+                        Q(pk=client.fixed_plan_id)
+                        | Q(billing_type=Plan.BillingType.FLEXIBLE),
+                        is_active=True,
+                    ).order_by("billing_type", "nombre")
                 else:
                     client.fixed_plan = None
                     Client.objects.filter(pk=client.pk).update(fixed_plan=None, fecha_corte_dia=None)

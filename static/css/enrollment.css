@@ -172,6 +172,13 @@
     font-size: 0.95rem;
 }
 
+.enrollment-field-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
 .form-group input {
     width: 100%;
     box-sizing: border-box;

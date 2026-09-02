@@ -125,13 +125,6 @@ def get_client_billing_context(client):
     }
 
 
-def _has_fixed_coverage(client, today):
-    return client.memberships.filter(
-        plan__billing_type=Plan.BillingType.FIXED,
-        fecha_fin__gte=today,
-    ).exists()
-
-
 def _has_flexible_active_or_future(client, today):
     return client.memberships.filter(
         plan__billing_type=Plan.BillingType.FLEXIBLE,
@@ -147,11 +140,6 @@ def validate_plan_purchase(client, plan, today=None):
         if _has_flexible_active_or_future(client, today):
             raise ValidationError(
                 "Ya existe un pase flexible vigente. Espere a que venza antes de vender otro."
-            )
-        suspended = is_subscription_suspended(client, today)
-        if _has_fixed_coverage(client, today) and not suspended:
-            raise ValidationError(
-                "No se puede vender un pase flexible mientras la suscripción mensual esté al día."
             )
     return True
 
