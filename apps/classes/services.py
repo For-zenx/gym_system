@@ -131,6 +131,16 @@ def cancel_registration(registration, user=None):
     return registration
 
 
+@transaction.atomic
+def cancel_registration_for_invoice_void(registration, user=None):
+    """Cancela inscripción al anular su factura (incluye pagadas/CONFIRMADAS)."""
+    if registration.status == ClassRegistration.Status.CANCELLED:
+        return registration
+    registration.status = ClassRegistration.Status.CANCELLED
+    registration.save(update_fields=["status", "updated_at"])
+    return registration
+
+
 def build_class_line_description(session):
     time_label = session.start_time.strftime("%H:%M")
     if session.end_time:

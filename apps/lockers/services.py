@@ -229,3 +229,34 @@ def release_locker(locker, user=None):
     locker.status = Locker.Status.AVAILABLE
     locker.save(update_fields=["status", "updated_at"])
     return rental
+
+
+@transaction.atomic
+def cancel_locker_rentals_for_invoice_line(invoice_line, user=None):
+    """Cancela alquileres ligados a una línea al anular la factura."""
+    rentals = list(
+        LockerRental.objects.select_related("locker").filter(invoice_line=invoice_line)
+    )
+    cancelled = []
+    for rental in rentals:
+        if rental.status in (
+            LockerRental.Status.CANCELLED,
+            LockerRental.Status.RELEASED,
+        ):
+            continue
+        was_active = rental.status == LockerRental.Status.ACTIVE
+        rental.status = LockerRental.Status.CANCELLED
+        rental.released_at = timezone.now()
+        rental.released_by = user if getattr(user, "is_authenticated", False) else None
+        rental.save(update_fields=["status", "released_at", "released_by", "updated_at"])
+        if was_active:
+            locker = rental.locker
+            still_active = LockerRental.objects.filter(
+                locker=locker,
+                status=LockerRental.Status.ACTIVE,
+            ).exclude(pk=rental.pk).exists()
+            if not still_active:
+                locker.status = Locker.Status.AVAILABLE
+                locker.save(update_fields=["status", "updated_at"])
+        cancelled.append(rental)
+    return cancelled

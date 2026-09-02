@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.3">
-<link rel="stylesheet" href="{% static 'css/invoice_detail.css' %}?v=1.5">
+<link rel="stylesheet" href="{% static 'css/invoice_detail.css' %}?v=1.6">
 {% endblock %}
 
 {% block content %}
@@ -49,11 +49,15 @@
             {% endif %}
 
             {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada %}
-            <button type="button" class="btn btn-danger" onclick="openVoidInvoiceModal()">Anular factura</button>
-            {% endif %}
-
-            {% if 'billing.delete_invoice' in user_permissions %}
-            <button type="button" class="btn btn-danger-outline" onclick="openDeleteInvoiceModal()">Eliminar factura</button>
+                {% if void_can_void %}
+                <button type="button" class="btn btn-danger" onclick="openVoidInvoiceModal()">Anular factura</button>
+                {% elif void_is_corporate_blocked %}
+                <button type="button" class="btn btn-danger" disabled title="Anulación corporativa pendiente de cascada">Anular factura</button>
+                {% elif void_is_lifo_blocked %}
+                <button type="button" class="btn btn-danger" disabled title="Solo se puede anular la última factura con membresía">Anular factura</button>
+                {% else %}
+                <button type="button" class="btn btn-danger" onclick="openVoidInvoiceModal()">Anular factura</button>
+                {% endif %}
             {% endif %}
         </div>
     </div>
@@ -246,35 +250,6 @@
     </div>
     {% endif %}
 
-    {% if 'billing.delete_invoice' in user_permissions %}
-    <div class="modal-overlay" id="deleteInvoiceModal">
-        <div class="modal-content">
-            {% include "includes/modal_header.html" with modal_title="Eliminar factura" %}
-            <p style="margin-top: 0; color: var(--text-muted); line-height: 1.5;">
-                Se borrará la factura <strong>{{ invoice.nro_control }}</strong> del sistema.
-                {% if invoice.esta_impresa %}
-                Esta factura ya fue marcada como impresa; elimínela solo si fue un registro erróneo.
-                {% endif %}
-            </p>
-            <form method="POST" action="{% url 'billing:invoice_delete' invoice.id %}">
-                {% csrf_token %}
-                <input type="hidden" name="confirm_delete" value="1">
-                {% if next_url %}
-                <input type="hidden" name="next" value="{{ next_url }}">
-                {% endif %}
-                <label class="profile-danger-ack" style="margin-top: 1rem;">
-                    <input type="checkbox" required>
-                    <span>Confirmo que deseo eliminar esta factura del historial.</span>
-                </label>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeDeleteInvoiceModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-danger">Eliminar factura</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    {% endif %}
-
     {% if 'billing.print_invoice' in user_permissions and not invoice.esta_impresa %}
     <div class="modal-overlay" id="invoice-print-result-modal">
         <div class="modal-content modal-content-narrow">
@@ -288,7 +263,7 @@
     </div>
     {% endif %}
 
-    {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada %}
+    {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada and void_can_void %}
     <div class="modal-overlay" id="voidInvoiceModal">
         <div class="modal-content">
             {% include "includes/modal_header.html" with modal_title="Anular factura" %}
@@ -296,6 +271,23 @@
                 ¿Está seguro de que desea anular la factura <strong>{{ invoice.nro_control }}</strong>?
                 Esta acción es irreversible y la factura será excluida de los reportes de ingresos.
             </p>
+            {% if void_has_membership_rollback %}
+            <p style="color: var(--text-muted); line-height: 1.5;">
+                Se revertirá la membresía y los productos/servicios/casilleros/clases de esta factura.
+                El plan fijo vinculado y la fecha de corte del afiliado se conservan.
+            </p>
+            {% elif void_is_legacy_unlinked %}
+            <p class="billing-alert billing-alert-warning" style="display: block; line-height: 1.5;">
+                Factura histórica sin membresía vinculada: solo se anulará el registro contable.
+                El acceso del afiliado no se revertirá automáticamente.
+            </p>
+            {% endif %}
+            {% if void_is_printed %}
+            <p class="billing-alert billing-alert-warning" style="display: block; line-height: 1.5;">
+                Esta factura ya fue impresa en la máquina fiscal. La anulación es solo en el sistema;
+                no se emite nota de crédito a la impresora. El reporte Z puede no cuadrar con el sistema.
+            </p>
+            {% endif %}
             <form method="POST" action="{% url 'billing:invoice_void' invoice.id %}">
                 {% csrf_token %}
                 <div class="form-group" style="margin-top: 1rem;">
@@ -306,6 +298,7 @@
                         <option value="Error en datos del cliente">Error en datos del cliente</option>
                         <option value="Devolución">Devolución</option>
                         <option value="Factura duplicada">Factura duplicada</option>
+                        <option value="Plan incorrecto">Plan incorrecto</option>
                         <option value="__other__">Otro motivo...</option>
                     </select>
                 </div>
@@ -329,19 +322,7 @@
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
 <script src="{% static 'js/invoice_edit.js' %}?v=1.3"></script>
 <script>
-    {% if 'billing.delete_invoice' in user_permissions %}
-    function openDeleteInvoiceModal() {
-        document.getElementById('deleteInvoiceModal').classList.add('show');
-    }
-
-    function closeDeleteInvoiceModal() {
-        document.getElementById('deleteInvoiceModal').classList.remove('show');
-    }
-
-    bindDismissibleModalById('deleteInvoiceModal', { onClose: closeDeleteInvoiceModal });
-    {% endif %}
-
-    {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada %}
+    {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada and void_can_void %}
     function openVoidInvoiceModal() {
         document.getElementById('voidInvoiceModal').classList.add('show');
     }
@@ -359,6 +340,7 @@
         } else {
             wrap.style.display = 'none';
             textarea.required = false;
+            textarea.value = '';
         }
     }
 

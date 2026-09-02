@@ -1527,6 +1527,7 @@ def update_report_email_settings(*, emails_raw, gym_location_raw=""):
 
 @transaction.atomic
 def delete_invoice(invoice):
+    # DEPRECATED: Eliminar facturas ya no está permitido en UI — reemplazado por anulación (void_invoice).
     nro_control = invoice.nro_control
     invoice.delete()
     return nro_control
@@ -1552,16 +1553,278 @@ def delete_membership_with_audit(membership, user):
     membership.delete()
 
 
+def invoice_has_membership_link(invoice):
+    return bool(invoice.membership_id)
+
+
+def invoice_is_legacy_unlinked_membership(invoice):
+    """Factura histórica con línea de membresía pero sin FK (desorden pre-TASK-142)."""
+    if invoice.membership_id:
+        return False
+    return invoice.lines.filter(line_kind=InvoiceLine.LineKind.MEMBERSHIP).exists()
+
+
+def get_newer_membership_invoices(invoice):
+    if not invoice.client_id or not invoice.membership_id:
+        return Invoice.objects.none()
+    return Invoice.objects.filter(
+        client_id=invoice.client_id,
+        esta_anulada=False,
+        membership_id__isnull=False,
+    ).filter(
+        Q(fecha_emision__gt=invoice.fecha_emision)
+        | Q(fecha_emision=invoice.fecha_emision, id__gt=invoice.pk)
+    )
+
+
+def assert_membership_invoice_is_lifo(invoice):
+    if not invoice.membership_id:
+        return
+    if get_newer_membership_invoices(invoice).exists():
+        raise ValidationError(
+            "Solo se puede anular la última factura con membresía del afiliado. "
+            "Anule primero las facturas de membresía más recientes."
+        )
+
+
+def get_invoice_void_ui_context(invoice):
+    """Flags para el detalle de factura (anulación)."""
+    already = bool(invoice.esta_anulada)
+    is_corporate = bool(invoice.corporate_group_id)
+    has_link = invoice_has_membership_link(invoice)
+    is_legacy = invoice_is_legacy_unlinked_membership(invoice)
+    lifo_blocked = False
+    if has_link and not already and not is_corporate:
+        lifo_blocked = get_newer_membership_invoices(invoice).exists()
+
+    can_void = (not already) and (not is_corporate) and (not lifo_blocked)
+    return {
+        "void_is_corporate_blocked": is_corporate and not already,
+        "void_is_legacy_unlinked": is_legacy and not already,
+        "void_is_lifo_blocked": lifo_blocked,
+        "void_has_membership_rollback": has_link and not is_legacy,
+        "void_can_void": can_void,
+        "void_is_printed": bool(invoice.esta_impresa) and not already,
+    }
+
+
+def _rollback_invoice_line_effects(invoice, user):
+    from apps.lockers.services import cancel_locker_rentals_for_invoice_line
+    from apps.classes.services import cancel_registration_for_invoice_void
+
+    lines = list(invoice.lines.select_related("class_registration").all())
+    for line in lines:
+        cancel_locker_rentals_for_invoice_line(line, user=user)
+        ClientServicePeriod.objects.filter(invoice_line=line).exclude(
+            status=ClientServicePeriod.Status.CANCELLED
+        ).update(status=ClientServicePeriod.Status.CANCELLED)
+        registration = line.class_registration
+        if registration is not None:
+            cancel_registration_for_invoice_void(registration, user=user)
+
+
+def soft_close_membership(membership, user, motivo=""):
+    """Cierra vigencia de una membresía sin borrar la fila (acceso admin / huérfanas)."""
+    today = timezone.localdate()
+    if membership.fecha_fin < today:
+        return membership
+
+    yesterday = today - timedelta(days=1)
+    old_inicio = membership.fecha_inicio
+    old_fin = membership.fecha_fin
+
+    if membership.fecha_inicio > today:
+        membership.fecha_fin = membership.fecha_inicio - timedelta(days=1)
+    else:
+        membership.fecha_fin = yesterday
+        if membership.fecha_inicio > membership.fecha_fin:
+            membership.fecha_inicio = membership.fecha_fin
+
+    membership.save(update_fields=["fecha_inicio", "fecha_fin"])
+    log_billing_event(
+        membership.client,
+        ClientBillingEvent.EventType.MEMBERSHIP_SOFT_CLOSED,
+        payload={
+            "membership_id": membership.pk,
+            "plan_id": membership.plan_id,
+            "plan_name": membership.plan.nombre,
+            "old_fecha_inicio": old_inicio.isoformat(),
+            "old_fecha_fin": old_fin.isoformat(),
+            "new_fecha_inicio": membership.fecha_inicio.isoformat(),
+            "new_fecha_fin": membership.fecha_fin.isoformat(),
+        },
+        motivo=motivo or "Membresía cerrada sin eliminar el registro",
+        user=user,
+    )
+    return membership
+
+
+def _delete_membership_for_invoice_void(membership, user, invoice):
+    ClientServicePeriod.objects.filter(membership=membership).delete()
+    client = membership.client
+    plan_name = membership.plan.nombre
+    period_str = "{} al {}".format(
+        membership.fecha_inicio.strftime("%d/%m/%Y"),
+        membership.fecha_fin.strftime("%d/%m/%Y"),
+    )
+    membership_id = membership.pk
+    membership.delete()
+    log_billing_event(
+        client,
+        ClientBillingEvent.EventType.MEMBERSHIP_DELETED,
+        payload={
+            "membership_id": membership_id,
+            "plan_name": plan_name,
+            "period": period_str,
+            "invoice_id": invoice.pk,
+            "nro_control": invoice.nro_control,
+            "via": "invoice_void",
+        },
+        motivo="Anulación de factura {}".format(invoice.nro_control),
+        user=user,
+    )
+
+
+@transaction.atomic
+def void_invoice(invoice, user, reason):
+    if invoice.esta_anulada:
+        raise ValidationError("La factura ya está anulada.")
+
+    if not (reason or "").strip():
+        raise ValidationError("Debe indicar un motivo para anular la factura.")
+
+    if invoice.corporate_group_id:
+        raise ValidationError(
+            "La anulación de facturas corporativas (cascada al grupo) "
+            "estará disponible en una próxima actualización."
+        )
+
+    legacy_unlinked = invoice_is_legacy_unlinked_membership(invoice)
+    membership = invoice.membership
+
+    if membership is not None:
+        assert_membership_invoice_is_lifo(invoice)
+
+    _rollback_invoice_line_effects(invoice, user)
+
+    membership_deleted_id = None
+    if membership is not None and not legacy_unlinked:
+        membership_deleted_id = membership.pk
+        _delete_membership_for_invoice_void(membership, user, invoice)
+        invoice.membership = None
+
+    invoice.esta_anulada = True
+    invoice.anulada_por = user
+    invoice.motivo_anulacion = reason.strip()
+    invoice.fecha_anulacion = timezone.now()
+    invoice.save(
+        update_fields=[
+            "membership",
+            "esta_anulada",
+            "anulada_por",
+            "motivo_anulacion",
+            "fecha_anulacion",
+        ]
+    )
+
+    if invoice.client_id:
+        log_billing_event(
+            invoice.client,
+            ClientBillingEvent.EventType.INVOICE_VOIDED,
+            payload={
+                "invoice_id": invoice.pk,
+                "nro_control": invoice.nro_control,
+                "esta_impresa": invoice.esta_impresa,
+                "legacy_unlinked": legacy_unlinked,
+                "membership_deleted_id": membership_deleted_id,
+                "fixed_plan_preserved": True,
+                "fecha_corte_preserved": True,
+            },
+            motivo=reason.strip(),
+            user=user,
+        )
+    return invoice
+
+
+def _clear_active_coverage_for_admin_access(client, user):
+    """Anula facturas LIFO / soft-cierra membresías activas-encoladas; no toca vencidas.
+
+    Facturas corporativas no se anulan aquí (cascada pendiente): se soft-cierra la membresía.
+    """
+    today = timezone.localdate()
+    voided_invoice_ids = []
+    soft_closed_ids = []
+
+    while True:
+        open_memberships = list(
+            client.memberships.filter(fecha_fin__gte=today)
+            .select_related("plan")
+            .order_by("-fecha_fin", "-id")
+        )
+        if not open_memberships:
+            break
+
+        invoice_to_void = None
+        for membership in open_memberships:
+            inv = (
+                Invoice.objects.filter(
+                    membership=membership,
+                    esta_anulada=False,
+                )
+                .order_by("-fecha_emision", "-id")
+                .first()
+            )
+            if inv is None:
+                continue
+            if inv.corporate_group_id:
+                continue
+            if invoice_to_void is None or (inv.fecha_emision, inv.pk) > (
+                invoice_to_void.fecha_emision,
+                invoice_to_void.pk,
+            ):
+                invoice_to_void = inv
+
+        if invoice_to_void is not None:
+            void_invoice(
+                invoice_to_void,
+                user,
+                "Anulación automática por acceso administrativo",
+            )
+            voided_invoice_ids.append(invoice_to_void.pk)
+            continue
+
+        for membership in open_memberships:
+            ClientServicePeriod.objects.filter(membership=membership).exclude(
+                status=ClientServicePeriod.Status.CANCELLED
+            ).update(status=ClientServicePeriod.Status.CANCELLED)
+            soft_close_membership(
+                membership,
+                user,
+                motivo="Cierre por acceso administrativo (sin factura anulable)",
+            )
+            soft_closed_ids.append(membership.pk)
+        break
+
+    ClientServicePeriod.objects.filter(client=client).filter(
+        status__in=(
+            ClientServicePeriod.Status.ACTIVE,
+            ClientServicePeriod.Status.QUEUED,
+        )
+    ).update(status=ClientServicePeriod.Status.CANCELLED)
+
+    return voided_invoice_ids, soft_closed_ids
+
+
 @transaction.atomic
 def grant_admin_access(client, plan, valid_until, user):
-    """Asigna acceso administrativo sin cobro: limpia membresías previas y crea una fija.
+    """Asigna acceso administrativo sin cobro.
 
-    - Solo afiliados MEMBER.
-    - Solo planes FIXED activos.
-    - Elimina ClientServicePeriod (PROTECT sobre Membership) y todas las membresías.
-    - Vincula fixed_plan al plan elegido; siempre realinea fecha_corte_dia al día de valid_until (1–28).
-    - Permite valid_until en pasado, hoy o futuro; si es pasado, la membresía nace ya vencida.
-    - No crea Invoice ni llama register_checkout.
+    - Solo afiliados MEMBER y planes FIXED activos.
+    - Anula facturas con membresía activa/encolada (LIFO) o soft-cierra huérfanas.
+    - No borra membresías ya vencidas.
+    - Conserva registro vía facturas anuladas / filas soft-cerradas.
+    - Vincula fixed_plan y realinea fecha_corte_dia al día de valid_until (1–28).
+    - No crea Invoice.
     """
     from datetime import date as date_cls
 
@@ -1578,16 +1841,9 @@ def grant_admin_access(client, plan, valid_until, user):
     if not isinstance(valid_until, date_cls):
         raise ValidationError("La fecha de vigencia no es válida.")
 
-    deleted_period_ids = list(
-        client.service_periods.values_list("id", flat=True)
+    voided_invoice_ids, soft_closed_ids = _clear_active_coverage_for_admin_access(
+        client, user
     )
-    client.service_periods.all().delete()
-
-    deleted_membership_ids = []
-    memberships = list(client.memberships.select_related("plan").order_by("fecha_inicio"))
-    for membership in memberships:
-        deleted_membership_ids.append(membership.pk)
-        delete_membership_with_audit(membership, user)
 
     cut_day = max(1, min(valid_until.day, 28))
     fecha_inicio = valid_until if valid_until < today else today
@@ -1613,8 +1869,8 @@ def grant_admin_access(client, plan, valid_until, user):
             "fecha_inicio": fecha_inicio.isoformat(),
             "fecha_fin": valid_until.isoformat(),
             "membership_id": new_membership.pk,
-            "deleted_membership_ids": deleted_membership_ids,
-            "deleted_service_period_ids": deleted_period_ids,
+            "voided_invoice_ids": voided_invoice_ids,
+            "soft_closed_membership_ids": soft_closed_ids,
             "fecha_corte_dia": cut_day,
         },
         motivo="Acceso administrativo sin cobro por {}".format(
@@ -1623,26 +1879,6 @@ def grant_admin_access(client, plan, valid_until, user):
         user=user,
     )
     return new_membership
-
-
-@transaction.atomic
-def void_invoice(invoice, user, reason):
-    if invoice.esta_anulada:
-        raise ValidationError("La factura ya está anulada.")
-
-    invoice.esta_anulada = True
-    invoice.anulada_por = user
-    invoice.motivo_anulacion = reason
-    invoice.fecha_anulacion = timezone.now()
-    invoice.save(
-        update_fields=[
-            "esta_anulada",
-            "anulada_por",
-            "motivo_anulacion",
-            "fecha_anulacion",
-        ]
-    )
-    return invoice
 
 
 def parse_invoice_amount_edits_from_post(post_data, invoice):

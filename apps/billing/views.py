@@ -38,6 +38,8 @@ from .services import (
     build_amount_overrides_from_post,
     post_amount_edits_differ_from_stored,
     void_invoice,
+    get_invoice_void_ui_context,
+    invoice_is_legacy_unlinked_membership,
     delete_membership_with_audit,
 )
 from apps.users.permissions import has_permission
@@ -747,6 +749,7 @@ class InvoiceDetailView(PermissionRequiredMixin, DetailView):
             "billing:invoice_ticket_preview",
             kwargs={"pk": invoice.pk},
         )
+        context.update(get_invoice_void_ui_context(invoice))
         return context
 
 
@@ -874,24 +877,14 @@ class PrintInvoiceActionView(PermissionRequiredMixin, View):
 
 
 class InvoiceDeleteView(PermissionRequiredMixin, View):
+    """DEPRECATED: Eliminar facturas — reemplazado por anulación (void_invoice)."""
+
     required_permission = "billing.delete_invoice"
 
     def post(self, request, pk):
-        invoice = get_object_or_404(Invoice, pk=pk)
-        detail_url = reverse("billing:invoice_detail", kwargs={"pk": pk})
-        next_url = _get_safe_next_url(request, request.POST.get("next", ""))
-        if next_url:
-            detail_url = f"{detail_url}?{urlencode({'next': next_url})}"
-
-        if request.POST.get("confirm_delete") != "1":
-            messages.error(request, "Debes confirmar la eliminación de la factura.")
-            return redirect(detail_url)
-
-        nro_control = delete_invoice(invoice)
-        messages.success(request, f"Factura {nro_control} eliminada del sistema.")
-        if next_url:
-            return redirect(next_url)
-        return redirect("billing:invoice_list")
+        raise PermissionDenied(
+            "Ya no se pueden eliminar facturas. Use anulación para conservar el registro."
+        )
 
 
 class VoidInvoiceView(PermissionRequiredMixin, View):
@@ -912,10 +905,21 @@ class VoidInvoiceView(PermissionRequiredMixin, View):
             return redirect("billing:invoice_detail", pk=pk)
 
         try:
+            was_printed = bool(invoice.esta_impresa)
+            was_legacy = invoice_is_legacy_unlinked_membership(invoice)
             void_invoice(invoice, request.user, final_reason)
-            messages.success(
-                request, f"Factura {invoice.nro_control} anulada correctamente."
-            )
+            msg = "Factura {} anulada correctamente.".format(invoice.nro_control)
+            if was_legacy:
+                msg += (
+                    " Esta factura no tenía membresía vinculada: "
+                    "solo se anuló el registro contable (el acceso no se revirtió automáticamente)."
+                )
+            elif was_printed:
+                msg += (
+                    " Advertencia: ya estaba impresa en la máquina fiscal; "
+                    "la anulación es solo en el sistema (no emite nota de crédito)."
+                )
+            messages.success(request, msg)
         except ValidationError as e:
             messages.error(request, str(e))
         except Exception as e:

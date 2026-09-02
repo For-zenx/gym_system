@@ -304,6 +304,8 @@ class ClientBillingEvent(models.Model):
         LATE_FEE_WAIVED = "LATE_FEE_WAIVED", "Multa omitida"
         MEMBERSHIP_DELETED = "MEMBERSHIP_DELETED", "Membresía eliminada"
         ADMIN_ACCESS_GRANTED = "ADMIN_ACCESS_GRANTED", "Acceso administrativo asignado"
+        INVOICE_VOIDED = "INVOICE_VOIDED", "Factura anulada"
+        MEMBERSHIP_SOFT_CLOSED = "MEMBERSHIP_SOFT_CLOSED", "Membresía cerrada sin borrar"
 
     client = models.ForeignKey(
         Client,

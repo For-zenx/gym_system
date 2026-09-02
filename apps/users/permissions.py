@@ -62,7 +62,8 @@ PERMISSION_GROUPS = {
             ("billing.print_invoice", "Imprimir factura"),
             ("billing.edit_invoice", "Editar montos de factura antes de imprimir"),
             ("billing.void_invoice", "Anular facturas"),
-            ("billing.delete_invoice", "Eliminar facturas"),
+            # DEPRECATED: Eliminar facturas — reemplazado por anulación (void_invoice). Se mantiene el código para no romper roles en BD.
+            ("billing.delete_invoice", "Eliminar facturas (obsoleto)"),
         ],
     },
     "plans": {

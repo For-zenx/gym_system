@@ -483,14 +483,14 @@ def apply_corporate_group_payment(
 def grant_corporate_admin_access(group, valid_until, user):
     """Asigna acceso administrativo corporativo sin cobro a todo el grupo.
 
-    - Limpia service periods y todas las membresías de cada miembro activo.
+    - Soft-cierra membresías activas/encoladas (no borra vencidas ni filas).
+    - No anula facturas corporativas (cascada pendiente); cancela periodos de servicio abiertos.
     - Crea Membership CORPORATE con las mismas fechas para todos.
     - Sincroniza fixed_plan y fecha_corte_dia en clientes y grupo.
-    - Activa el grupo si estaba suspendido. No crea Invoice.
     """
     from datetime import date as date_cls
 
-    from .services import delete_membership_with_audit, log_billing_event
+    from .services import log_billing_event, soft_close_membership
 
     if group.status == CorporateGroup.Status.DISSOLVED:
         raise ValidationError("No se puede asignar acceso administrativo a un grupo disuelto.")
@@ -511,18 +511,31 @@ def grant_corporate_admin_access(group, valid_until, user):
     client_pks = [client.pk for client in clients]
 
     for client in clients:
-        deleted_period_ids = list(
-            client.service_periods.values_list("id", flat=True)
+        soft_closed_ids = []
+        open_memberships = list(
+            client.memberships.filter(fecha_fin__gte=today)
+            .select_related("plan")
+            .order_by("fecha_inicio")
         )
-        ClientServicePeriod.objects.filter(client=client).delete()
+        for membership in open_memberships:
+            ClientServicePeriod.objects.filter(membership=membership).exclude(
+                status=ClientServicePeriod.Status.CANCELLED
+            ).update(status=ClientServicePeriod.Status.CANCELLED)
+            soft_close_membership(
+                membership,
+                user,
+                motivo="Cierre por acceso administrativo corporativo (grupo #{})".format(
+                    group.pk
+                ),
+            )
+            soft_closed_ids.append(membership.pk)
 
-        deleted_membership_ids = []
-        memberships = list(
-            client.memberships.select_related("plan").order_by("fecha_inicio")
-        )
-        for membership in memberships:
-            deleted_membership_ids.append(membership.pk)
-            delete_membership_with_audit(membership, user)
+        ClientServicePeriod.objects.filter(client=client).filter(
+            status__in=(
+                ClientServicePeriod.Status.ACTIVE,
+                ClientServicePeriod.Status.QUEUED,
+            )
+        ).update(status=ClientServicePeriod.Status.CANCELLED)
 
         new_membership = Membership(
             client=client,
@@ -544,8 +557,7 @@ def grant_corporate_admin_access(group, valid_until, user):
                 "fecha_inicio": fecha_inicio.isoformat(),
                 "fecha_fin": valid_until.isoformat(),
                 "membership_id": new_membership.pk,
-                "deleted_membership_ids": deleted_membership_ids,
-                "deleted_service_period_ids": deleted_period_ids,
+                "soft_closed_membership_ids": soft_closed_ids,
                 "fecha_corte_dia": cut_day,
                 "member_count": len(clients),
             },
