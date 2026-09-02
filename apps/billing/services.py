@@ -1571,6 +1571,19 @@ def get_newer_membership_invoices(invoice):
         client_id=invoice.client_id,
         esta_anulada=False,
         membership_id__isnull=False,
+        corporate_group_id__isnull=True,
+    ).filter(
+        Q(fecha_emision__gt=invoice.fecha_emision)
+        | Q(fecha_emision=invoice.fecha_emision, id__gt=invoice.pk)
+    )
+
+
+def get_newer_corporate_invoices(invoice):
+    if not invoice.corporate_group_id:
+        return Invoice.objects.none()
+    return Invoice.objects.filter(
+        corporate_group_id=invoice.corporate_group_id,
+        esta_anulada=False,
     ).filter(
         Q(fecha_emision__gt=invoice.fecha_emision)
         | Q(fecha_emision=invoice.fecha_emision, id__gt=invoice.pk)
@@ -1578,6 +1591,13 @@ def get_newer_membership_invoices(invoice):
 
 
 def assert_membership_invoice_is_lifo(invoice):
+    if invoice.corporate_group_id:
+        if get_newer_corporate_invoices(invoice).exists():
+            raise ValidationError(
+                "Solo se puede anular el último cobro corporativo de este grupo. "
+                "Anule primero los cobros corporativos más recientes."
+            )
+        return
     if not invoice.membership_id:
         return
     if get_newer_membership_invoices(invoice).exists():
@@ -1594,14 +1614,29 @@ def get_invoice_void_ui_context(invoice):
     has_link = invoice_has_membership_link(invoice)
     is_legacy = invoice_is_legacy_unlinked_membership(invoice)
     lifo_blocked = False
-    if has_link and not already and not is_corporate:
-        lifo_blocked = get_newer_membership_invoices(invoice).exists()
+    void_block_message = ""
+    if not already:
+        if is_corporate:
+            lifo_blocked = get_newer_corporate_invoices(invoice).exists()
+            if lifo_blocked:
+                void_block_message = (
+                    "Solo se puede anular el último cobro corporativo de este grupo. "
+                    "Anule primero los cobros corporativos más recientes."
+                )
+        elif has_link:
+            lifo_blocked = get_newer_membership_invoices(invoice).exists()
+            if lifo_blocked:
+                void_block_message = (
+                    "Solo se puede anular la última factura con membresía de este afiliado. "
+                    "Anule primero las facturas de membresía más recientes."
+                )
 
-    can_void = (not already) and (not is_corporate) and (not lifo_blocked)
+    can_void = (not already) and (not lifo_blocked)
     return {
-        "void_is_corporate_blocked": is_corporate and not already,
+        "void_is_corporate": is_corporate and not already,
         "void_is_legacy_unlinked": is_legacy and not already,
         "void_is_lifo_blocked": lifo_blocked,
+        "void_block_message": void_block_message,
         "void_has_membership_rollback": has_link and not is_legacy,
         "void_can_void": can_void,
         "void_is_printed": bool(invoice.esta_impresa) and not already,
@@ -1693,23 +1728,41 @@ def void_invoice(invoice, user, reason):
     if not (reason or "").strip():
         raise ValidationError("Debe indicar un motivo para anular la factura.")
 
-    if invoice.corporate_group_id:
-        raise ValidationError(
-            "La anulación de facturas corporativas (cascada al grupo) "
-            "estará disponible en una próxima actualización."
-        )
-
     legacy_unlinked = invoice_is_legacy_unlinked_membership(invoice)
     membership = invoice.membership
+    is_corporate = bool(invoice.corporate_group_id)
 
-    if membership is not None:
+    if is_corporate or membership is not None:
         assert_membership_invoice_is_lifo(invoice)
 
     _rollback_invoice_line_effects(invoice, user)
 
-    membership_deleted_id = None
-    if membership is not None and not legacy_unlinked:
-        membership_deleted_id = membership.pk
+    membership_deleted_ids = []
+    if is_corporate and not legacy_unlinked:
+        from apps.billing.corporate_services import find_memberships_for_corporate_invoice
+        from apps.billing.models import CorporateGroup
+
+        siblings = find_memberships_for_corporate_invoice(invoice)
+        if not siblings and membership is not None:
+            siblings = [membership]
+        for sibling in siblings:
+            membership_deleted_ids.append(sibling.pk)
+            _delete_membership_for_invoice_void(sibling, user, invoice)
+        invoice.membership = None
+
+        group = invoice.corporate_group
+        if group is not None and not group.is_dissolved:
+            today = timezone.localdate()
+            still_covered = Membership.objects.filter(
+                client_id=group.subscriber_id,
+                plan_id=group.plan_id,
+                fecha_fin__gte=today,
+            ).exists()
+            if not still_covered and group.status == CorporateGroup.Status.ACTIVE:
+                group.status = CorporateGroup.Status.SUSPENDED
+                group.save(update_fields=["status", "updated_at"])
+    elif membership is not None and not legacy_unlinked:
+        membership_deleted_ids.append(membership.pk)
         _delete_membership_for_invoice_void(membership, user, invoice)
         invoice.membership = None
 
@@ -1736,7 +1789,12 @@ def void_invoice(invoice, user, reason):
                 "nro_control": invoice.nro_control,
                 "esta_impresa": invoice.esta_impresa,
                 "legacy_unlinked": legacy_unlinked,
-                "membership_deleted_id": membership_deleted_id,
+                "corporate": is_corporate,
+                "corporate_group_id": invoice.corporate_group_id,
+                "membership_deleted_id": (
+                    membership_deleted_ids[0] if len(membership_deleted_ids) == 1 else None
+                ),
+                "membership_deleted_ids": membership_deleted_ids,
                 "fixed_plan_preserved": True,
                 "fecha_corte_preserved": True,
             },

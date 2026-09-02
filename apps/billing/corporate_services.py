@@ -367,6 +367,39 @@ def collect_group_clients(group):
     return list(Client.objects.filter(pk__in=client_ids).order_by("nombre", "pk"))
 
 
+def find_memberships_for_corporate_invoice(invoice):
+    """Membresías del periodo corporativo ligado a la factura (pagador + hermanos).
+
+    Recupera por plan + fechas exactas entre suscriptor y miembros del grupo
+    (activos o no), para no dejar huérfanos si alguien salió después del cobro.
+    """
+    if not invoice.corporate_group_id or not invoice.membership_id:
+        return []
+
+    group = invoice.corporate_group
+    period = invoice.membership
+    if group is None or period is None:
+        return []
+
+    client_ids = set(
+        CorporateGroupMember.objects.filter(group_id=group.pk).values_list(
+            "client_id", flat=True
+        )
+    )
+    client_ids.add(group.subscriber_id)
+
+    return list(
+        Membership.objects.filter(
+            client_id__in=client_ids,
+            plan_id=period.plan_id,
+            fecha_inicio=period.fecha_inicio,
+            fecha_fin=period.fecha_fin,
+        )
+        .select_related("client", "plan")
+        .order_by("client_id", "id")
+    )
+
+
 def is_corporate_group_member(client, group):
     """True si el cliente es suscriptor o sub-afiliado activo del grupo."""
     if group is None or group.is_dissolved:

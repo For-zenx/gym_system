@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.3">
-<link rel="stylesheet" href="{% static 'css/invoice_detail.css' %}?v=1.6">
+<link rel="stylesheet" href="{% static 'css/invoice_detail.css' %}?v=1.7">
 {% endblock %}
 
 {% block content %}
@@ -51,10 +51,8 @@
             {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada %}
                 {% if void_can_void %}
                 <button type="button" class="btn btn-danger" onclick="openVoidInvoiceModal()">Anular factura</button>
-                {% elif void_is_corporate_blocked %}
-                <button type="button" class="btn btn-danger" disabled title="Anulación corporativa pendiente de cascada">Anular factura</button>
                 {% elif void_is_lifo_blocked %}
-                <button type="button" class="btn btn-danger" disabled title="Solo se puede anular la última factura con membresía">Anular factura</button>
+                <button type="button" class="btn btn-danger" onclick="openVoidBlockedModal()">Anular factura</button>
                 {% else %}
                 <button type="button" class="btn btn-danger" onclick="openVoidInvoiceModal()">Anular factura</button>
                 {% endif %}
@@ -273,8 +271,15 @@
             </p>
             {% if void_has_membership_rollback %}
             <p style="color: var(--text-muted); line-height: 1.5;">
+                {% if void_is_corporate %}
+                Se revertirá el acceso de <strong>todo el grupo corporativo</strong> para este periodo
+                (membresías del pagador y de los demás integrantes con las mismas fechas),
+                además de productos/servicios/casilleros/clases de esta factura.
+                El plan vinculado y la fecha de corte de cada afiliado se conservan.
+                {% else %}
                 Se revertirá la membresía y los productos/servicios/casilleros/clases de esta factura.
                 El plan fijo vinculado y la fecha de corte del afiliado se conservan.
+                {% endif %}
             </p>
             {% elif void_is_legacy_unlinked %}
             <p class="billing-alert billing-alert-warning" style="display: block; line-height: 1.5;">
@@ -315,6 +320,20 @@
     </div>
     {% endif %}
 
+    {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada and void_is_lifo_blocked %}
+    <div class="modal-overlay" id="voidBlockedModal">
+        <div class="modal-content modal-content-narrow">
+            {% include "includes/modal_header.html" with modal_title="No se puede anular" %}
+            <p style="margin-top: 0; color: var(--text-muted); line-height: 1.5;">
+                {{ void_block_message }}
+            </p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-primary" onclick="closeVoidBlockedModal()">Entendido</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}
 
@@ -345,6 +364,18 @@
     }
 
     bindDismissibleModalById('voidInvoiceModal', { onClose: closeVoidInvoiceModal });
+    {% endif %}
+
+    {% if 'billing.void_invoice' in user_permissions and not invoice.esta_anulada and void_is_lifo_blocked %}
+    function openVoidBlockedModal() {
+        document.getElementById('voidBlockedModal').classList.add('show');
+    }
+
+    function closeVoidBlockedModal() {
+        document.getElementById('voidBlockedModal').classList.remove('show');
+    }
+
+    bindDismissibleModalById('voidBlockedModal', { onClose: closeVoidBlockedModal });
     {% endif %}
 </script>
 {% endblock %}

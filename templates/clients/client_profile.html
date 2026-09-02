@@ -77,19 +77,19 @@
 
             <dl class="profile-caja-lines">
                 {% if corp_group %}
-                <div class="profile-caja-line {% if corp_group.status == 'ACTIVE' %}profile-caja-line-active{% elif corp_group.status == 'SUSPENDED' %}profile-caja-line-warn{% endif %}">
+                <div class="profile-caja-line {% if corp_has_paid_coverage %}profile-caja-line-active{% else %}profile-caja-line-warn{% endif %}">
                     <dt>Suscripción Corporativa</dt>
                     <dd>
                         {% if is_corp_owner %}
                             <strong style="display: block; margin-bottom: 0.25rem;">Dueño del grupo</strong>
-                            {% if corp_group.status == 'ACTIVE' %}
+                            {% if corp_has_paid_coverage %}
                                 Grupo pagado y activo
                             {% else %}
                                 Suspendida — requiere pago del grupo
                             {% endif %}
                         {% else %}
                             <strong style="display: block; margin-bottom: 0.25rem;">Beneficiario</strong>
-                            {% if corp_group.status == 'ACTIVE' %}
+                            {% if corp_has_paid_coverage %}
                                 Grupo pagado (Depende del dueño)
                             {% else %}
                                 Suspendida — requiere pago del dueño

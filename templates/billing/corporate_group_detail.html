@@ -245,16 +245,26 @@
                 <th>Factura</th>
                 <th>Fecha</th>
                 <th>Pagador</th>
+                <th>Estado</th>
                 <th style="text-align:right;">Total</th>
                 <th style="text-align:right;">Acción</th>
             </tr></thead>
             <tbody>
                 {% for inv in invoices %}
-                <tr>
+                <tr{% if inv.esta_anulada %} style="opacity:0.75;"{% endif %}>
                     <td style="color:var(--text-muted);">{{ inv.nro_control }}</td>
                     <td>{{ inv.fecha_emision|date:"d/m/Y" }}</td>
                     <td>{{ inv.client_nombre_snapshot }}</td>
-                    <td style="text-align:right; font-weight:600; color:var(--success);">Bs {{ inv.monto_total }}</td>
+                    <td>
+                        {% if inv.esta_anulada %}
+                            <span class="badge badge-danger">Anulada</span>
+                        {% elif inv.esta_impresa %}
+                            <span class="badge badge-print">Impresa</span>
+                        {% else %}
+                            <span class="badge badge-success">Por imprimir</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right; font-weight:600; {% if inv.esta_anulada %}color:var(--text-muted); text-decoration:line-through;{% else %}color:var(--success);{% endif %}">Bs {{ inv.monto_total }}</td>
                     <td style="text-align:right;"><a href="{% url 'billing:invoice_detail' inv.id %}" style="color:var(--primary); font-size:0.85rem;">Ver</a></td>
                 </tr>
                 {% endfor %}

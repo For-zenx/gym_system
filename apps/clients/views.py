@@ -301,6 +301,11 @@ class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailV
         if corp_group:
             context['corp_group'] = corp_group
             context['is_corp_owner'] = corp_group.subscriber_id == self.object.pk
+            today = date.today()
+            context['corp_has_paid_coverage'] = self.object.memberships.filter(
+                plan_id=corp_group.plan_id,
+                fecha_fin__gte=today,
+            ).exists()
             context['can_grant_corporate_admin_access'] = (
                 not corp_group.is_dissolved
                 and has_permission(self.request.user, "corporate.grant_admin_access")
@@ -308,6 +313,7 @@ class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailV
             if context['can_grant_corporate_admin_access']:
                 context['corp_admin_access_clients'] = collect_group_clients(corp_group)
         else:
+            context['corp_has_paid_coverage'] = False
             context['can_grant_corporate_admin_access'] = False
             
         can_view_phone = has_permission(self.request.user, "clients.view_phone")
