@@ -630,7 +630,12 @@ class Invoice(models.Model):
     def payment_method_display(self):
         if not self.payment_method:
             return "No registrado"
-        return self.get_payment_method_display()
+        label = self.get_payment_method_display()
+        if self.payment_method == self.PaymentMethod.MOBILE:
+            for entry in self.payment_splits or []:
+                if entry.get("type") == "MOBILE" and entry.get("reference"):
+                    return "{} (#{})".format(label, entry.get("reference"))
+        return label
 
     def get_payment_split_display_items(self):
         if self.payment_method == self.PaymentMethod.CASHEA:
@@ -671,6 +676,8 @@ class Invoice(models.Model):
         for entry in self.payment_splits or []:
             method = entry.get("method", "")
             label = labels.get(method, method)
+            if method == self.PaymentMethod.MOBILE and entry.get("reference"):
+                label = "{} (#{})".format(label, entry.get("reference"))
             amount_ves = entry.get("amount_ves")
             if method == self.PaymentMethod.CASH_USD and entry.get("amount_usd"):
                 display = "$ {} (Bs {})".format(entry.get("amount_usd"), amount_ves)

@@ -82,4 +82,25 @@
             {% if mixed_payment_hint %}{{ mixed_payment_hint }}{% else %}Seleccione arriba una membresía o productos para calcular el total del cobro.{% endif %}
         </p>
     </div>
+
+    <div id="checkout-payment-mobile-ref-panel" class="checkout-payment-mixed-panel" hidden>
+        <div class="checkout-payment-mixed-grid">
+            <label class="checkout-payment-mixed-row">
+                <span>Referencia pago móvil</span>
+                <input
+                    type="text"
+                    name="mobile_payment_reference"
+                    id="mobile_payment_reference"
+                    inputmode="numeric"
+                    pattern="[0-9]{4,16}"
+                    maxlength="16"
+                    autocomplete="off"
+                    placeholder="Ej. 448445"
+                >
+            </label>
+        </div>
+        <p class="checkout-payment-mixed-hint">
+            Obligatorio. Solo números, entre 4 y 16 dígitos (número de referencia/transacción).
+        </p>
+    </div>
 </section>

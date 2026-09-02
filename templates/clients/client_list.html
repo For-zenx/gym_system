@@ -5,7 +5,7 @@
 {% block page_title %}{% if list_tipo == 'invitados' %}Lista de invitados{% else %}Lista de afiliados{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/inactive_clients_purge.css' %}?v=1.7">
+<link rel="stylesheet" href="{% static 'css/inactive_clients_purge.css' %}?v=1.8">
 {% endblock %}
 
 {% block content %}
@@ -97,7 +97,7 @@
                 <td style="color: var(--text-muted); white-space: nowrap;">{{ client.codigo_afiliado }}</td>
                 <td style="white-space: nowrap;">{{ client.fecha_ingreso|date:"d/m/Y" }}</td>
                 <td>
-                    <div style="white-space: nowrap;">
+                    <div class="client-list-plan-status">
                         {% if client.has_access_today %}
                             <span class="badge badge-success">Activo</span>
                         {% elif client.is_in_fixed_grace_period %}
@@ -108,6 +108,9 @@
                             <span class="badge badge-danger">Vencido</span>
                         {% else %}
                             <span class="badge badge-warning">Sin Plan</span>
+                        {% endif %}
+                        {% if client.fixed_plan_id and client.fixed_plan %}
+                        <span class="client-list-fixed-plan" title="{{ client.fixed_plan.nombre }}">{{ client.fixed_plan.nombre }}</span>
                         {% endif %}
                     </div>
                 </td>

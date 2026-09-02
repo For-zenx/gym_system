@@ -604,6 +604,19 @@ def _parse_usd_amount(amount_raw):
     return amount.quantize(Decimal("0.01"))
 
 
+def parse_mobile_payment_reference(post_data):
+    raw = (post_data.get("mobile_payment_reference") or "").strip()
+    if not raw:
+        raise ValidationError(
+            "Indique la referencia del pago móvil (entre 4 y 16 dígitos)."
+        )
+    if not raw.isdigit() or len(raw) < 4 or len(raw) > 16:
+        raise ValidationError(
+            "La referencia del pago móvil debe tener entre 4 y 16 dígitos numéricos."
+        )
+    return raw
+
+
 def parse_payment_splits_from_post(post_data):
     tasa = ExchangeRate.get_latest()
     if not tasa:
@@ -622,12 +635,13 @@ def parse_payment_splits_from_post(post_data):
             continue
         amount_ves = _parse_ves_amount(raw)
         if amount_ves > 0:
-            splits.append(
-                {
-                    "method": method_value,
-                    "amount_ves": str(amount_ves),
-                }
-            )
+            entry = {
+                "method": method_value,
+                "amount_ves": str(amount_ves),
+            }
+            if method_value == Invoice.PaymentMethod.MOBILE:
+                entry["reference"] = parse_mobile_payment_reference(post_data)
+            splits.append(entry)
 
     usd_raw = (post_data.get("payment_split_CASH_USD") or "").strip()
     if usd_raw:
@@ -735,10 +749,35 @@ def validate_payment_for_total(payment_method, payment_splits, expected_total):
                     expected_total,
                 )
             )
+        for entry in payment_splits:
+            if entry.get("method") != Invoice.PaymentMethod.MOBILE:
+                continue
+            reference = str(entry.get("reference") or "").strip()
+            if not reference.isdigit() or len(reference) < 4 or len(reference) > 16:
+                raise ValidationError(
+                    "La referencia del pago móvil debe tener entre 4 y 16 dígitos numéricos."
+                )
+            entry["reference"] = reference
+        return
+
+    if payment_method == Invoice.PaymentMethod.MOBILE:
+        if not payment_splits or len(payment_splits) != 1:
+            raise ValidationError(
+                "Indique la referencia del pago móvil (entre 4 y 16 dígitos)."
+            )
+        entry = payment_splits[0]
+        if entry.get("type") != "MOBILE":
+            raise ValidationError("El desglose de pago móvil no es válido.")
+        reference = str(entry.get("reference") or "").strip()
+        if not reference.isdigit() or len(reference) < 4 or len(reference) > 16:
+            raise ValidationError(
+                "La referencia del pago móvil debe tener entre 4 y 16 dígitos numéricos."
+            )
+        entry["reference"] = reference
         return
 
     if payment_splits:
-        raise ValidationError("Solo Mixto y Cashea admiten desglose de pago.")
+        raise ValidationError("Solo Mixto, Cashea y Pago móvil admiten desglose de pago.")
 
 
 def parse_payment_method_from_post(post_data, expected_total=None):
@@ -747,6 +786,13 @@ def parse_payment_method_from_post(post_data, expected_total=None):
         payment_splits = parse_payment_splits_from_post(post_data)
     elif payment_method == Invoice.PaymentMethod.CASHEA:
         payment_splits = parse_cashea_payment_from_post(post_data)
+    elif payment_method == Invoice.PaymentMethod.MOBILE:
+        payment_splits = [
+            {
+                "type": "MOBILE",
+                "reference": parse_mobile_payment_reference(post_data),
+            }
+        ]
     else:
         payment_splits = []
 

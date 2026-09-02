@@ -193,3 +193,22 @@
     border-color: rgba(96, 165, 250, 0.65);
     color: #93c5fd;
 }
+
+.client-list-plan-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    max-width: 9.5rem;
+}
+
+.client-list-fixed-plan {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    color: var(--text-muted);
+}

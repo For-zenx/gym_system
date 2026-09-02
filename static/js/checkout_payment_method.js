@@ -292,6 +292,48 @@
         }
     }
 
+    function getMobilePaymentReference() {
+        const input = document.getElementById('mobile_payment_reference');
+        return input ? String(input.value || '').trim() : '';
+    }
+
+    function isValidMobilePaymentReference(value) {
+        return /^[0-9]{4,16}$/.test(String(value || ''));
+    }
+
+    function mixedHasMobileSplit() {
+        const input = document.getElementById('payment_split_MOBILE');
+        if (!input) {
+            return false;
+        }
+        return parseVesText(input.value) > 0;
+    }
+
+    function syncMobileReferencePanel() {
+        const panel = document.getElementById('checkout-payment-mobile-ref-panel');
+        const input = document.getElementById('mobile_payment_reference');
+        if (!panel || !input) {
+            return;
+        }
+        const method = getSelectedPaymentMethod();
+        const show = method === 'MOBILE' || (method === 'MIXED' && mixedHasMobileSplit());
+        panel.hidden = !show;
+        input.disabled = !show;
+        if (!show) {
+            input.value = '';
+        }
+    }
+
+    function sanitizeMobileReferenceInput(input) {
+        if (!input) {
+            return;
+        }
+        const digits = String(input.value || '').replace(/\D/g, '').slice(0, 16);
+        if (input.value !== digits) {
+            input.value = digits;
+        }
+    }
+
     function togglePaymentPanels() {
         const method = getSelectedPaymentMethod();
         const mixedPanel = document.getElementById('checkout-payment-mixed-panel');
@@ -309,6 +351,7 @@
                 refreshCasheaSummary();
             }
         }
+        syncMobileReferencePanel();
     }
 
     function collectCheckoutPaymentMethodErrors() {
@@ -349,6 +392,14 @@
             return errors;
         }
 
+        if (method === 'MOBILE') {
+            const reference = getMobilePaymentReference();
+            if (!isValidMobilePaymentReference(reference)) {
+                errors.push('Indique la referencia del pago móvil (entre 4 y 16 dígitos).');
+            }
+            return errors;
+        }
+
         if (method !== 'MIXED') {
             return errors;
         }
@@ -378,6 +429,10 @@
             }
         }
 
+        if (mixedHasMobileSplit() && !isValidMobilePaymentReference(getMobilePaymentReference())) {
+            errors.push('Indique la referencia del pago móvil (entre 4 y 16 dígitos).');
+        }
+
         return errors;
     }
 
@@ -387,11 +442,16 @@
             return null;
         }
         if (method === 'MIXED') {
+            const reference = getMobilePaymentReference();
             return {
                 label: METHOD_LABELS.MIXED,
                 splits: getMixedSplitAmounts().map(function (entry) {
+                    let label = entry.label;
+                    if (entry.method === 'MOBILE' && isValidMobilePaymentReference(reference)) {
+                        label = label + ' (#' + reference + ')';
+                    }
                     return {
-                        label: entry.label,
+                        label: label,
                         amount: entry.display,
                     };
                 }),
@@ -422,6 +482,16 @@
                 splits: splits,
             };
         }
+        if (method === 'MOBILE') {
+            const reference = getMobilePaymentReference();
+            const label = isValidMobilePaymentReference(reference)
+                ? (METHOD_LABELS.MOBILE + ' (#' + reference + ')')
+                : METHOD_LABELS.MOBILE;
+            return {
+                label: label,
+                splits: [],
+            };
+        }
         if (USD_CHECKOUT_METHODS.indexOf(method) !== -1) {
             const usdTotal = getCheckoutGrandTotalUsd();
             return {
@@ -442,6 +512,7 @@
         } else if (method === 'CASHEA') {
             refreshCasheaSummary();
         }
+        syncMobileReferencePanel();
     }
 
     function initCheckoutPaymentMethod(config) {
@@ -463,6 +534,7 @@
             }
             input.addEventListener('input', function () {
                 refreshMixedSummary();
+                syncMobileReferencePanel();
                 if (global.checkoutRefreshSubmit) {
                     global.checkoutRefreshSubmit();
                 }
@@ -473,6 +545,16 @@
         if (usdInput) {
             usdInput.addEventListener('input', function () {
                 refreshMixedSummary();
+                if (global.checkoutRefreshSubmit) {
+                    global.checkoutRefreshSubmit();
+                }
+            });
+        }
+
+        const mobileRefInput = document.getElementById('mobile_payment_reference');
+        if (mobileRefInput) {
+            mobileRefInput.addEventListener('input', function () {
+                sanitizeMobileReferenceInput(mobileRefInput);
                 if (global.checkoutRefreshSubmit) {
                     global.checkoutRefreshSubmit();
                 }

@@ -148,6 +148,7 @@ class ClientListView(LoginRequiredMixin, ListView):
 
         queryset = (
             Client.objects.filter(person_category=PersonCategory.MEMBER)
+            .select_related("fixed_plan")
             .prefetch_related("memberships")
             .order_by("-fecha_ingreso", "-id")
         )
