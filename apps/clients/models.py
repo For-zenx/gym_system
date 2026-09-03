@@ -132,9 +132,7 @@ class Client(models.Model):
 
     @property
     def active_memberships(self):
-        from datetime import date
-        today = date.today()
-        return self.memberships.filter(fecha_inicio__lte=today, fecha_fin__gte=today)
+        return self.memberships.currently_valid()
 
     @property
     def has_access_today(self):
@@ -148,14 +146,10 @@ class Client(models.Model):
 
     @property
     def has_active_flexible(self):
-        from datetime import date
         from apps.billing.models import Plan
 
-        today = date.today()
-        return self.memberships.filter(
+        return self.memberships.currently_valid().filter(
             plan__billing_type=Plan.BillingType.FLEXIBLE,
-            fecha_inicio__lte=today,
-            fecha_fin__gte=today,
         ).exists()
 
     @property
@@ -165,7 +159,8 @@ class Client(models.Model):
 
         today = date.today()
         membership = (
-            self.memberships.filter(
+            self.memberships.for_coverage()
+            .filter(
                 plan__billing_type=Plan.BillingType.FIXED,
                 fecha_fin__gte=today,
             )
@@ -176,16 +171,12 @@ class Client(models.Model):
 
     @property
     def fixed_subscription_status(self):
-        from datetime import date
         from apps.billing.models import Plan
 
         if not self.fecha_corte_dia:
             return 'NONE'
-        today = date.today()
-        if self.memberships.filter(
+        if self.memberships.currently_valid().filter(
             plan__billing_type=Plan.BillingType.FIXED,
-            fecha_inicio__lte=today,
-            fecha_fin__gte=today,
         ).exists():
             return 'ACTIVE'
         return 'SUSPENDED'

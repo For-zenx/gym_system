@@ -41,6 +41,7 @@ from .validation import (
 from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
 from apps.billing.services import (
     get_chargeable_plans,
+    get_client_membership_history_rows,
     get_display_service_periods_for_client,
     get_recent_service_periods_for_client,
     get_profile_subscription_summary,
@@ -255,17 +256,16 @@ class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailV
         context['access_logs'] = self.object.access_logs.all()[:20]
         context['billing_events'] = self.object.billing_events.select_related('created_by')[:15]
         context['subscription_summary'] = get_profile_subscription_summary(self.object)
+        context['membership_history_rows'] = get_client_membership_history_rows(self.object)
+        context['membership_history_preview'] = 3
+        context['membership_history_hidden_count'] = max(
+            0,
+            len(context['membership_history_rows']) - context['membership_history_preview'],
+        )
         context['display_locker_rentals'] = get_display_locker_rentals_for_client(self.object)
         context['locker_rentals'] = get_recent_rentals_for_client(self.object)
         context['display_service_periods'] = get_display_service_periods_for_client(self.object)
         context['service_periods'] = get_recent_service_periods_for_client(self.object)
-        context['has_profile_history'] = bool(
-            context['subscription_summary'].get('fixed_groups_detail')
-            or context['service_periods']
-            or context['locker_rentals']
-        )
-        context['all_memberships'] = self.object.memberships.select_related('plan').order_by('-fecha_inicio')
-
         from apps.billing.corporate_services import get_corporate_checkout_context
 
         corp_checkout = get_corporate_checkout_context(self.object)
@@ -302,7 +302,7 @@ class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailV
             context['corp_group'] = corp_group
             context['is_corp_owner'] = corp_group.subscriber_id == self.object.pk
             today = date.today()
-            context['corp_has_paid_coverage'] = self.object.memberships.filter(
+            context['corp_has_paid_coverage'] = self.object.memberships.for_coverage().filter(
                 plan_id=corp_group.plan_id,
                 fecha_fin__gte=today,
             ).exists()

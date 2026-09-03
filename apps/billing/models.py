@@ -306,6 +306,7 @@ class ClientBillingEvent(models.Model):
         ADMIN_ACCESS_GRANTED = "ADMIN_ACCESS_GRANTED", "Acceso administrativo asignado"
         INVOICE_VOIDED = "INVOICE_VOIDED", "Factura anulada"
         MEMBERSHIP_SOFT_CLOSED = "MEMBERSHIP_SOFT_CLOSED", "Membresía cerrada sin borrar"
+        MEMBERSHIP_VOIDED = "MEMBERSHIP_VOIDED", "Membresía anulada"
 
     client = models.ForeignKey(
         Client,
@@ -334,19 +335,109 @@ class ClientBillingEvent(models.Model):
         return f"{self.client.codigo_afiliado} — {self.get_event_type_display()}"
 
 
+class MembershipQuerySet(models.QuerySet):
+    def for_coverage(self):
+        return self.exclude(status__in=["VOIDED", "CLOSED"])
+
+    def currently_valid(self, today=None):
+        if today is None:
+            today = timezone.localdate()
+        return self.for_coverage().filter(
+            fecha_inicio__lte=today,
+            fecha_fin__gte=today,
+        )
+
+
+class MembershipManager(models.Manager):
+    def get_queryset(self):
+        return MembershipQuerySet(self.model, using=self._db)
+
+    def for_coverage(self):
+        return self.get_queryset().for_coverage()
+
+    def currently_valid(self, today=None):
+        return self.get_queryset().currently_valid(today=today)
+
+
 class Membership(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Activa"
+        QUEUED = "QUEUED", "Encolada"
+        EXPIRED = "EXPIRED", "Vencida"
+        VOIDED = "VOIDED", "Anulada"
+        CLOSED = "CLOSED", "Cerrada"
+
+    class Origin(models.TextChoices):
+        CHECKOUT = "CHECKOUT", "Cobro"
+        ADMIN = "ADMIN", "Acceso admin"
+        CORPORATE = "CORPORATE", "Corporativo"
+        CORPORATE_JOIN = "CORPORATE_JOIN", "Alta corporativa"
+        UNKNOWN = "UNKNOWN", "Histórico"
+
+    NON_COVERAGE_STATUSES = (Status.VOIDED, Status.CLOSED)
+
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='memberships', verbose_name="Afiliado")
     plan = models.ForeignKey(Plan, on_delete=models.PROTECT, verbose_name="Plan")
     fecha_inicio = models.DateField("Fecha de Inicio", default=timezone.now)
     fecha_fin = models.DateField("Fecha de Vencimiento", editable=False)
+    status = models.CharField(
+        "Estado",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        db_index=True,
+    )
+    fecha_corte_dia = models.PositiveSmallIntegerField(
+        "Día de corte (snapshot)",
+        null=True,
+        blank=True,
+        help_text="Día de corte con el que se registró esta membresía (1–31).",
+    )
+    origen = models.CharField(
+        "Origen",
+        max_length=16,
+        choices=Origin.choices,
+        default=Origin.UNKNOWN,
+    )
+    created_at = models.DateTimeField("Creado", auto_now_add=True, null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_memberships",
+        verbose_name="Registrado por",
+    )
+
+    objects = MembershipManager()
 
     class Meta:
         verbose_name = "Membresía"
         verbose_name_plural = "Membresías"
 
     def clean(self):
-        if self.fecha_inicio and self.fecha_fin and self.fecha_inicio > self.fecha_fin:
-            raise ValidationError("La fecha de inicio debe ser anterior o igual a la de vencimiento.")
+        if self.status not in self.NON_COVERAGE_STATUSES:
+            if self.fecha_inicio and self.fecha_fin and self.fecha_inicio > self.fecha_fin:
+                raise ValidationError("La fecha de inicio debe ser anterior o igual a la de vencimiento.")
+        if self.fecha_corte_dia is not None and (
+            self.fecha_corte_dia < 1 or self.fecha_corte_dia > 31
+        ):
+            raise ValidationError({"fecha_corte_dia": "El día de corte debe estar entre 1 y 31."})
+
+    def sync_lifecycle_status(self, today=None):
+        """Actualiza ACTIVE/QUEUED/EXPIRED según fechas. No toca VOIDED/CLOSED."""
+        if self.status in self.NON_COVERAGE_STATUSES:
+            return self.status
+        if today is None:
+            today = timezone.localdate()
+        if self.fecha_inicio and self.fecha_fin:
+            if self.fecha_inicio <= today <= self.fecha_fin:
+                self.status = self.Status.ACTIVE
+            elif self.fecha_inicio > today:
+                self.status = self.Status.QUEUED
+            else:
+                self.status = self.Status.EXPIRED
+        return self.status
 
     def save(self, *args, **kwargs):
         if not self.fecha_fin:
@@ -357,12 +448,19 @@ class Membership(models.Model):
             else:
                 raise ValidationError("La membresía fija requiere fecha de vencimiento explícita.")
 
+        self.sync_lifecycle_status()
         self.full_clean()
         super().save(*args, **kwargs)
 
     @property
+    def counts_for_coverage(self):
+        return self.status not in self.NON_COVERAGE_STATUSES
+
+    @property
     def es_valida(self):
         from datetime import date
+        if not self.counts_for_coverage:
+            return False
         return self.fecha_inicio <= date.today() <= self.fecha_fin
 
     def is_valid_now(self, current_time=None):

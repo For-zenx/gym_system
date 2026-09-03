@@ -75,8 +75,8 @@ class ClientBillingEventAdmin(admin.ModelAdmin):
 
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
-    list_display = ('client', 'plan', 'fecha_inicio', 'fecha_fin', 'es_valida_status')
-    list_filter = ('plan', 'fecha_fin')
+    list_display = ('client', 'plan', 'fecha_inicio', 'fecha_fin', 'status', 'origen', 'es_valida_status')
+    list_filter = ('plan', 'status', 'origen', 'fecha_fin')
     search_fields = ('client__nombre', 'client__cedula')
 
     def es_valida_status(self, obj):

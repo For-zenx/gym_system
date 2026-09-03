@@ -5,7 +5,7 @@
 {% block page_title %}Perfil del Afiliado{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.2">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.5">
 {% endblock %}
 
 {% block content %}
@@ -190,26 +190,11 @@
                 {% endif %}
             </dl>
 
-            {% if has_profile_history %}
+            {% include "clients/includes/membership_history_block.html" %}
+
+            {% if service_periods or class_registrations or locker_rentals %}
             <details class="profile-period-details profile-history-details">
-                <summary>Ver historial completo</summary>
-                {% if subscription_summary.fixed_groups_detail %}
-                <div class="profile-history-section">
-                    <p class="profile-history-heading">Periodos de plan</p>
-                    <ul class="profile-period-groups">
-                        {% for group in subscription_summary.fixed_groups_detail %}
-                        <li class="profile-period-group profile-period-{{ group.status }}">
-                            <span class="profile-period-plan">{{ group.plan_name }}</span>
-                            <span class="profile-period-range">{{ group.start_display }} → {{ group.end_display }}</span>
-                            <span class="profile-period-meta">
-                                {% if group.period_count > 1 %}{{ group.period_count }} periodos{% else %}1 periodo{% endif %}
-                                · {% if group.status == "active" %}Vigente{% elif group.status == "queued" %}Por iniciar{% else %}Vencido{% endif %}
-                            </span>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
+                <summary>Otros historiales</summary>
                 {% if service_periods %}
                 <div class="profile-history-section">
                     <p class="profile-history-heading">Servicios</p>
@@ -276,7 +261,6 @@
                 {% if 'billing.change_cut_date' in user_permissions %}
                 <button type="button" class="btn btn-link-muted" onclick="openCutDateModal()">Cambiar fecha de corte</button>
                 {% endif %}
-                <button type="button" class="btn btn-link-muted" onclick="openManageMembershipsModal()">Gestionar membresías</button>
             </div>
         </div>
 
@@ -566,66 +550,6 @@
     {% include "billing/includes/corporate_admin_access_modal.html" with group=corp_group corp_admin_access_clients=corp_admin_access_clients today=today redirect_next=request.path %}
     {% endif %}
 
-    <div class="modal-overlay" id="manageMembershipsModal">
-        <div class="modal-content" style="max-width: 800px;">
-            {% include "includes/modal_header.html" with modal_title="Gestionar Membresías" %}
-            <div class="modal-body" style="padding: 1.5rem;">
-                <p class="billing-field-hint" style="margin-bottom: 1.5rem;">
-                    Historial completo de membresías del afiliado. Tenga cuidado al eliminar membresías activas, ya que impactará inmediatamente en el acceso.
-                </p>
-                
-                {% if all_memberships %}
-                <div class="table-responsive">
-                    <table class="table" style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="text-align: left; border-bottom: 1px solid var(--border-color);">
-                                <th style="padding: 0.75rem;">Plan</th>
-                                <th style="padding: 0.75rem;">Inicio</th>
-                                <th style="padding: 0.75rem;">Vencimiento</th>
-                                <th style="padding: 0.75rem;">Estado</th>
-                                <th style="padding: 0.75rem; text-align: right;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for mem in all_memberships %}
-                            <tr style="border-bottom: 1px solid var(--border-color);">
-                                <td style="padding: 0.75rem;"><strong>{{ mem.plan.nombre }}</strong></td>
-                                <td style="padding: 0.75rem;">{{ mem.fecha_inicio|date:"d/m/Y" }}</td>
-                                <td style="padding: 0.75rem;">{{ mem.fecha_fin|date:"d/m/Y" }}</td>
-                                <td style="padding: 0.75rem;">
-                                    {% if mem.es_valida %}
-                                    <span class="badge badge-success" style="font-size: 0.7rem;">Activa</span>
-                                    {% elif mem.fecha_inicio > today %}
-                                    <span class="badge badge-info" style="font-size: 0.7rem;">Encolada</span>
-                                    {% else %}
-                                    <span class="badge badge-secondary" style="font-size: 0.7rem;">Vencida</span>
-                                    {% endif %}
-                                </td>
-                                <td style="padding: 0.75rem; text-align: right;">
-                                    {% if 'billing.delete_membership' in user_permissions %}
-                                    <form method="POST" action="{% url 'billing:delete_membership_action' mem.id %}" onsubmit="return confirm('¿Está seguro de eliminar esta membresía? Esta acción es irreversible y quedará registrada en la auditoría.');" style="display: inline;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-danger-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Eliminar</button>
-                                    </form>
-                                    {% else %}
-                                    <span class="text-muted" style="font-size: 0.75rem;">Sin permisos</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="profile-tab-empty">No hay membresías registradas.</p>
-                {% endif %}
-            </div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeManageMembershipsModal()">Cerrar</button>
-            </div>
-        </div>
-    </div>
-
 </div>
 {% endblock %}
 
@@ -806,14 +730,18 @@
     {% if 'clients.edit' in user_permissions %}
     bindDismissibleModalById('editModal', { onClose: closeEditModal });
     {% endif %}
-    bindDismissibleModalById('manageMembershipsModal', { onClose: closeManageMembershipsModal });
 
-    function openManageMembershipsModal() {
-        document.getElementById('manageMembershipsModal').classList.add('show');
-    }
-
-    function closeManageMembershipsModal() {
-        document.getElementById('manageMembershipsModal').classList.remove('show');
-    }
+    (function () {
+        var toggle = document.getElementById('profile-mem-toggle');
+        var list = document.getElementById('profile-mem-list');
+        if (!toggle || !list) return;
+        toggle.addEventListener('click', function () {
+            var expanded = list.classList.toggle('is-expanded');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            toggle.textContent = expanded
+                ? 'Ver menos'
+                : 'Ver más (' + toggle.getAttribute('data-hidden-count') + ')';
+        });
+    })();
 </script>
 {% endblock %}

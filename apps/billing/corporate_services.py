@@ -42,7 +42,7 @@ def _has_active_fixed_memberships(client, today=None):
     """True si el cliente tiene alguna membresía fija o corporativa activa/futura."""
     if today is None:
         today = timezone.localdate()
-    return client.memberships.filter(
+    return client.memberships.for_coverage().filter(
         plan__billing_type__in=[Plan.BillingType.FIXED, Plan.BillingType.CORPORATE],
         fecha_fin__gte=today,
     ).exists()
@@ -72,29 +72,53 @@ def _get_active_corporate_group_for_client(client):
     return None
 
 
+def _void_memberships_queryset(qs, motivo, user=None):
+    """Marca como VOIDED las membresías del queryset (sin borrar)."""
+    cancelled_info = []
+    for mem in qs.select_related("plan"):
+        if mem.status == Membership.Status.VOIDED:
+            continue
+        cancelled_info.append({
+            "plan_nombre": mem.plan.nombre,
+            "billing_type": mem.plan.billing_type,
+            "fecha_fin": mem.fecha_fin.strftime("%d/%m/%Y"),
+            "membership_id": mem.pk,
+        })
+        ClientServicePeriod.objects.filter(membership=mem).exclude(
+            status=ClientServicePeriod.Status.CANCELLED
+        ).update(status=ClientServicePeriod.Status.CANCELLED)
+        mem.status = Membership.Status.VOIDED
+        mem.save(update_fields=["status"])
+        ClientBillingEvent.objects.create(
+            client=mem.client,
+            event_type=ClientBillingEvent.EventType.MEMBERSHIP_VOIDED,
+            payload={
+                "membership_id": mem.pk,
+                "plan_name": mem.plan.nombre,
+                "via": "corporate_lifecycle",
+            },
+            motivo=motivo,
+            created_by=user if getattr(user, "is_authenticated", False) else None,
+        )
+    return cancelled_info
+
+
 def _cancel_client_fixed_memberships(client, today=None):
-    """Cancela membresías fijas/corporativas activas o futuras del cliente.
+    """Anula membresías fijas/corporativas activas o futuras del cliente (sin borrar).
 
     Retorna la lista de planes cancelados para mostrar en el warning.
     """
     if today is None:
         today = timezone.localdate()
 
-    memberships_to_cancel = list(
-        client.memberships.filter(
-            plan__billing_type__in=[Plan.BillingType.FIXED, Plan.BillingType.CORPORATE],
-            fecha_fin__gte=today,
-        ).select_related("plan")
+    memberships_to_cancel = client.memberships.for_coverage().filter(
+        plan__billing_type__in=[Plan.BillingType.FIXED, Plan.BillingType.CORPORATE],
+        fecha_fin__gte=today,
     )
-
-    cancelled_info = []
-    for mem in memberships_to_cancel:
-        cancelled_info.append({
-            "plan_nombre": mem.plan.nombre,
-            "billing_type": mem.plan.billing_type,
-            "fecha_fin": mem.fecha_fin.strftime("%d/%m/%Y"),
-        })
-        mem.delete()
+    cancelled_info = _void_memberships_queryset(
+        memberships_to_cancel,
+        motivo="Vinculado a grupo corporativo — membresías previas anuladas automáticamente.",
+    )
 
     # Resetear campos del cliente
     update_fields = []
@@ -111,15 +135,7 @@ def _cancel_client_fixed_memberships(client, today=None):
         client.fixed_plan = None
         client.fecha_corte_dia = None
 
-    ClientBillingEvent.objects.create(
-        client=client,
-        event_type=ClientBillingEvent.EventType.MEMBERSHIP_DELETED,
-        payload={"cancelled_by": "corporate_group_join", "plans": cancelled_info},
-        motivo="Vinculado a grupo corporativo — membresías previas canceladas automáticamente.",
-    )
-
     return cancelled_info
-
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -251,7 +267,7 @@ def add_member_to_group(group, client, added_by=None):
     # Si el grupo está activo, generar membresía inmediatamente para este nuevo miembro
     if group.status == CorporateGroup.Status.ACTIVE:
         today = timezone.localdate()
-        subscriber_mem = group.subscriber.memberships.filter(
+        subscriber_mem = group.subscriber.memberships.for_coverage().filter(
             plan=group.plan,
             fecha_fin__gte=today,
         ).order_by("-fecha_fin").first()
@@ -261,7 +277,8 @@ def add_member_to_group(group, client, added_by=None):
                 group=group,
                 fecha_inicio=today,
                 fecha_fin=subscriber_mem.fecha_fin,
-                acting_user=added_by
+                acting_user=added_by,
+                origen=Membership.Origin.CORPORATE_JOIN,
             )
             Client.objects.filter(pk=client.pk).update(fixed_plan=group.plan, fecha_corte_dia=group.fecha_corte_dia)
             client.fixed_plan = group.plan
@@ -289,13 +306,16 @@ def remove_member_from_group(group, client, removed_by=None):
     if not member:
         raise ValidationError("{} no es miembro activo de este grupo.".format(client.nombre))
 
-    # Cancelar membresías activas del plan corporativo para este cliente
+    # Anular membresías activas del plan corporativo para este cliente
     today = timezone.localdate()
-    client.memberships.filter(
-        plan=group.plan,
-        fecha_fin__gte=today,
-    ).delete()
-
+    _void_memberships_queryset(
+        client.memberships.for_coverage().filter(
+            plan=group.plan,
+            fecha_fin__gte=today,
+        ),
+        motivo="Salida del grupo corporativo #{} — membresía anulada.".format(group.pk),
+        user=removed_by,
+    )
     member.is_active = False
     member.removed_at = timezone.now()
     member.removed_by = removed_by
@@ -319,18 +339,20 @@ def dissolve_corporate_group(group, dissolved_by=None):
 
     today = timezone.localdate()
 
-    # Cancelar membresías activas del plan corporativo para todos los miembros
+    # Anular membresías activas del plan corporativo para todos los miembros
     all_client_ids = list(
         group.members.filter(is_active=True).values_list("client_id", flat=True)
     ) + [group.subscriber_id]
 
-    from apps.billing.models import Membership as M
-    M.objects.filter(
-        client_id__in=all_client_ids,
-        plan=group.plan,
-        fecha_fin__gte=today,
-    ).delete()
-
+    _void_memberships_queryset(
+        Membership.objects.for_coverage().filter(
+            client_id__in=all_client_ids,
+            plan=group.plan,
+            fecha_fin__gte=today,
+        ),
+        motivo="Disolución del grupo corporativo #{} — membresías anuladas.".format(group.pk),
+        user=dissolved_by,
+    )
     # Desactivar todos los miembros
     group.members.filter(is_active=True).update(
         is_active=False,
@@ -389,7 +411,8 @@ def find_memberships_for_corporate_invoice(invoice):
     client_ids.add(group.subscriber_id)
 
     return list(
-        Membership.objects.filter(
+        Membership.objects.for_coverage()
+        .filter(
             client_id__in=client_ids,
             plan_id=period.plan_id,
             fecha_inicio=period.fecha_inicio,
@@ -449,7 +472,8 @@ def apply_corporate_group_payment(
 
     hoy = timezone.localdate()
     latest = (
-        group.subscriber.memberships.filter(plan=group.plan)
+        group.subscriber.memberships.for_coverage()
+        .filter(plan=group.plan)
         .order_by("-fecha_fin")
         .first()
     )
@@ -475,14 +499,14 @@ def apply_corporate_group_payment(
     plan = group.plan
     payer_membership = None
     for member_client in all_clients:
-        membership = Membership(
+        membership = _create_corporate_membership_for_client(
             client=member_client,
-            plan=plan,
+            group=group,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
+            acting_user=acting_user,
+            origen=Membership.Origin.CORPORATE,
         )
-        membership.full_clean()
-        membership.save()
         Client.objects.filter(pk=member_client.pk).update(
             fixed_plan=plan,
             fecha_corte_dia=payment_cut_day,
@@ -491,13 +515,12 @@ def apply_corporate_group_payment(
             payer_membership = membership
 
     if payer_membership is None:
-        payer_membership = Membership.objects.filter(
+        payer_membership = Membership.objects.for_coverage().filter(
             client=payer,
             plan=plan,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
         ).first()
-
     if group.status == CorporateGroup.Status.SUSPENDED:
         group.status = CorporateGroup.Status.ACTIVE
         group.save(update_fields=["status", "updated_at"])
@@ -546,7 +569,8 @@ def grant_corporate_admin_access(group, valid_until, user):
     for client in clients:
         soft_closed_ids = []
         open_memberships = list(
-            client.memberships.filter(fecha_fin__gte=today)
+            client.memberships.for_coverage()
+            .filter(fecha_fin__gte=today)
             .select_related("plan")
             .order_by("fecha_inicio")
         )
@@ -575,6 +599,9 @@ def grant_corporate_admin_access(group, valid_until, user):
             plan=group.plan,
             fecha_inicio=fecha_inicio,
             fecha_fin=valid_until,
+            fecha_corte_dia=cut_day,
+            origen=Membership.Origin.ADMIN,
+            created_by=user if getattr(user, "is_authenticated", False) else None,
         )
         new_membership.full_clean()
         new_membership.save()
@@ -620,10 +647,12 @@ def get_hard_reset_preview(client):
     """Preview sin ejecutar: qué membresías fijas perdería al unirse a un grupo."""
     today = timezone.localdate()
     memberships = list(
-        client.memberships.filter(
+        client.memberships.for_coverage()
+        .filter(
             plan__billing_type__in=[Plan.BillingType.FIXED, Plan.BillingType.CORPORATE],
             fecha_fin__gte=today,
-        ).select_related("plan")
+        )
+        .select_related("plan")
     )
     return [
         {
@@ -635,13 +664,25 @@ def get_hard_reset_preview(client):
     ]
 
 
-def _create_corporate_membership_for_client(client, group, fecha_inicio, fecha_fin, acting_user=None):
+def _create_corporate_membership_for_client(
+    client,
+    group,
+    fecha_inicio,
+    fecha_fin,
+    acting_user=None,
+    origen=None,
+):
     """Crea una Membership individual para un cliente dentro del grupo corporativo."""
+    if origen is None:
+        origen = Membership.Origin.CORPORATE
     membership = Membership(
         client=client,
         plan=group.plan,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
+        fecha_corte_dia=group.fecha_corte_dia or getattr(client, "fecha_corte_dia", None),
+        origen=origen,
+        created_by=acting_user if getattr(acting_user, "is_authenticated", False) else None,
     )
     membership.full_clean()
     membership.save()
@@ -738,14 +779,12 @@ def get_corporate_group_billing_context(group):
     today = timezone.localdate()
 
     # Membresía que cubre hoy (puede ser solo el periodo actual, sin prepago).
-    active_membership = group.subscriber.memberships.filter(
+    active_membership = group.subscriber.memberships.currently_valid(today).filter(
         plan=group.plan,
-        fecha_inicio__lte=today,
-        fecha_fin__gte=today,
     ).order_by("-fecha_fin").first()
 
     # Cobertura total: el prepago puede dejar membresías futuras más allá de hoy.
-    last_membership = group.subscriber.memberships.filter(
+    last_membership = group.subscriber.memberships.for_coverage().filter(
         plan=group.plan,
     ).order_by("-fecha_fin").first()
 

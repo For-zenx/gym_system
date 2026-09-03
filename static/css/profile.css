@@ -372,11 +372,218 @@
     opacity: 0.55;
 }
 
+.profile-mem-history {
+    margin: 1rem 0 0;
+    padding: 0.85rem 0.95rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.65rem;
+    background: var(--bg-elevated, rgba(255, 255, 255, 0.03));
+}
+
+.profile-mem-history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+
+.profile-mem-history-title {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.profile-mem-history-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+}
+
+.profile-mem-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--bg-surface);
+}
+
+.profile-mem-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    table-layout: fixed;
+}
+
+.profile-mem-table thead th {
+    padding: 0.45rem 0.5rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: left;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, 0.18);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.profile-mem-table tbody td {
+    padding: 0.5rem 0.5rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.profile-mem-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.profile-mem-table thead th:nth-child(1),
+.profile-mem-table tbody td:nth-child(1) {
+    width: 18%;
+}
+
+.profile-mem-table thead th:nth-child(2),
+.profile-mem-table tbody td:nth-child(2) {
+    width: 6%;
+}
+
+.profile-mem-table thead th:nth-child(3),
+.profile-mem-table tbody td:nth-child(3) {
+    width: 16%;
+}
+
+.profile-mem-table thead th:nth-child(4),
+.profile-mem-table tbody td:nth-child(4) {
+    width: 9%;
+}
+
+.profile-mem-table thead th:nth-child(5),
+.profile-mem-table tbody td:nth-child(5) {
+    width: 11%;
+}
+
+.profile-mem-table thead th:nth-child(6),
+.profile-mem-table tbody td:nth-child(6) {
+    width: 14%;
+}
+
+.profile-mem-table thead th:nth-child(7),
+.profile-mem-table tbody td:nth-child(7) {
+    width: 11%;
+}
+
+.profile-mem-table thead th:nth-child(8),
+.profile-mem-table tbody td:nth-child(8) {
+    width: 8%;
+    text-align: center;
+}
+
+.profile-mem-table tbody tr.is-muted td {
+    color: var(--text-muted);
+    opacity: 0.78;
+}
+
+#profile-mem-list:not(.is-expanded) .profile-mem-item-extra {
+    display: none;
+}
+
+.profile-mem-col-plan {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-mem-col-period {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+}
+
+.profile-mem-col-invoice {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+}
+
+.profile-mem-invoice-link {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.profile-mem-invoice-link:hover {
+    text-decoration: underline;
+}
+
+.profile-mem-badge {
+    font-size: 0.65rem !important;
+    padding: 0.12rem 0.4rem !important;
+    white-space: nowrap;
+}
+
+.profile-mem-col-action {
+    text-align: center;
+}
+
+.profile-mem-action-link,
+.profile-mem-action-btn {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-danger, #dc3545);
+    background: transparent;
+    border: 1px solid rgba(220, 53, 69, 0.35);
+    border-radius: 0.35rem;
+    padding: 0.18rem 0.45rem;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.profile-mem-action-link:hover,
+.profile-mem-action-btn:hover {
+    background: rgba(220, 53, 69, 0.08);
+}
+
+.profile-mem-col-action form {
+    margin: 0;
+}
+
+.profile-mem-toggle {
+    display: block;
+    width: 100%;
+    margin-top: 0.55rem;
+    padding: 0.45rem 0.5rem;
+    border: none;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: var(--primary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+}
+
+.profile-mem-toggle:hover {
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.profile-mem-history + .profile-history-details {
+    margin-top: 1rem;
+}
+
 .profile-caja-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem 1rem;
+    margin-top: 1.35rem;
+    padding-top: 0.35rem;
 }
 
 .profile-note-strip {

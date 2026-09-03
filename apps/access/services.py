@@ -172,7 +172,8 @@ def evaluate_access_integrity(client):
             from apps.billing.models import Plan
 
             latest_fixed = (
-                client.memberships.filter(plan__billing_type=Plan.BillingType.FIXED)
+                client.memberships.for_coverage()
+                .filter(plan__billing_type=Plan.BillingType.FIXED)
                 .select_related("plan")
                 .order_by("-fecha_fin")
                 .first()
@@ -184,8 +185,8 @@ def evaluate_access_integrity(client):
 
         if is_subscription_suspended(client):
             motivo = f"Suscripción suspendida (corte: día {client.fecha_corte_dia})"
-        elif client.memberships.exists():
-            latest = client.memberships.order_by('-fecha_fin').first()
+        elif client.memberships.for_coverage().exists():
+            latest = client.memberships.for_coverage().order_by('-fecha_fin').first()
             motivo = f"Membresía vencida el {latest.fecha_fin.strftime('%d/%m/%Y')}"
         else:
             motivo = "Sin membresía registrada"
@@ -236,7 +237,8 @@ def _suspended_since_display(client, today=None):
     from apps.billing.models import Plan
 
     latest_fixed = (
-        client.memberships.filter(
+        client.memberships.for_coverage()
+        .filter(
             plan__billing_type=Plan.BillingType.FIXED,
             fecha_fin__lt=today,
         )
@@ -296,10 +298,8 @@ def build_tablet_access_payload(client, granted, detail, membership_data=None):
         days_until_cut = (next_cut - today).days if next_cut else None
 
         # Buscar membresía corporativa activa para covered_until_display
-        corp_membership = client.memberships.filter(
+        corp_membership = client.memberships.currently_valid(today).filter(
             plan=corp_group.plan,
-            fecha_inicio__lte=today,
-            fecha_fin__gte=today,
         ).order_by("-fecha_fin").first()
         corp_covered_until_display = corp_membership.fecha_fin.strftime("%d/%m/%Y") if corp_membership else None
     else:

@@ -352,12 +352,10 @@ def get_inactive_clients_queryset(inactivity_years, today=None):
         today = date.today()
 
     cutoff = _subtract_years(today, inactivity_years)
-    active_membership = Membership.objects.filter(
+    active_membership = Membership.objects.currently_valid(today).filter(
         client=OuterRef("pk"),
-        fecha_inicio__lte=today,
-        fecha_fin__gte=today,
     )
-    queued_membership = Membership.objects.filter(
+    queued_membership = Membership.objects.for_coverage().filter(
         client=OuterRef("pk"),
         fecha_inicio__gt=today,
     )

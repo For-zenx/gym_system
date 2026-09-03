@@ -40,7 +40,6 @@ from .services import (
     void_invoice,
     get_invoice_void_ui_context,
     invoice_is_legacy_unlinked_membership,
-    delete_membership_with_audit,
 )
 from apps.users.permissions import has_permission
 from django.conf import settings as django_settings
@@ -633,37 +632,56 @@ class SaleItemDeleteView(PermissionRequiredMixin, View):
 
 
 class MembershipDeleteView(PermissionRequiredMixin, View):
+    """DEPRECATED: hard delete encolada — reemplazado por anulación soft (void_membership_without_invoice)."""
+
     required_permission = "billing.delete_queued_membership"
+
     def post(self, request, pk):
+        from apps.billing.services import void_membership_without_invoice
+
         membership = get_object_or_404(Membership, pk=pk)
         client_code = membership.client.codigo_afiliado
-        
-        # We only allow deleting if it hasn't started yet (queued)
         from datetime import date
-        if membership.fecha_inicio > date.today():
-            membership.delete()
-            messages.success(request, "Membresía encolada cancelada exitosamente.")
+
+        if membership.fecha_inicio > date.today() and membership.status not in (
+            Membership.Status.VOIDED,
+            Membership.Status.CLOSED,
+        ):
+            try:
+                void_membership_without_invoice(
+                    membership,
+                    request.user,
+                    motivo="Cancelación de membresía encolada",
+                )
+                messages.success(request, "Membresía encolada anulada correctamente.")
+            except ValidationError as exc:
+                messages.error(request, str(exc))
         else:
-            messages.error(request, "No se puede eliminar una membresía activa o pasada.")
-            
-        return redirect('clients:profile', codigo_afiliado=client_code)
+            messages.error(
+                request,
+                "Solo se pueden anular membresías encoladas desde esta acción.",
+            )
+        return redirect("clients:profile", codigo_afiliado=client_code)
 
 
 class DeleteMembershipActionView(PermissionRequiredMixin, View):
     required_permission = "billing.delete_membership"
 
     def post(self, request, pk):
+        from apps.billing.services import void_membership_without_invoice
+
         membership = get_object_or_404(Membership, pk=pk)
         client_code = membership.client.codigo_afiliado
-        
-        try:
-            delete_membership_with_audit(membership, request.user)
-            messages.success(request, "Membresía eliminada correctamente.")
-        except Exception as e:
-            messages.error(request, f"Error al eliminar la membresía: {str(e)}")
-            
-        return redirect('clients:profile', codigo_afiliado=client_code)
 
+        try:
+            void_membership_without_invoice(membership, request.user)
+            messages.success(request, "Membresía anulada correctamente.")
+        except ValidationError as exc:
+            messages.error(request, str(exc))
+        except Exception as e:
+            messages.error(request, "Error al anular la membresía: {}".format(str(e)))
+
+        return redirect("clients:profile", codigo_afiliado=client_code)
 
 class InvoiceListView(PermissionRequiredMixin, ListView):
     required_permission = "billing.view_invoices"

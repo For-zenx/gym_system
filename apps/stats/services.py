@@ -64,7 +64,7 @@ def build_entry_hour_stats(period_days: int) -> dict:
 
     # 1. Entradas por hora con desglose de planes
     # Subquery para encontrar el plan que el cliente tenía activo en el momento del log
-    active_plan_subquery = Membership.objects.filter(
+    active_plan_subquery = Membership.objects.for_coverage().filter(
         client=OuterRef("client"),
         fecha_inicio__lte=OuterRef("timestamp__date"),
         fecha_fin__gte=OuterRef("timestamp__date"),
@@ -111,7 +111,7 @@ def build_entry_hour_stats(period_days: int) -> dict:
 
     # 2. Distribución de Planes (Afiliados activos hoy)
     plan_dist_rows = (
-        Membership.objects.filter(fecha_inicio__lte=today, fecha_fin__gte=today)
+        Membership.objects.currently_valid(today)
         .values("plan__nombre")
         .annotate(total=Count("client", distinct=True))
         .order_by("-total")
