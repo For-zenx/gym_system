@@ -3,8 +3,9 @@
         {% include "includes/modal_header.html" with modal_title="Acceso administrativo corporativo" %}
         <div class="modal-body">
             <p class="profile-danger-text" style="margin-top: 0;">
-                Esto eliminará todas las membresías anteriores de <strong>todo el grupo</strong>,
-                reseteará suscripciones vinculadas y <strong>no generará cobro</strong>.
+                Esto <strong>anulará los cobros corporativos del grupo</strong> (del más reciente al más antiguo)
+                mientras haya cobertura de pago, cerrará restos sin factura, reseteará suscripciones vinculadas
+                y <strong>no generará un cobro nuevo</strong>.
             </p>
             {% if corp_admin_access_clients %}
             <p class="billing-field-hint">
@@ -35,7 +36,7 @@
                 </div>
                 <label class="profile-danger-ack">
                     <input type="checkbox" id="corporate_admin_access_ack" name="confirm_corporate_admin_access" value="1" required>
-                    <span>Entiendo que se borrarán membresías anteriores de todo el grupo y no se generará un cobro.</span>
+                    <span>Entiendo que se anularán cobros del grupo (LIFO) si existen, se reemplazará la cobertura y no se generará un cobro.</span>
                 </label>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeCorporateAdminAccessModal()">Cancelar</button>

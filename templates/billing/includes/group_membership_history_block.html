@@ -1,16 +1,16 @@
 {% if membership_history_rows %}
-<section class="profile-mem-history" id="profile-mem-history">
+<section class="profile-mem-history" id="group-mem-history">
     <div class="profile-mem-history-head">
         <h3 class="profile-mem-history-title">Historial de membresías</h3>
         <span class="profile-mem-history-count">{{ membership_history_rows|length }} registro{{ membership_history_rows|length|pluralize:"s" }}</span>
     </div>
 
     <div class="profile-mem-table-wrap">
-        <table class="profile-mem-table">
+        <table class="profile-mem-table profile-mem-table-group">
             <thead>
                 <tr>
+                    <th>Afiliado</th>
                     <th>Plan</th>
-                    <th>Tipo</th>
                     <th>Periodo</th>
                     <th>Corte</th>
                     <th>Origen</th>
@@ -19,11 +19,14 @@
                     <th>Acción</th>
                 </tr>
             </thead>
-            <tbody id="profile-mem-list">
+            <tbody id="group-mem-list">
                 {% for row in membership_history_rows %}
                 <tr class="{% if forloop.counter > membership_history_preview %}profile-mem-item-extra{% endif %}{% if row.is_voided or row.is_closed %} is-muted{% endif %}">
+                    <td class="profile-mem-col-client" title="{{ row.client_name }}">
+                        <span class="profile-mem-client-name">{{ row.client_name }}</span>
+                        <span class="profile-mem-client-code">{{ row.client_code }}</span>
+                    </td>
                     <td class="profile-mem-col-plan" title="{{ row.plan_name }}">{{ row.plan_name }}</td>
-                    <td>{{ row.billing_type_short }}</td>
                     <td class="profile-mem-col-period">{{ row.fecha_inicio|date:"d/m/y" }} → {{ row.fecha_fin|date:"d/m/y" }}</td>
                     <td>{{ row.cut_display }}</td>
                     <td>{{ row.origen_label }}</td>
@@ -53,16 +56,15 @@
                     </td>
                     <td class="profile-mem-col-action">
                         {% if row.can_void_via_invoice and 'billing.void_invoice' in user_permissions %}
-                        <a href="{% url 'billing:invoice_detail' pk=row.invoice.pk %}" class="profile-mem-action-link"{% if row.is_corporate %} title="Anula el cobro del grupo (todos los miembros)"{% endif %}>{% if row.is_corporate %}Anular cobro{% else %}Anular{% endif %}</a>
+                        <a href="{% url 'billing:invoice_detail' pk=row.invoice.pk %}" class="profile-mem-action-link" title="Anula el cobro del grupo (todos los miembros)">Anular cobro</a>
                         {% elif row.can_revoke_corporate_admin and row.group_pk and 'corporate.grant_admin_access' in user_permissions %}
                         <form method="POST" action="{% url 'billing:corporate_group_revoke_admin_access' row.group_pk %}" onsubmit="return confirm('¿Cerrar el acceso administrativo de TODO el grupo para este periodo? Quedará como Cerrada (sin anular facturas).');">
                             {% csrf_token %}
                             <input type="hidden" name="membership_id" value="{{ row.membership.id }}">
-                            <input type="hidden" name="next" value="{{ request.path }}">
                             <button type="submit" class="profile-mem-action-btn" title="Cierra el acceso admin de todos los miembros de este periodo">Cerrar acceso admin</button>
                         </form>
                         {% elif row.show_remove_from_group_hint and row.group_pk and 'corporate.remove_members' in user_permissions %}
-                        <a href="{% url 'billing:corporate_group_detail' pk=row.group_pk %}" class="profile-mem-action-link" title="Quite al afiliado del grupo para retirar su acceso">Ir al grupo</a>
+                        <a href="#group-members" class="profile-mem-action-link" title="Quite al afiliado en la tabla Miembros del Grupo">Quitar arriba</a>
                         {% elif row.can_void_direct and 'billing.delete_membership' in user_permissions %}
                         <form method="POST" action="{% url 'billing:delete_membership_action' row.membership.id %}" onsubmit="return confirm('¿Anular esta membresía? Quedará registrada como anulada en el historial.');">
                             {% csrf_token %}
@@ -81,7 +83,7 @@
     </div>
 
     {% if membership_history_hidden_count %}
-    <button type="button" class="profile-mem-toggle" id="profile-mem-toggle" aria-expanded="false" aria-controls="profile-mem-list" data-hidden-count="{{ membership_history_hidden_count }}">
+    <button type="button" class="profile-mem-toggle" id="group-mem-toggle" aria-expanded="false" aria-controls="group-mem-list" data-hidden-count="{{ membership_history_hidden_count }}">
         Ver más ({{ membership_history_hidden_count }})
     </button>
     {% endif %}

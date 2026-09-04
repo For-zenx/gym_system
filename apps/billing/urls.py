@@ -39,6 +39,7 @@ from .views import (
     CorporateGroupRemoveMemberView,
     CorporateGroupDissolveView,
     CorporateGroupGrantAdminAccessView,
+    CorporateGroupRevokeAdminAccessView,
     CorporateGroupPreviewResetView,
 )
 
@@ -86,5 +87,6 @@ urlpatterns = [
     path('corporativo/<int:pk>/agregar-miembro/', CorporateGroupAddMemberView.as_view(), name='corporate_group_add_member'),
     path('corporativo/<int:pk>/quitar-miembro/', CorporateGroupRemoveMemberView.as_view(), name='corporate_group_remove_member'),
     path('corporativo/<int:pk>/acceso-administrativo/', CorporateGroupGrantAdminAccessView.as_view(), name='corporate_group_grant_admin_access'),
+    path('corporativo/<int:pk>/revocar-acceso-administrativo/', CorporateGroupRevokeAdminAccessView.as_view(), name='corporate_group_revoke_admin_access'),
     path('corporativo/<int:pk>/disolver/', CorporateGroupDissolveView.as_view(), name='corporate_group_dissolve'),
 ]

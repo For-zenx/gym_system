@@ -5,7 +5,7 @@
 {% block page_title %}Grupo Corporativo #{{ group.id }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.3">
+<link rel="stylesheet" href="{% static 'css/profile.css' %}?v=4.8">
 <style>
     .group-header-card {
         background: rgba(15,23,42,0.6);
@@ -123,7 +123,7 @@
 </div>
 
 <!-- Members Table -->
-<div class="section-card">
+<div class="section-card" id="group-members">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
         <p class="section-title" style="margin:0;">Miembros del Grupo</p>
         {% if can_add_members and not group.is_dissolved %}
@@ -234,6 +234,10 @@
     {% endfor %}
     {% endwith %}
 </div>
+
+{% if membership_history_rows %}
+{% include "billing/includes/group_membership_history_block.html" %}
+{% endif %}
 
 <!-- Invoice history -->
 {% if invoices %}
@@ -550,6 +554,20 @@
         });
     }
 
+})();
+</script>
+<script>
+(function () {
+    var toggle = document.getElementById('group-mem-toggle');
+    var list = document.getElementById('group-mem-list');
+    if (!toggle || !list) return;
+    toggle.addEventListener('click', function () {
+        var expanded = list.classList.toggle('is-expanded');
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        toggle.textContent = expanded
+            ? 'Ver menos'
+            : 'Ver más (' + toggle.getAttribute('data-hidden-count') + ')';
+    });
 })();
 </script>
 {% endblock %}

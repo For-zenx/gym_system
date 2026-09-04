@@ -492,7 +492,8 @@
     opacity: 0.78;
 }
 
-#profile-mem-list:not(.is-expanded) .profile-mem-item-extra {
+#profile-mem-list:not(.is-expanded) .profile-mem-item-extra,
+#group-mem-list:not(.is-expanded) .profile-mem-item-extra {
     display: none;
 }
 
@@ -500,6 +501,44 @@
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.profile-mem-col-client {
+    min-width: 0;
+}
+
+.profile-mem-client-name {
+    display: block;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-mem-client-code {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.profile-mem-table-group thead th:nth-child(1),
+.profile-mem-table-group tbody td:nth-child(1) {
+    width: 18%;
+}
+
+.profile-mem-table-group thead th:nth-child(2),
+.profile-mem-table-group tbody td:nth-child(2) {
+    width: 14%;
+}
+
+.profile-mem-table-group thead th:nth-child(3),
+.profile-mem-table-group tbody td:nth-child(3) {
+    width: 15%;
+}
+
+.profile-mem-history {
+    margin-bottom: 1.5rem;
 }
 
 .profile-mem-col-period {
@@ -548,6 +587,12 @@
 .profile-mem-action-link:hover,
 .profile-mem-action-btn:hover {
     background: rgba(220, 53, 69, 0.08);
+}
+
+.profile-mem-action-muted {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
 }
 
 .profile-mem-col-action form {

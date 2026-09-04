@@ -535,18 +535,88 @@ def apply_corporate_group_payment(
     }
 
 
+def _group_has_open_plan_coverage(group, today):
+    """True si algún miembro activo/suscriptor tiene cobertura abierta del plan del grupo."""
+    client_ids = [group.subscriber_id] + list(
+        group.active_members.values_list("client_id", flat=True)
+    )
+    return Membership.objects.for_coverage().filter(
+        client_id__in=client_ids,
+        plan_id=group.plan_id,
+        fecha_fin__gte=today,
+    ).exists()
+
+
+def _clear_group_coverage_for_admin_access(group, user):
+    """Anula facturas corporativas LIFO; soft-cierra restos abiertos sin factura.
+
+    Retorna (voided_invoice_ids, soft_closed_membership_ids).
+    """
+    from .services import soft_close_membership, void_invoice
+
+    today = timezone.localdate()
+    voided_invoice_ids = []
+    soft_closed_ids = []
+
+    while _group_has_open_plan_coverage(group, today):
+        invoice_to_void = (
+            Invoice.objects.filter(
+                corporate_group_id=group.pk,
+                esta_anulada=False,
+            )
+            .order_by("-fecha_emision", "-id")
+            .first()
+        )
+        if invoice_to_void is None:
+            break
+        void_invoice(
+            invoice_to_void,
+            user,
+            "Anulación automática por acceso administrativo corporativo",
+        )
+        voided_invoice_ids.append(invoice_to_void.pk)
+
+    client_ids = [group.subscriber_id] + list(
+        group.active_members.values_list("client_id", flat=True)
+    )
+    open_memberships = list(
+        Membership.objects.for_coverage()
+        .filter(
+            client_id__in=client_ids,
+            fecha_fin__gte=today,
+        )
+        .select_related("plan")
+        .order_by("client_id", "fecha_inicio")
+    )
+    for membership in open_memberships:
+        ClientServicePeriod.objects.filter(membership=membership).exclude(
+            status=ClientServicePeriod.Status.CANCELLED
+        ).update(status=ClientServicePeriod.Status.CANCELLED)
+        soft_close_membership(
+            membership,
+            user,
+            motivo=(
+                "Cierre por acceso administrativo corporativo "
+                "(sin factura anulable, grupo #{})"
+            ).format(group.pk),
+        )
+        soft_closed_ids.append(membership.pk)
+
+    return voided_invoice_ids, soft_closed_ids
+
+
 @transaction.atomic
 def grant_corporate_admin_access(group, valid_until, user):
     """Asigna acceso administrativo corporativo sin cobro a todo el grupo.
 
-    - Soft-cierra membresías activas/encoladas (no borra vencidas ni filas).
-    - No anula facturas corporativas (cascada pendiente); cancela periodos de servicio abiertos.
-    - Crea Membership CORPORATE con las mismas fechas para todos.
+    - Anula facturas corporativas del grupo en LIFO (cascada de membresías hermanas).
+    - Soft-cierra coberturas abiertas sin factura anulable.
+    - Crea Membership CORPORATE (origen ADMIN) con las mismas fechas para todos.
     - Sincroniza fixed_plan y fecha_corte_dia en clientes y grupo.
     """
     from datetime import date as date_cls
 
-    from .services import log_billing_event, soft_close_membership
+    from .services import log_billing_event
 
     if group.status == CorporateGroup.Status.DISSOLVED:
         raise ValidationError("No se puede asignar acceso administrativo a un grupo disuelto.")
@@ -562,31 +632,15 @@ def grant_corporate_admin_access(group, valid_until, user):
     if not clients:
         raise ValidationError("El grupo no tiene miembros para asignar acceso.")
 
+    voided_invoice_ids, soft_closed_ids = _clear_group_coverage_for_admin_access(
+        group, user
+    )
+
     cut_day = max(1, min(valid_until.day, 28))
     fecha_inicio = valid_until if valid_until < today else today
     client_pks = [client.pk for client in clients]
 
     for client in clients:
-        soft_closed_ids = []
-        open_memberships = list(
-            client.memberships.for_coverage()
-            .filter(fecha_fin__gte=today)
-            .select_related("plan")
-            .order_by("fecha_inicio")
-        )
-        for membership in open_memberships:
-            ClientServicePeriod.objects.filter(membership=membership).exclude(
-                status=ClientServicePeriod.Status.CANCELLED
-            ).update(status=ClientServicePeriod.Status.CANCELLED)
-            soft_close_membership(
-                membership,
-                user,
-                motivo="Cierre por acceso administrativo corporativo (grupo #{})".format(
-                    group.pk
-                ),
-            )
-            soft_closed_ids.append(membership.pk)
-
         ClientServicePeriod.objects.filter(client=client).filter(
             status__in=(
                 ClientServicePeriod.Status.ACTIVE,
@@ -617,6 +671,7 @@ def grant_corporate_admin_access(group, valid_until, user):
                 "fecha_inicio": fecha_inicio.isoformat(),
                 "fecha_fin": valid_until.isoformat(),
                 "membership_id": new_membership.pk,
+                "voided_invoice_ids": voided_invoice_ids,
                 "soft_closed_membership_ids": soft_closed_ids,
                 "fecha_corte_dia": cut_day,
                 "member_count": len(clients),
@@ -633,6 +688,7 @@ def grant_corporate_admin_access(group, valid_until, user):
         fecha_corte_dia=cut_day,
     )
 
+    group.refresh_from_db()
     group.fecha_corte_dia = cut_day
     update_fields = ["fecha_corte_dia", "updated_at"]
     if group.status == CorporateGroup.Status.SUSPENDED:
@@ -641,6 +697,74 @@ def grant_corporate_admin_access(group, valid_until, user):
     group.save(update_fields=update_fields)
 
     return clients
+
+
+@transaction.atomic
+def revoke_corporate_admin_access(group, user, reference_membership=None):
+    """Cierra el periodo de acceso admin corporativo (all-or-nothing, soft-close).
+
+    Soft-cierra todas las membresías abiertas del mismo periodo (plan + fechas)
+    con origen ADMIN entre suscriptor y miembros del grupo. No anula facturas.
+    """
+    from .services import soft_close_membership
+
+    if group.status == CorporateGroup.Status.DISSOLVED:
+        raise ValidationError(
+            "No se puede revocar acceso administrativo de un grupo disuelto."
+        )
+
+    if reference_membership is None:
+        raise ValidationError("Indique el periodo de acceso administrativo a cerrar.")
+
+    if reference_membership.plan_id != group.plan_id:
+        raise ValidationError("La membresía no corresponde al plan de este grupo.")
+
+    if reference_membership.origen != Membership.Origin.ADMIN:
+        raise ValidationError(
+            "Solo se puede cerrar un periodo de acceso administrativo (sin cobro)."
+        )
+
+    if reference_membership.status in Membership.NON_COVERAGE_STATUSES:
+        raise ValidationError("Ese acceso administrativo ya no está vigente.")
+
+    client_ids = set(
+        CorporateGroupMember.objects.filter(group_id=group.pk).values_list(
+            "client_id", flat=True
+        )
+    )
+    client_ids.add(group.subscriber_id)
+
+    memberships = list(
+        Membership.objects.filter(
+            client_id__in=client_ids,
+            plan_id=group.plan_id,
+            origen=Membership.Origin.ADMIN,
+            fecha_inicio=reference_membership.fecha_inicio,
+            fecha_fin=reference_membership.fecha_fin,
+        )
+        .exclude(status__in=Membership.NON_COVERAGE_STATUSES)
+        .select_related("client", "plan")
+        .order_by("client_id", "id")
+    )
+    if not memberships:
+        raise ValidationError("No hay acceso administrativo vigente para cerrar.")
+
+    closed = []
+    for membership in memberships:
+        ClientServicePeriod.objects.filter(membership=membership).exclude(
+            status=ClientServicePeriod.Status.CANCELLED
+        ).update(status=ClientServicePeriod.Status.CANCELLED)
+        soft_close_membership(
+            membership,
+            user,
+            motivo=(
+                "Revocación de acceso administrativo corporativo "
+                "(grupo #{}, periodo completo)".format(group.pk)
+            ),
+        )
+        closed.append(membership)
+
+    return closed
 
 
 def get_hard_reset_preview(client):

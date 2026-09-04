@@ -332,6 +332,123 @@ def get_profile_subscription_summary(client):
     }
 
 
+def _latest_invoice_for_membership(membership):
+    linked = None
+    for inv in membership.invoices.all():
+        if linked is None or (inv.fecha_emision, inv.pk) > (
+            linked.fecha_emision,
+            linked.pk,
+        ):
+            linked = inv
+    return linked
+
+
+def _resolve_corporate_period_invoice(membership, group=None):
+    """Factura del periodo grupal aunque la membresía no tenga FK (alta mid-cycle)."""
+    if membership.plan.billing_type != Plan.BillingType.CORPORATE:
+        return None
+
+    if group is None:
+        from apps.billing.corporate_services import get_group_for_client
+
+        group = get_group_for_client(membership.client)
+        if group is None:
+            from .models import CorporateGroupMember
+
+            member_row = (
+                CorporateGroupMember.objects.filter(client_id=membership.client_id)
+                .select_related("group")
+                .order_by("-joined_at", "-id")
+                .first()
+            )
+            group = member_row.group if member_row else None
+    if group is None:
+        return None
+
+    # Misma ventana de fechas que la membresía del pagador, o solape con el periodo.
+    exact = (
+        Invoice.objects.filter(
+            corporate_group_id=group.pk,
+            esta_anulada=False,
+            membership__plan_id=membership.plan_id,
+            membership__fecha_inicio=membership.fecha_inicio,
+            membership__fecha_fin=membership.fecha_fin,
+        )
+        .order_by("-fecha_emision", "-id")
+        .first()
+    )
+    if exact is not None:
+        return exact
+
+    return (
+        Invoice.objects.filter(
+            corporate_group_id=group.pk,
+            esta_anulada=False,
+            membership__plan_id=membership.plan_id,
+            membership__fecha_fin__gte=membership.fecha_inicio,
+            membership__fecha_inicio__lte=membership.fecha_fin,
+        )
+        .order_by("-fecha_emision", "-id")
+        .first()
+    )
+
+
+def _membership_history_action_fields(membership, *, group=None):
+    """Flags de acción: corp = factura grupal, revocar admin, o quitar del grupo."""
+    linked_invoice = _latest_invoice_for_membership(membership)
+    is_corporate = membership.plan.billing_type == Plan.BillingType.CORPORATE
+    is_open = membership.status not in Membership.NON_COVERAGE_STATUSES
+
+    if is_corporate and linked_invoice is None:
+        linked_invoice = _resolve_corporate_period_invoice(membership, group=group)
+
+    can_void_via_invoice = bool(
+        is_open and linked_invoice is not None and not linked_invoice.esta_anulada
+    )
+    # Corporativo: nunca anulación individual (all-or-nothing de cobro).
+    can_void_direct = bool(
+        is_open
+        and not is_corporate
+        and (linked_invoice is None or linked_invoice.esta_anulada)
+    )
+    can_revoke_corporate_admin = bool(
+        is_corporate
+        and is_open
+        and membership.origen == Membership.Origin.ADMIN
+        and not can_void_via_invoice
+    )
+
+    group_pk = None
+    show_remove_from_group_hint = False
+    if is_corporate and is_open and not can_void_via_invoice:
+        resolved_group = group
+        if resolved_group is None:
+            from apps.billing.corporate_services import get_group_for_client
+
+            resolved_group = get_group_for_client(membership.client)
+        if resolved_group is not None:
+            group_pk = resolved_group.pk
+            is_subscriber = membership.client_id == resolved_group.subscriber_id
+            # Revocar admin solo desde la fila del suscriptor (afecta a todo el grupo).
+            if can_revoke_corporate_admin and not is_subscriber:
+                can_revoke_corporate_admin = False
+            show_remove_from_group_hint = not is_subscriber
+        else:
+            can_revoke_corporate_admin = False
+    elif can_revoke_corporate_admin:
+        can_revoke_corporate_admin = False
+
+    return {
+        "invoice": linked_invoice,
+        "can_void_via_invoice": can_void_via_invoice,
+        "can_void_direct": can_void_direct,
+        "can_revoke_corporate_admin": can_revoke_corporate_admin,
+        "is_corporate": is_corporate,
+        "group_pk": group_pk,
+        "show_remove_from_group_hint": show_remove_from_group_hint,
+    }
+
+
 def get_client_membership_history_rows(client):
     """Filas para la tabla de historial de membresías del perfil."""
     memberships = list(
@@ -341,23 +458,7 @@ def get_client_membership_history_rows(client):
     )
     rows = []
     for mem in memberships:
-        linked_invoice = None
-        for inv in mem.invoices.all():
-            if linked_invoice is None or (inv.fecha_emision, inv.pk) > (
-                linked_invoice.fecha_emision,
-                linked_invoice.pk,
-            ):
-                linked_invoice = inv
-
-        can_void_via_invoice = bool(
-            linked_invoice
-            and not linked_invoice.esta_anulada
-            and mem.status not in Membership.NON_COVERAGE_STATUSES
-        )
-        can_void_direct = bool(
-            mem.status not in Membership.NON_COVERAGE_STATUSES
-            and (linked_invoice is None or linked_invoice.esta_anulada)
-        )
+        actions = _membership_history_action_fields(mem)
 
         if mem.fecha_corte_dia:
             cut_display = "Corte {}".format(mem.fecha_corte_dia)
@@ -383,9 +484,91 @@ def get_client_membership_history_rows(client):
                 "status": mem.status,
                 "status_label": mem.get_status_display(),
                 "origen_label": mem.get_origen_display(),
-                "invoice": linked_invoice,
-                "can_void_via_invoice": can_void_via_invoice,
-                "can_void_direct": can_void_direct,
+                "invoice": actions["invoice"],
+                "can_void_via_invoice": actions["can_void_via_invoice"],
+                "can_void_direct": actions["can_void_direct"],
+                "can_revoke_corporate_admin": actions["can_revoke_corporate_admin"],
+                "is_corporate": actions["is_corporate"],
+                "group_pk": actions["group_pk"],
+                "show_remove_from_group_hint": actions["show_remove_from_group_hint"],
+                "is_voided": mem.status == Membership.Status.VOIDED,
+                "is_closed": mem.status == Membership.Status.CLOSED,
+            }
+        )
+    return rows
+
+
+def get_group_membership_history_rows(group):
+    """Filas de historial de membresías del plan corporativo (suscriptor + miembros)."""
+    from .models import CorporateGroupMember
+
+    client_ids = set(
+        CorporateGroupMember.objects.filter(group_id=group.pk).values_list(
+            "client_id", flat=True
+        )
+    )
+    client_ids.add(group.subscriber_id)
+
+    memberships = list(
+        Membership.objects.filter(
+            client_id__in=client_ids,
+            plan_id=group.plan_id,
+        )
+        .select_related("plan", "client")
+        .prefetch_related("invoices")
+        .order_by("-fecha_inicio", "-id")
+    )
+    rows = []
+    for mem in memberships:
+        actions = _membership_history_action_fields(mem, group=group)
+        # Revocar admin: una sola acción visible (fila del suscriptor).
+        show_revoke = bool(
+            actions["can_revoke_corporate_admin"]
+            and mem.client_id == group.subscriber_id
+        )
+        # Hint de quitar: sub-afiliado activo; no pisa el botón de revocar admin.
+        show_remove = False
+        if (
+            actions["is_corporate"]
+            and mem.status not in Membership.NON_COVERAGE_STATUSES
+            and mem.client_id != group.subscriber_id
+            and not actions["can_void_via_invoice"]
+            and not show_revoke
+        ):
+            show_remove = CorporateGroupMember.objects.filter(
+                group_id=group.pk,
+                client_id=mem.client_id,
+                is_active=True,
+            ).exists()
+
+        if mem.fecha_corte_dia:
+            cut_display = "Corte {}".format(mem.fecha_corte_dia)
+        else:
+            cut_display = "—"
+
+        client = mem.client
+        rows.append(
+            {
+                "membership": mem,
+                "client_name": client.nombre if client else "—",
+                "client_code": client.codigo_afiliado if client else "—",
+                "plan_name": mem.plan.nombre,
+                "billing_type": mem.plan.billing_type,
+                "billing_type_label": mem.plan.get_billing_type_display(),
+                "billing_type_short": "Corp",
+                "fecha_inicio": mem.fecha_inicio,
+                "fecha_fin": mem.fecha_fin,
+                "cut_display": cut_display,
+                "status": mem.status,
+                "status_label": mem.get_status_display(),
+                "origen_label": mem.get_origen_display(),
+                "invoice": actions["invoice"],
+                "can_void_via_invoice": actions["can_void_via_invoice"],
+                "can_void_direct": False,
+                "can_revoke_corporate_admin": show_revoke,
+                "is_corporate": True,
+                "group_pk": group.pk,
+                "show_remove_from_group_hint": show_remove,
                 "is_voided": mem.status == Membership.Status.VOIDED,
                 "is_closed": mem.status == Membership.Status.CLOSED,
             }
@@ -1619,9 +1802,15 @@ def delete_membership_with_audit(membership, user):
 
 
 def void_membership_without_invoice(membership, user, motivo=""):
-    """Anula una membresía sin factura vinculada (acceso admin, alta corp, etc.)."""
+    """Anula una membresía sin factura vinculada (fija/flexible/admin individual)."""
     if membership.status == Membership.Status.VOIDED:
         raise ValidationError("Esta membresía ya está anulada.")
+
+    if membership.plan.billing_type == Plan.BillingType.CORPORATE:
+        raise ValidationError(
+            "Las membresías corporativas no se anulan por persona. "
+            "Anule el cobro del grupo (afecta a todos) o quite al afiliado del grupo."
+        )
 
     ClientServicePeriod.objects.filter(membership=membership).exclude(
         status=ClientServicePeriod.Status.CANCELLED

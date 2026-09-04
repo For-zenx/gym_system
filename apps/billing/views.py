@@ -1417,6 +1417,13 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
             and not group.is_dissolved
         )
         from .corporate_services import collect_group_clients
+        from .services import get_group_membership_history_rows
+
+        membership_history_rows = get_group_membership_history_rows(group)
+        membership_history_preview = 3
+        membership_history_hidden_count = max(
+            0, len(membership_history_rows) - membership_history_preview
+        )
         return render(request, "billing/corporate_group_detail.html", {
             "group": group,
             "members": members,
@@ -1429,6 +1436,9 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
             "can_grant_corporate_admin_access": can_grant_corporate_admin_access,
             "corp_admin_access_clients": collect_group_clients(group),
             "today": timezone.localdate(),
+            "membership_history_rows": membership_history_rows,
+            "membership_history_preview": membership_history_preview,
+            "membership_history_hidden_count": membership_history_hidden_count,
         })
 
 
@@ -1530,6 +1540,42 @@ class CorporateGroupGrantAdminAccessView(PermissionRequiredMixin, View):
             ),
         )
 
+        next_url = (request.POST.get("next") or "").strip()
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+        ):
+            return redirect(next_url)
+        return redirect(detail_url)
+
+
+class CorporateGroupRevokeAdminAccessView(PermissionRequiredMixin, View):
+    required_permission = "corporate.grant_admin_access"
+
+    def post(self, request, pk):
+        from .models import CorporateGroup, Membership
+        from .corporate_services import revoke_corporate_admin_access
+
+        group = get_object_or_404(CorporateGroup, pk=pk)
+        detail_url = reverse("billing:corporate_group_detail", kwargs={"pk": pk})
+        membership_id = (request.POST.get("membership_id") or "").strip()
+        membership = get_object_or_404(Membership, pk=membership_id)
+
+        try:
+            closed = revoke_corporate_admin_access(
+                group, request.user, reference_membership=membership
+            )
+        except ValidationError as exc:
+            message = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            messages.error(request, message)
+            return redirect(request.POST.get("next") or detail_url)
+
+        messages.success(
+            request,
+            "Acceso administrativo corporativo cerrado para {} persona(s) del grupo.".format(
+                len(closed)
+            ),
+        )
         next_url = (request.POST.get("next") or "").strip()
         if next_url and url_has_allowed_host_and_scheme(
             next_url,
