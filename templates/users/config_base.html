@@ -37,6 +37,7 @@
             {% endif %}
             {% if 'settings.billing' in user_permissions %}
             <a href="{% url 'users:billing_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'billing_settings' %}active{% endif %}">Multa</a>
+            <a href="{% url 'users:enrollment_fee_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'enrollment_fee_settings' %}active{% endif %}">Inscripción</a>
             {% endif %}
             {% if 'settings.grace' in user_permissions %}
             <a href="{% url 'users:grace_settings' %}" class="nav-item {% if request.resolver_match.url_name == 'grace_settings' %}active{% endif %}">Días de gracia</a>

@@ -21,6 +21,7 @@ from .services import (
     change_client_cut_date,
     delete_invoice,
     parse_late_fee_from_post,
+    parse_enrollment_fee_from_post,
     parse_payment_cut_from_post,
     parse_payment_cut_day_from_post,
     parse_payment_method_from_post,
@@ -88,7 +89,9 @@ def _charge_form_context(client, planes, corp_group=None):
                 "unpaid_period_count": ctx["unpaid_period_count"],
                 "days_since_last_unpaid_cut": ctx["days_since_last_unpaid_cut"],
                 "suggested_late_fee_usd": str(ctx["suggested_late_fee_usd"]),
+                "suggested_enrollment_fee_usd": str(ctx["suggested_enrollment_fee_usd"]),
                 "default_apply_late_fee": ctx["default_apply_late_fee"],
+                "default_apply_enrollment_fee": False,
                 "warnings_on_flexible_purchase": ctx["warnings_on_flexible_purchase"],
                 "fecha_corte_dia": ctx["fecha_corte_dia"],
                 "default_cut_day": default_cut_day,
@@ -190,6 +193,7 @@ def _process_checkout_charge(request, client, origin):
         return None
 
     apply_late_fee, late_fee_usd = parse_late_fee_from_post(request.POST)
+    apply_enrollment_fee, enrollment_fee_usd = parse_enrollment_fee_from_post(request.POST)
     payment_cut_day, payment_cut_motivo = parse_payment_cut_from_post(request.POST)
     period_type = request.POST.get("payment_period_type") or "full"
     roll_forward = False
@@ -203,6 +207,9 @@ def _process_checkout_charge(request, client, origin):
             product_lines=product_lines,
             apply_late_fee=apply_late_fee,
             late_fee_usd=late_fee_usd,
+            apply_enrollment_fee=apply_enrollment_fee,
+            enrollment_fee_usd=enrollment_fee_usd,
+            origin=origin,
             acting_user=request.user,
             payment_cut_day=payment_cut_day,
             payment_cut_motivo=payment_cut_motivo,

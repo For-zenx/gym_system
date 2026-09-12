@@ -6,7 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}?v=3.2">
-<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=3.6">
+<link rel="stylesheet" href="{% static 'css/charge_checkout.css' %}?v=3.7">
 {% endblock %}
 
 {% block content %}
@@ -98,10 +98,10 @@
 <script src="{% static 'js/modal.js' %}?v=1.0"></script>
 <script src="{% static 'js/billing_numbers.js' %}?v=1.0"></script>
 <script src="{% static 'js/checkout_validation.js' %}?v=1.0"></script>
-<script src="{% static 'js/checkout_confirm.js' %}?v=1.1"></script>
-<script src="{% static 'js/checkout_products.js' %}?v=1.9"></script>
+<script src="{% static 'js/checkout_confirm.js' %}?v=1.2"></script>
+<script src="{% static 'js/checkout_products.js' %}?v=2.0"></script>
 <script src="{% static 'js/checkout_payment_method.js' %}?v=1.7"></script>
-<script src="{% static 'js/billing_payment.js' %}?v=3.6"></script>
+<script src="{% static 'js/billing_payment.js' %}?v=3.7"></script>
 <script>
     const tasaDiaStr = "{{ latest_rate.tasa_ves|default:'0' }}".replace(',', '.');
     const tasaDia = parseUsdAmount(tasaDiaStr);
@@ -120,6 +120,8 @@
         productsSubtotalUsdId: 'checkout-products-subtotal-usd',
         lateFeeSubtotalId: 'checkout-latefee-subtotal',
         lateFeeSubtotalUsdId: 'checkout-latefee-subtotal-usd',
+        enrollmentFeeSubtotalId: 'checkout-enrollmentfee-subtotal',
+        enrollmentFeeSubtotalUsdId: 'checkout-enrollmentfee-subtotal-usd',
         grandTotalId: 'checkout-grand-total',
         grandTotalUsdId: 'checkout-grand-total-usd',
         productsOnlyNoticeId: 'checkout-products-only-notice',
@@ -168,6 +170,11 @@
         lateFeeCheckId: 'apply_late_fee',
         lateFeeInputId: 'late_fee_usd',
         lateFeeVesId: 'payment-late-fee-ves',
+        enrollmentFeeSectionId: 'payment-enrollment-fee-section',
+        enrollmentFeeCheckId: 'apply_enrollment_fee',
+        enrollmentFeeInputId: 'enrollment_fee_usd',
+        enrollmentFeeVesId: 'payment-enrollment-fee-ves',
+        isEnrollment: {{ is_enrollment|yesno:"true,false" }},
         tasaDia: tasaDia,
         previewUrl: "{% url 'billing:payment_preview' client.codigo_afiliado %}",
         billingContext: {{ billing_context_json|safe }},

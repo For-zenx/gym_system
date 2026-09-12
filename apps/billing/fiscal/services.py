@@ -70,6 +70,8 @@ def _steps_for_invoice_line(invoice, line: InvoiceLine) -> list[FiscalCommandSte
 
     if line.line_kind == InvoiceLine.LineKind.LATE_FEE:
         desc = "MULTA POR MOROSIDAD"
+    elif line.line_kind == InvoiceLine.LineKind.ENROLLMENT_FEE:
+        desc = "INSCRIPCION"
     else:
         desc = (line.description or "Producto")[:37]
 

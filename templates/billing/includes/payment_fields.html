@@ -64,6 +64,18 @@
     </div>
 </div>
 
+<div id="payment-enrollment-fee-section" class="billing-late-fee" style="display: none;">
+    <label class="billing-checkbox">
+        <input type="checkbox" name="apply_enrollment_fee" id="apply_enrollment_fee">
+        Agregar inscripción
+    </label>
+    <div class="billing-late-fee-row">
+        <label for="enrollment_fee_usd">Monto (USD)</label>
+        <input type="number" name="enrollment_fee_usd" id="enrollment_fee_usd" step="0.01" min="0" class="form-control">
+        <span id="payment-enrollment-fee-ves" class="billing-muted"></span>
+    </div>
+</div>
+
 {% if not hide_price_preview %}
 <div class="price-preview">
     <div class="usd" id="price_usd">Precio: $0.00</div>

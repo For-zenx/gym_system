@@ -1,11 +1,11 @@
 {% extends "users/config_base.html" %}
 
-{% block title %}Multa por morosidad - Configuración{% endblock %}
-{% block config_heading %}Multa por morosidad{% endblock %}
+{% block title %}Inscripción - Configuración{% endblock %}
+{% block config_heading %}Inscripción{% endblock %}
 
 {% block config_content %}
 <p class="config-intro">
-    Monto sugerido en USD cuando se reactiva una suscripción mensual suspendida. En caja el encargado puede aplicar u omitir la multa en cada cobro.
+    Monto sugerido en USD para el cargo de inscripción. Se ofrece únicamente en el cobro inicial de enrolamiento; el encargado puede aplicarlo u omitirlo en cada caso.
 </p>
 
 <form method="post" class="card config-form-card">
@@ -13,17 +13,17 @@
 
     <div class="config-form-section">
         <div class="config-form-section-header">
-            <h3>Monto de multa</h3>
+            <h3>Monto de inscripción</h3>
             <p>Se convierte a bolívares con la tasa vigente al momento del cobro.</p>
         </div>
         <div class="config-form-grid" style="grid-template-columns: minmax(0, 280px);">
             <div class="config-form-group">
-                <label for="multa_monto_usd">Multa sugerida (USD)</label>
+                <label for="inscripcion_monto_usd">Inscripción sugerida (USD)</label>
                 <input
                     type="text"
-                    id="multa_monto_usd"
-                    name="multa_monto_usd"
-                    value="{{ multa_monto_usd }}"
+                    id="inscripcion_monto_usd"
+                    name="inscripcion_monto_usd"
+                    value="{{ inscripcion_monto_usd }}"
                     required
                     inputmode="decimal"
                     autocomplete="off"

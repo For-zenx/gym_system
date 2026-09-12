@@ -176,6 +176,12 @@ def _detail_ticket_amount_lines(invoice, preview=False, amount_overrides=None):
                 lines.append(text)
             else:
                 lines.append(("text", text))
+        elif line.line_kind == InvoiceLine.LineKind.ENROLLMENT_FEE:
+            text = _right_align("INSCRIPCIÓN", amount_str, width)
+            if preview:
+                lines.append(text)
+            else:
+                lines.append(("text", text))
         else:
             label = _truncate(line.description, 28 if not preview else 20)
             text = _right_align(label, amount_str, width)

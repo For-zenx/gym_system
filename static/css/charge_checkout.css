@@ -219,7 +219,8 @@
     border-color: var(--primary);
 }
 
-.charge-checkout-page .charge-checkout-charge-card #late_fee_usd {
+.charge-checkout-page .charge-checkout-charge-card #late_fee_usd,
+.charge-checkout-page .charge-checkout-charge-card #enrollment_fee_usd {
     max-width: 7.5rem;
 }
 

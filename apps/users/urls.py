@@ -4,6 +4,7 @@ from .views import (
     AccessCooldownSettingsView,
     BillingSettingsView,
     ConfigHomeView,
+    EnrollmentFeeSettingsView,
     GraceSettingsView,
     PrinterSettingsView,
     ReportEmailSettingsView,
@@ -21,6 +22,7 @@ app_name = "users"
 urlpatterns = [
     path("", ConfigHomeView.as_view(), name="config_home"),
     path("multa/", BillingSettingsView.as_view(), name="billing_settings"),
+    path("inscripcion/", EnrollmentFeeSettingsView.as_view(), name="enrollment_fee_settings"),
     path("gracia/", GraceSettingsView.as_view(), name="grace_settings"),
     path("acceso/", AccessCooldownSettingsView.as_view(), name="access_cooldown_settings"),
     path("reportes/", ReportEmailSettingsView.as_view(), name="report_settings"),

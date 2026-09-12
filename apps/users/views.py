@@ -14,7 +14,12 @@ from .mixins import PermissionRequiredMixin
 from .models import StaffRole
 from .permissions import has_permission
 from apps.billing.models import BillingSettings, ReportEmailSettings
-from apps.billing.services import update_late_fee_amount_usd, update_fixed_grace_days, update_report_email_settings
+from apps.billing.services import (
+    update_late_fee_amount_usd,
+    update_enrollment_fee_amount_usd,
+    update_fixed_grace_days,
+    update_report_email_settings,
+)
 from apps.access.models import AccessSettings
 from apps.access.services import update_post_access_cooldown
 from apps.core.constants import COM_PORT_CHOICES
@@ -133,6 +138,30 @@ class BillingSettingsView(PermissionRequiredMixin, View):
             for msg in exc.messages:
                 messages.error(request, msg)
         return redirect("users:billing_settings")
+
+
+class EnrollmentFeeSettingsView(PermissionRequiredMixin, View):
+    required_permission = "settings.billing"
+
+    def get(self, request):
+        settings_obj = BillingSettings.get_settings()
+        return render(
+            request,
+            "users/enrollment_fee_settings.html",
+            {
+                "inscripcion_monto_usd": settings_obj.inscripcion_monto_usd,
+                "updated_at": settings_obj.updated_at,
+            },
+        )
+
+    def post(self, request):
+        try:
+            update_enrollment_fee_amount_usd(request.POST.get("inscripcion_monto_usd"))
+            messages.success(request, "Monto de inscripción actualizado correctamente.")
+        except ValidationError as exc:
+            for msg in exc.messages:
+                messages.error(request, msg)
+        return redirect("users:enrollment_fee_settings")
 
 
 class GraceSettingsView(PermissionRequiredMixin, View):

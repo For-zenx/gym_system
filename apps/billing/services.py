@@ -49,6 +49,7 @@ class RenewalResult:
     warnings: list = field(default_factory=list)
     was_reactivation: bool = False
     late_fee_applied: bool = False
+    enrollment_fee_applied: bool = False
 
     def __iter__(self):
         yield self.membership
@@ -117,6 +118,7 @@ def get_client_billing_context(client):
         "unpaid_period_count": len(unpaid),
         "days_since_last_unpaid_cut": days_since_last_unpaid_cut(client),
         "suggested_late_fee_usd": billing_settings.multa_monto_usd,
+        "suggested_enrollment_fee_usd": billing_settings.inscripcion_monto_usd,
         "default_apply_late_fee": suspended,
         "warnings_on_flexible_purchase": suspended and bool(client.fecha_corte_dia),
         "has_active_membership": has_active,
@@ -1082,6 +1084,15 @@ def parse_late_fee_from_post(post):
     return apply_late_fee, late_fee_usd
 
 
+def parse_enrollment_fee_from_post(post):
+    apply_enrollment_fee = post.get("apply_enrollment_fee") == "on"
+    enrollment_fee_usd = None
+    raw = (post.get("enrollment_fee_usd") or "").strip().replace(",", ".")
+    if raw:
+        enrollment_fee_usd = Decimal(raw)
+    return apply_enrollment_fee, enrollment_fee_usd
+
+
 def parse_product_lines_from_post(post):
     lines = []
     for raw_id in post.getlist("product_ids"):
@@ -1275,6 +1286,9 @@ def register_checkout(
     nro_control=None,
     apply_late_fee=False,
     late_fee_usd=None,
+    apply_enrollment_fee=False,
+    enrollment_fee_usd=None,
+    origin="profile",
     acting_user=None,
     payment_cut_day=None,
     payment_cut_motivo="",
@@ -1298,8 +1312,11 @@ def register_checkout(
         warnings = []
         was_reactivation = False
         late_fee_applied = False
+        enrollment_fee_applied = False
         multa_usd = Decimal("0.00")
         multa_ves = Decimal("0.00")
+        inscripcion_usd = Decimal("0.00")
+        inscripcion_ves = Decimal("0.00")
         pending_lines = []
         corp_group_for_invoice = None
 
@@ -1440,6 +1457,28 @@ def register_checkout(
                                 "metadata": {},
                             }
                         )
+
+        if origin == "enrollment" and apply_enrollment_fee:
+            inscripcion_usd = (
+                Decimal(str(enrollment_fee_usd))
+                if enrollment_fee_usd is not None
+                else BillingSettings.get_settings().inscripcion_monto_usd
+            )
+            if inscripcion_usd > 0:
+                inscripcion_ves = inscripcion_usd * tasa.tasa_ves
+                enrollment_fee_applied = True
+                pending_lines.append(
+                    {
+                        "line_kind": InvoiceLine.LineKind.ENROLLMENT_FEE,
+                        "description": "Inscripción",
+                        "quantity": 1,
+                        "unit_price_usd": inscripcion_usd,
+                        "amount_ves": inscripcion_ves,
+                        "sale_item": None,
+                        "membership": membership,
+                        "metadata": {},
+                    }
+                )
 
         for product_line in product_lines:
             product_line = _normalize_product_line(product_line)
@@ -1607,12 +1646,33 @@ def register_checkout(
                     user=acting_user,
                 )
 
+        if origin == "enrollment":
+            if enrollment_fee_applied:
+                log_billing_event(
+                    client,
+                    ClientBillingEvent.EventType.ENROLLMENT_FEE_APPLIED,
+                    payload={
+                        "invoice_id": invoice.pk,
+                        "inscripcion_usd": str(inscripcion_usd),
+                        "inscripcion_ves": str(inscripcion_ves),
+                    },
+                    user=acting_user,
+                )
+            else:
+                log_billing_event(
+                    client,
+                    ClientBillingEvent.EventType.ENROLLMENT_FEE_WAIVED,
+                    payload={"invoice_id": invoice.pk},
+                    user=acting_user,
+                )
+
         return RenewalResult(
             membership=membership,
             invoice=invoice,
             warnings=warnings,
             was_reactivation=was_reactivation,
             late_fee_applied=late_fee_applied,
+            enrollment_fee_applied=enrollment_fee_applied,
         )
 
 
@@ -1730,6 +1790,23 @@ def update_late_fee_amount_usd(amount_raw):
     settings_obj = BillingSettings.get_settings()
     settings_obj.multa_monto_usd = amount
     settings_obj.save(update_fields=["multa_monto_usd", "updated_at"])
+    return settings_obj
+
+
+def update_enrollment_fee_amount_usd(amount_raw):
+    amount_str = (amount_raw or "").strip().replace(",", ".")
+    if not amount_str:
+        raise ValidationError("El monto de inscripción no puede estar vacío.")
+    try:
+        amount = Decimal(amount_str)
+    except Exception as exc:
+        raise ValidationError("El monto de inscripción no es un número válido.") from exc
+    if amount < 0:
+        raise ValidationError("El monto de inscripción no puede ser negativo.")
+
+    settings_obj = BillingSettings.get_settings()
+    settings_obj.inscripcion_monto_usd = amount
+    settings_obj.save(update_fields=["inscripcion_monto_usd", "updated_at"])
     return settings_obj
 
 

@@ -28,6 +28,10 @@
         <h3>Multa por morosidad</h3>
         <p>Configurar el monto sugerido en USD cuando se reactiva una suscripción mensual suspendida.</p>
     </a>
+    <a href="{% url 'users:enrollment_fee_settings' %}" class="card config-hub-card">
+        <h3>Inscripción</h3>
+        <p>Configurar el monto sugerido en USD para el cargo de inscripción en el enrolamiento inicial.</p>
+    </a>
     {% endif %}
     {% if 'settings.grace' in user_permissions %}
     <a href="{% url 'users:grace_settings' %}" class="card config-hub-card">

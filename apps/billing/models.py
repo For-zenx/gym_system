@@ -131,6 +131,12 @@ class BillingSettings(models.Model):
         decimal_places=2,
         default=Decimal("0.00"),
     )
+    inscripcion_monto_usd = models.DecimalField(
+        "Inscripción (USD)",
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
     fixed_grace_days = models.PositiveSmallIntegerField(
         "Días de gracia (plan fijo)",
         default=0,
@@ -155,14 +161,16 @@ class BillingSettings(models.Model):
             pk=1,
             defaults={
                 "multa_monto_usd": Decimal("0.00"),
+                "inscripcion_monto_usd": Decimal("0.00"),
                 "fixed_grace_days": 0,
             },
         )
         return obj
 
     def __str__(self):
-        return "Multa ${} USD · Gracia {} días".format(
+        return "Multa ${} USD · Inscripción ${} USD · Gracia {} días".format(
             self.multa_monto_usd,
+            self.inscripcion_monto_usd,
             self.fixed_grace_days,
         )
 
@@ -302,6 +310,8 @@ class ClientBillingEvent(models.Model):
         SUBSCRIPTION_REACTIVATED = "SUBSCRIPTION_REACTIVATED", "Reactivación de suscripción"
         LATE_FEE_APPLIED = "LATE_FEE_APPLIED", "Multa aplicada"
         LATE_FEE_WAIVED = "LATE_FEE_WAIVED", "Multa omitida"
+        ENROLLMENT_FEE_APPLIED = "ENROLLMENT_FEE_APPLIED", "Inscripción cobrada"
+        ENROLLMENT_FEE_WAIVED = "ENROLLMENT_FEE_WAIVED", "Inscripción omitida"
         MEMBERSHIP_DELETED = "MEMBERSHIP_DELETED", "Membresía eliminada"
         ADMIN_ACCESS_GRANTED = "ADMIN_ACCESS_GRANTED", "Acceso administrativo asignado"
         INVOICE_VOIDED = "INVOICE_VOIDED", "Factura anulada"
@@ -812,6 +822,7 @@ class InvoiceLine(models.Model):
         MEMBERSHIP = "MEMBERSHIP", "Membresía"
         PRODUCT = "PRODUCT", "Producto o servicio"
         LATE_FEE = "LATE_FEE", "Multa"
+        ENROLLMENT_FEE = "ENROLLMENT_FEE", "Inscripción"
         CLASS = "CLASS", "Clase"
 
     invoice = models.ForeignKey(

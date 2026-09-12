@@ -30,6 +30,8 @@
         const productsVesEl = document.getElementById(config.productsSubtotalId);
         const lateFeeUsdEl = document.getElementById(config.lateFeeSubtotalUsdId);
         const lateFeeVesEl = document.getElementById(config.lateFeeSubtotalId);
+        const enrollmentFeeUsdEl = document.getElementById(config.enrollmentFeeSubtotalUsdId);
+        const enrollmentFeeVesEl = document.getElementById(config.enrollmentFeeSubtotalId);
         const totalUsdEl = document.getElementById(config.grandTotalUsdId);
         const totalVesEl = document.getElementById(config.grandTotalId);
 
@@ -37,6 +39,8 @@
         let membershipSubtotalUsd = 0;
         let lateFeeSubtotalVes = 0;
         let lateFeeSubtotalUsd = 0;
+        let enrollmentFeeSubtotalVes = 0;
+        let enrollmentFeeSubtotalUsd = 0;
 
         function catalogById(id) {
             return catalog.find(function (item) {
@@ -203,9 +207,10 @@
             setDualSubtotal(membershipUsdEl, membershipVesEl, membershipSubtotalUsd, membershipSubtotalVes);
             setDualSubtotal(productsUsdEl, productsVesEl, productTotals.usd, productTotals.ves);
             setDualSubtotal(lateFeeUsdEl, lateFeeVesEl, lateFeeSubtotalUsd, lateFeeSubtotalVes);
+            setDualSubtotal(enrollmentFeeUsdEl, enrollmentFeeVesEl, enrollmentFeeSubtotalUsd, enrollmentFeeSubtotalVes);
 
-            const grandUsd = membershipSubtotalUsd + productTotals.usd + lateFeeSubtotalUsd;
-            const grandVes = membershipSubtotalVes + productTotals.ves + lateFeeSubtotalVes;
+            const grandUsd = membershipSubtotalUsd + productTotals.usd + lateFeeSubtotalUsd + enrollmentFeeSubtotalUsd;
+            const grandVes = membershipSubtotalVes + productTotals.ves + lateFeeSubtotalVes + enrollmentFeeSubtotalVes;
             setDualSubtotal(totalUsdEl, totalVesEl, grandUsd, grandVes);
 
             const productsOnly = !hasPlanSelected() && hasProductsSelected();
@@ -244,11 +249,13 @@
             return errors;
         };
 
-        window.checkoutSetMembershipTotals = function (membershipVes, lateFeeVes, membershipUsd, lateFeeUsd) {
+        window.checkoutSetMembershipTotals = function (membershipVes, lateFeeVes, membershipUsd, lateFeeUsd, enrollmentFeeVes, enrollmentFeeUsd) {
             membershipSubtotalVes = membershipVes || 0;
             lateFeeSubtotalVes = lateFeeVes || 0;
+            enrollmentFeeSubtotalVes = enrollmentFeeVes || 0;
             membershipSubtotalUsd = membershipUsd != null ? membershipUsd : (tasaDia > 0 ? membershipSubtotalVes / tasaDia : 0);
             lateFeeSubtotalUsd = lateFeeUsd != null ? lateFeeUsd : (tasaDia > 0 ? lateFeeSubtotalVes / tasaDia : 0);
+            enrollmentFeeSubtotalUsd = enrollmentFeeUsd != null ? enrollmentFeeUsd : (tasaDia > 0 ? enrollmentFeeSubtotalVes / tasaDia : 0);
             refreshSummary();
         };
 

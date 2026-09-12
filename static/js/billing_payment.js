@@ -17,6 +17,10 @@
         const lateFeeCheck = document.getElementById(config.lateFeeCheckId);
         const lateFeeInput = document.getElementById(config.lateFeeInputId);
         const lateFeeVesEl = document.getElementById(config.lateFeeVesId);
+        const enrollmentFeeSection = document.getElementById(config.enrollmentFeeSectionId);
+        const enrollmentFeeCheck = document.getElementById(config.enrollmentFeeCheckId);
+        const enrollmentFeeInput = document.getElementById(config.enrollmentFeeInputId);
+        const enrollmentFeeVesEl = document.getElementById(config.enrollmentFeeVesId);
         const cutDaySection = document.getElementById('payment-cut-day-section');
         const cutDayHidden = document.getElementById('payment_cut_day');
         const cutDayDisplay = document.getElementById('payment_cut_day_display');
@@ -30,7 +34,9 @@
         const billingContext = config.billingContext || {};
         const planPreviews = config.planPreviews || {};
         const previewUrl = config.previewUrl || '';
+        const isEnrollment = !!config.isEnrollment;
         let lateFeeDefaultApplied = false;
+        let enrollmentFeeDefaultApplied = false;
         let previewRequestId = 0;
         let cutDayEditMode = false;
 
@@ -170,6 +176,25 @@
                 .catch(function () {});
         }
 
+        function refreshEnrollmentFeeSection() {
+            if (!enrollmentFeeSection || !enrollmentFeeCheck || !enrollmentFeeInput) {
+                return;
+            }
+            enrollmentFeeSection.style.display = isEnrollment ? 'block' : 'none';
+            if (!isEnrollment) {
+                enrollmentFeeCheck.checked = false;
+                enrollmentFeeDefaultApplied = false;
+                return;
+            }
+            if (!enrollmentFeeDefaultApplied) {
+                enrollmentFeeCheck.checked = false;
+                enrollmentFeeDefaultApplied = true;
+            }
+            if (!enrollmentFeeInput.value) {
+                enrollmentFeeInput.value = parseFloat(billingContext.suggested_enrollment_fee_usd || 0).toFixed(2);
+            }
+        }
+
         function recalcTotal(cuotaVes, membershipUsd) {
             let multaVes = 0;
             let multaUsd = 0;
@@ -178,13 +203,24 @@
                 multaVes = multaUsd * tasaDia;
             }
             if (lateFeeVesEl) lateFeeVesEl.textContent = formatVes(multaVes);
-            if (totalVesEl) totalVesEl.textContent = 'Total: ' + formatVes(cuotaVes + multaVes);
+
+            let inscripcionVes = 0;
+            let inscripcionUsd = 0;
+            if (enrollmentFeeSection && enrollmentFeeSection.style.display !== 'none' && enrollmentFeeCheck && enrollmentFeeCheck.checked && enrollmentFeeInput) {
+                inscripcionUsd = window.parseUsdAmount(enrollmentFeeInput.value);
+                inscripcionVes = inscripcionUsd * tasaDia;
+            }
+            if (enrollmentFeeVesEl) enrollmentFeeVesEl.textContent = formatVes(inscripcionVes);
+
+            if (totalVesEl) totalVesEl.textContent = 'Total: ' + formatVes(cuotaVes + multaVes + inscripcionVes);
             if (window.checkoutSetMembershipTotals) {
                 window.checkoutSetMembershipTotals(
                     cuotaVes,
                     multaVes,
                     membershipUsd != null ? membershipUsd : 0,
-                    multaUsd
+                    multaUsd,
+                    inscripcionVes,
+                    inscripcionUsd
                 );
             }
             if (window.checkoutRefreshPaymentMethodSummary) {
@@ -202,12 +238,9 @@
                 if (alertSuspended) alertSuspended.style.display = 'none';
                 if (alertFlexible) alertFlexible.style.display = 'none';
                 if (lateFeeSection) lateFeeSection.style.display = 'none';
+                refreshEnrollmentFeeSection();
                 if (cutDaySection) cutDaySection.style.display = 'none';
-                if (window.checkoutSetMembershipTotals) {
-                    window.checkoutSetMembershipTotals(0, 0, 0, 0);
-                } else if (totalVesEl) {
-                    totalVesEl.textContent = 'Total: Bs 0.00';
-                }
+                recalcTotal(0, 0);
                 if (window.checkoutRefreshSubmit) {
                     window.checkoutRefreshSubmit();
                 }
@@ -283,6 +316,8 @@
                 }
             }
 
+            refreshEnrollmentFeeSection();
+
             recalcTotal(priceVes, priceUsd);
             if (window.checkoutRefreshSubmit) {
                 window.checkoutRefreshSubmit();
@@ -311,6 +346,28 @@
                 if (!option || !option.value) return;
                 const priceUsd = window.parseUsdAmount(option.getAttribute('data-usd'));
                 recalcTotal(priceUsd * tasaDia, priceUsd);
+            });
+        }
+        if (enrollmentFeeCheck) {
+            enrollmentFeeCheck.addEventListener('change', function () {
+                const option = select.options[select.selectedIndex];
+                if (option && option.value) {
+                    const priceUsd = window.parseUsdAmount(option.getAttribute('data-usd'));
+                    recalcTotal(priceUsd * tasaDia, priceUsd);
+                } else {
+                    recalcTotal(0, 0);
+                }
+            });
+        }
+        if (enrollmentFeeInput) {
+            enrollmentFeeInput.addEventListener('input', function () {
+                const option = select.options[select.selectedIndex];
+                if (option && option.value) {
+                    const priceUsd = window.parseUsdAmount(option.getAttribute('data-usd'));
+                    recalcTotal(priceUsd * tasaDia, priceUsd);
+                } else {
+                    recalcTotal(0, 0);
+                }
             });
         }
         function onCutDayFieldChange() {
@@ -344,8 +401,10 @@
             reset: function () {
                 if (select) select.value = '';
                 if (lateFeeInput) lateFeeInput.value = '';
+                if (enrollmentFeeInput) enrollmentFeeInput.value = '';
                 resetCutDayEditor();
                 lateFeeDefaultApplied = false;
+                enrollmentFeeDefaultApplied = false;
                 updatePrice();
             },
         };

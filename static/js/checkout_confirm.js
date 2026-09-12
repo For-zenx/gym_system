@@ -65,6 +65,23 @@
         };
     }
 
+    function getEnrollmentFeeInfo(tasaDia) {
+        const checkbox = document.getElementById('apply_enrollment_fee');
+        const input = document.getElementById('enrollment_fee_usd');
+        if (!checkbox || !checkbox.checked || !input) {
+            return null;
+        }
+        const usd = global.parseUsdAmount ? global.parseUsdAmount(input.value) : parseFloat(input.value) || 0;
+        if (usd <= 0) {
+            return null;
+        }
+        const ves = usd * (tasaDia || 0);
+        return {
+            usd: global.formatUsd ? global.formatUsd(usd) : ('$' + usd.toFixed(2)),
+            ves: 'Bs ' + ves.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        };
+    }
+
     function readDualTotal(usdId, vesId) {
         const usdEl = document.getElementById(usdId);
         const vesEl = document.getElementById(vesId);
@@ -94,10 +111,12 @@
                     : null,
             products: getProductLines(),
             lateFee: getLateFeeInfo(tasaDia),
+            enrollmentFee: getEnrollmentFeeInfo(tasaDia),
             totals: {
                 membership: readDualTotal('checkout-membership-subtotal-usd', 'checkout-membership-subtotal'),
                 products: readDualTotal('checkout-products-subtotal-usd', 'checkout-products-subtotal'),
                 lateFee: readDualTotal('checkout-latefee-subtotal-usd', 'checkout-latefee-subtotal'),
+                enrollmentFee: readDualTotal('checkout-enrollmentfee-subtotal-usd', 'checkout-enrollmentfee-subtotal'),
                 grand: readDualTotal('checkout-grand-total-usd', 'checkout-grand-total'),
             },
         };
@@ -196,9 +215,28 @@
             }
         }
 
+        const enrollmentFeeSection = document.getElementById('checkout-confirm-enrollmentfee-section');
+        const enrollmentFeeEl = document.getElementById('checkout-confirm-enrollmentfee');
+        const enrollmentFeeTotalRow = document.getElementById('checkout-confirm-enrollmentfee-total-row');
+        if (summary.enrollmentFee) {
+            setSectionVisible(enrollmentFeeSection, true);
+            if (enrollmentFeeEl) {
+                enrollmentFeeEl.textContent = summary.enrollmentFee.usd + ' · ' + summary.enrollmentFee.ves;
+            }
+            if (enrollmentFeeTotalRow) {
+                enrollmentFeeTotalRow.hidden = false;
+            }
+        } else {
+            setSectionVisible(enrollmentFeeSection, false);
+            if (enrollmentFeeTotalRow) {
+                enrollmentFeeTotalRow.hidden = true;
+            }
+        }
+
         const membershipTotalEl = document.getElementById('checkout-confirm-membership-total');
         const productsTotalEl = document.getElementById('checkout-confirm-products-total');
         const lateFeeTotalEl = document.getElementById('checkout-confirm-latefee-total');
+        const enrollmentFeeTotalEl = document.getElementById('checkout-confirm-enrollmentfee-total');
         const grandTotalEl = document.getElementById('checkout-confirm-grand-total');
 
         if (membershipTotalEl) {
@@ -209,6 +247,9 @@
         }
         if (lateFeeTotalEl) {
             lateFeeTotalEl.textContent = summary.totals.lateFee;
+        }
+        if (enrollmentFeeTotalEl) {
+            enrollmentFeeTotalEl.textContent = summary.totals.enrollmentFee;
         }
         if (grandTotalEl) {
             grandTotalEl.textContent = summary.totals.grand;
