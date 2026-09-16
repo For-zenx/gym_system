@@ -34,6 +34,10 @@ const ACCESS_UI_CAPTURING = "capturing";
 const ACCESS_UI_VERIFYING = "verifying";
 const ACCESS_UI_RESULT = "result";
 const ACCESS_QUICK_RETRY_SUBTITLE = "Intente de nuevo";
+const ACCESS_POSE_HINT_MS = 1200;
+// Un mensaje nuevo debe sostenerse 250ms para reemplazar al coach actual —
+// mata el jitter de detección sin sentirse lento.
+const ACCESS_COACH_SWITCH_MS = 250;
 
 const MODE_ACCESS = "access";
 const MODE_ENROLLMENT = "enrollment";
@@ -94,6 +98,10 @@ let accessUiState = ACCESS_UI_IDLE;
 let accessHudPending = null;
 let accessHudPendingSince = 0;
 let accessHudShown = null;
+let accessPoseHintUntil = 0;
+let accessCoachShownMsg = null;
+let accessCoachPendingMsg = null;
+let accessCoachPendingSince = 0;
 
 // OPS_AUDIT
 function sendOpsEvent(event, reason, detail) {
@@ -510,8 +518,10 @@ function setAccessUiState(state, options) {
 
     if (state === ACCESS_UI_IDLE || state === ACCESS_UI_HOLD_STILL || state === ACCESS_UI_CAPTURING) {
         hideProcessingOverlay();
+        // Burbuja retirada en acceso: toda la guía del flujo va por el coach
+        // grande, que lo gestiona el bucle de detección (updateAccessCoach).
+        hudInstruction.classList.add("hidden");
         if (isQuickRetryMode) {
-            hudInstruction.classList.add("hidden");
             if (accessBottomBanner.classList.contains("hidden")) {
                 showBottomBanner("denied_unknown", "No reconocido", ACCESS_QUICK_RETRY_SUBTITLE);
             } else if (state === ACCESS_UI_IDLE) {
@@ -523,16 +533,11 @@ function setAccessUiState(state, options) {
         }
         hideBottomBanner();
         setFaceGuideVariant("");
-        hudInstruction.classList.remove("hidden");
-        if (state === ACCESS_UI_IDLE) {
-            commitAccessHud(ACCESS_HUD_IDLE, options.immediate);
-        } else {
-            commitAccessHud(ACCESS_HUD_HOLD, true);
-        }
         return;
     }
 
     if (state === ACCESS_UI_VERIFYING) {
+        hideAccessCoach();
         hideProcessingOverlay();
         hudInstruction.classList.add("hidden");
         cancelQuickRetryIdleReset();
@@ -561,6 +566,7 @@ function setAccessUiState(state, options) {
     }
 
     if (state === ACCESS_UI_RESULT) {
+        hideAccessCoach();
         hideProcessingOverlay();
         hudInstruction.classList.add("hidden");
         setFaceGuideVariant(options.variant || "");
@@ -705,7 +711,35 @@ function clearAccessTimers() {
     clearTimeout(serverTimeoutTimer);
 }
 
+function hideAccessCoach() {
+    accessCoachShownMsg = null;
+    accessCoachPendingMsg = null;
+    accessCoachPendingSince = 0;
+    enrollmentHud.hideCoach();
+}
+
+// Único driver del texto de guía en acceso: el mensaje deseado debe
+// sostenerse ACCESS_COACH_SWITCH_MS para reemplazar al que está visible.
+function updateAccessCoach(desired, now) {
+    if (desired === accessCoachShownMsg) {
+        accessCoachPendingMsg = null;
+        return;
+    }
+    if (desired !== accessCoachPendingMsg) {
+        accessCoachPendingMsg = desired;
+        accessCoachPendingSince = now;
+        return;
+    }
+    if (now - accessCoachPendingSince >= ACCESS_COACH_SWITCH_MS) {
+        accessCoachShownMsg = desired;
+        accessCoachPendingMsg = null;
+        enrollmentHud.show(desired, now, { immediate: true });
+    }
+}
+
 function clearAccessResult() {
+    accessPoseHintUntil = 0;
+    hideAccessCoach();
     accessBurstGeneration += 1;
     isCollectingAccessBurst = false;
     exitQuickRetryMode();
@@ -718,7 +752,7 @@ function clearAccessResult() {
     clearTimeout(quickRetryTimeout);
     setFaceGuideVariant("");
     hideBottomBanner();
-    hudInstruction.classList.remove("hidden");
+    hudInstruction.classList.add("hidden");
     isProcessingAccess = false;
     accessUiState = ACCESS_UI_IDLE;
     tryPendingSoftReload();
@@ -841,7 +875,6 @@ function scheduleFullResultClear() {
             return;
         }
         clearAccessResult();
-        resetAccessHudSticky(ACCESS_HUD_IDLE);
         setTimeout(function () {
             if (currentMode === MODE_ACCESS) {
                 isCooldown = false;
@@ -896,7 +929,6 @@ function showAccessResult(data) {
                 return;
             }
             clearAccessResult();
-            resetAccessHudSticky(ACCESS_HUD_IDLE);
             setTimeout(function () {
                 if (currentMode === MODE_ACCESS) {
                     isCooldown = false;
@@ -1021,7 +1053,13 @@ function selectBurstSamplesForSend(candidates) {
     return bestPair.concat(remaining);
 }
 
-async function collectAndSendAccessBurst(initialDetection) {
+function isAccessFrontalPose(faceResult) {
+    const ratio = TabletFaceUtils.getPoseRatio(faceResult);
+    // Fail-open: sin landmarks no bloqueamos; solo filtra pose medida mala.
+    return ratio === null || TabletFaceUtils.isFrontalPose(ratio);
+}
+
+async function collectAndSendAccessBurst() {
     if (isCollectingAccessBurst || isProcessingAccess || currentMode !== MODE_ACCESS) {
         return;
     }
@@ -1029,9 +1067,33 @@ async function collectAndSendAccessBurst(initialDetection) {
     isCollectingAccessBurst = true;
     isProcessingAccess = true;
     setAccessUiState(ACCESS_UI_CAPTURING);
-    const candidates = [captureBurstCandidate(initialDetection)];
+    const displaySize = { width: cameraFeed.videoWidth, height: cameraFeed.videoHeight };
+    const candidates = [];
+    let sawPoseFail = false;
 
     try {
+        const initialDetailed = await faceapi
+            .detectSingleFace(cameraFeed, TabletFaceUtils.accessDetectorOptions())
+            .withFaceLandmarks();
+        if (
+            currentMode !== MODE_ACCESS ||
+            burstGeneration !== accessBurstGeneration
+        ) {
+            return;
+        }
+        if (initialDetailed) {
+            const initialResized = faceapi.resizeResults(initialDetailed, displaySize);
+            if (TabletFaceUtils.meetsCombinedAccessCriteria(
+                initialDetailed, initialResized, cameraFeed, faceGuideOval
+            )) {
+                if (isAccessFrontalPose(initialDetailed)) {
+                    candidates.push(captureBurstCandidate(initialDetailed));
+                } else {
+                    sawPoseFail = true;
+                }
+            }
+        }
+
         for (let i = 1; i < ACCESS_BURST_SAMPLE_COUNT; i += 1) {
             await waitMs(ACCESS_BURST_INTERVAL_MS);
             if (
@@ -1040,19 +1102,21 @@ async function collectAndSendAccessBurst(initialDetection) {
             ) {
                 return;
             }
-            const detection = await faceapi.detectSingleFace(
-                cameraFeed,
-                TabletFaceUtils.accessDetectorOptions()
-            );
+            const detection = await faceapi
+                .detectSingleFace(cameraFeed, TabletFaceUtils.accessDetectorOptions())
+                .withFaceLandmarks();
             if (!detection) {
                 continue;
             }
-            const displaySize = { width: cameraFeed.videoWidth, height: cameraFeed.videoHeight };
             const resized = faceapi.resizeResults(detection, displaySize);
-            if (TabletFaceUtils.meetsAccessCaptureCriteria(
+            if (TabletFaceUtils.meetsCombinedAccessCriteria(
                 detection, resized, cameraFeed, faceGuideOval
             )) {
-                candidates.push(captureBurstCandidate(detection));
+                if (isAccessFrontalPose(detection)) {
+                    candidates.push(captureBurstCandidate(detection));
+                } else {
+                    sawPoseFail = true;
+                }
             }
         }
 
@@ -1064,6 +1128,16 @@ async function collectAndSendAccessBurst(initialDetection) {
             clearAccessResult();
             setAccessUiState(ACCESS_UI_IDLE, { immediate: true });
             isCooldown = false;
+            if (sawPoseFail) {
+                accessPoseHintUntil = Date.now() + ACCESS_POSE_HINT_MS;
+                accessCoachShownMsg = TabletFaceUtils.ENROLLMENT_COACH_FRONT;
+                accessCoachPendingMsg = null;
+                enrollmentHud.show(
+                    TabletFaceUtils.ENROLLMENT_COACH_FRONT,
+                    Date.now(),
+                    { immediate: true }
+                );
+            }
             return;
         }
         showAccessProcessing();
@@ -1110,10 +1184,11 @@ async function accessDetectLoop() {
         canvasCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
         let meetsCriteria = false;
+        let resizedDetection = null;
 
         if (detection) {
-            const resizedDetection = faceapi.resizeResults(detection, displaySize);
-            meetsCriteria = TabletFaceUtils.meetsAccessCaptureCriteria(
+            resizedDetection = faceapi.resizeResults(detection, displaySize);
+            meetsCriteria = TabletFaceUtils.meetsCombinedAccessCriteria(
                 detection,
                 resizedDetection,
                 cameraFeed,
@@ -1122,20 +1197,35 @@ async function accessDetectLoop() {
         }
 
         if (detection && cooldownOk && !isProcessingAccess && !isCooldown && meetsCriteria) {
+            accessPoseHintUntil = 0;
             if (accessStableSince === null) {
                 accessStableSince = now;
             }
             if (now - accessStableSince >= ACCESS_FIRST_STABILITY_MS) {
                 resetAccessStability();
-                await collectAndSendAccessBurst(detection);
+                await collectAndSendAccessBurst();
                 lastAccessCaptureTime = now;
             } else {
                 setAccessUiState(ACCESS_UI_HOLD_STILL);
+                updateAccessCoach(ACCESS_HUD_HOLD, now);
             }
         } else {
             resetAccessStability();
             if (!isProcessingAccess && !isCooldown && accessUiState !== ACCESS_UI_RESULT) {
-                setAccessUiState(ACCESS_UI_IDLE);
+                if (now < accessPoseHintUntil) {
+                    // Hint "Mire de frente" tras ráfaga sin muestras; no tocar HUD.
+                } else {
+                    setAccessUiState(ACCESS_UI_IDLE);
+                    const desiredCoach = detection
+                        ? (TabletFaceUtils.getAccessHudMessage(
+                            detection,
+                            resizedDetection,
+                            cameraFeed,
+                            faceGuideOval
+                        ) || ACCESS_HUD_IDLE)
+                        : ACCESS_HUD_IDLE;
+                    updateAccessCoach(desiredCoach, now);
+                }
             }
         }
 

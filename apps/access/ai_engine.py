@@ -126,6 +126,31 @@ def _decode_base64_to_rgb(base64_string: str) -> np.ndarray:
         raise ValueError("Error procesando la imagen con PIL: {0}".format(exc)) from exc
 
 
+def _detect_face_encodings(rgb_image: np.ndarray) -> list:
+    """Encodings del frame; reintenta con upsample=2 si el pase base no ve cara.
+
+    El segundo pase solo ocurre en frames que hoy se descartarían como
+    NO_FACE — caras chicas que face-api (tablet) aprobó pero dlib perdió
+    tras el downscale a ~1152px. No se usa en enrolamiento.
+    """
+    encodings = face_recognition.face_encodings(
+        rgb_image, model=FACE_ENCODING_MODEL
+    )
+    if encodings:
+        return encodings
+    locations = face_recognition.face_locations(
+        rgb_image, number_of_times_to_upsample=2
+    )
+    if not locations:
+        return []
+    encodings = face_recognition.face_encodings(
+        rgb_image, known_face_locations=locations, model=FACE_ENCODING_MODEL
+    )
+    if encodings:
+        logger.info("Cara rescatada con upsample=2 (NO_FACE evitado)")
+    return encodings
+
+
 def _embedding_from_rgb(image: np.ndarray, source_label: str = "foto") -> list:
     """Genera embedding 128-d desde un arreglo RGB. No persiste nada."""
     encodings = face_recognition.face_encodings(image, model=FACE_ENCODING_MODEL)
@@ -277,7 +302,7 @@ def match_face(base64_image: str) -> FaceMatchResult:
         logger.warning("Frame inválido recibido desde la tablet: %s", exc)
         return _empty_match_result(OUTCOME_INVALID_FRAME)
 
-    frame_encodings = face_recognition.face_encodings(rgb_image, model=FACE_ENCODING_MODEL)
+    frame_encodings = _detect_face_encodings(rgb_image)
     if not frame_encodings:
         logger.debug("No se detectó ninguna cara en el frame recibido.")
         return _empty_match_result(OUTCOME_NO_FACE)
@@ -345,7 +370,7 @@ def verify_face(base64_image: str, candidate) -> FaceMatchResult:
         logger.warning("Frame de verificación inválido: %s", exc)
         return _empty_match_result(OUTCOME_INVALID_FRAME)
 
-    frame_encodings = face_recognition.face_encodings(rgb_image, model=FACE_ENCODING_MODEL)
+    frame_encodings = _detect_face_encodings(rgb_image)
     if not frame_encodings:
         return _empty_match_result(OUTCOME_NO_FACE)
 
@@ -382,7 +407,7 @@ def verify_face_multi(base64_image: str, candidates) -> list:
         logger.warning("Frame de verificación inválido: %s", exc)
         return [_empty_match_result(OUTCOME_INVALID_FRAME) for _ in candidates]
 
-    frame_encodings = face_recognition.face_encodings(rgb_image, model=FACE_ENCODING_MODEL)
+    frame_encodings = _detect_face_encodings(rgb_image)
     if not frame_encodings:
         return [_empty_match_result(OUTCOME_NO_FACE) for _ in candidates]
 

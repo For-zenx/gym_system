@@ -174,6 +174,9 @@ const TabletFaceUtils = (function () {
         "Aléjese": true,
         "Mire de frente": true,
         "Quédese quieto…": true,
+        // Acceso (tablet combinada): toda la guía del flujo va por el coach.
+        "Coloque su rostro en el óvalo": true,
+        "Mantenga la cara quieta…": true,
     };
 
     function isEnrollmentCoachMessage(message) {
@@ -359,7 +362,13 @@ const TabletFaceUtils = (function () {
     }
 
     const ACCESS_MIN_SCORE = 0.55;
-    const ACCESS_MIN_FACE_PX = 60;
+    const ACCESS_MIN_FACE_PX = 90;
+
+    // Tamaño del rostro relativo al óvalo en acceso — suave vs enrolamiento
+    // (0.60/1.20) pero exige cara usable: óvalo tablet ≈300px → 0.40 ≈
+    // ~150px de video → ~135px en el frame enviado (zona cómoda de dlib).
+    const ACCESS_OVAL_MIN_FACE_WIDTH_RATIO = 0.40;
+    const ACCESS_OVAL_MAX_FACE_WIDTH_RATIO = 1.20;
 
     function accessDetectorOptions() {
         return new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
@@ -384,7 +393,49 @@ const TabletFaceUtils = (function () {
         return ((dx * dx) + (dy * dy)) <= 1.2;
     }
 
+    function getAccessOvalSizeStatus(box, videoEl, ovalEl) {
+        if (!ovalEl) {
+            return "ok";
+        }
+        const info = getMappedFaceInOval(box, videoEl, ovalEl);
+        if (!info) {
+            return "unknown";
+        }
+        const ratio = info.mapped.width / info.ovalRect.width;
+        if (ratio < ACCESS_OVAL_MIN_FACE_WIDTH_RATIO) {
+            return "too_small";
+        }
+        if (ratio > ACCESS_OVAL_MAX_FACE_WIDTH_RATIO) {
+            return "too_large";
+        }
+        return "ok";
+    }
+
+    // Criterio laxo original — la tablet standalone (tablet_access.js) lo sigue
+    // usando; no endurecer aquí para no cambiar su comportamiento.
     function meetsAccessCaptureCriteria(detection, resizedDetection, videoEl, ovalEl) {
+        const det = getFaceDetection(detection);
+        const resized = getFaceDetection(resizedDetection);
+        if (!det || !resized || !resized.box) {
+            return false;
+        }
+        if (det.score < ACCESS_MIN_SCORE) {
+            return false;
+        }
+        if (resized.box.width < 60) {
+            return false;
+        }
+        // En acceso el óvalo es guía visual; validación suave para respuesta rápida.
+        if (!ovalEl) {
+            return true;
+        }
+        return faceCenterInOval(resized.box, videoEl, ovalEl);
+    }
+
+    // Criterio de la tablet combinada: mismo piso laxo + banda de tamaño
+    // relativa al óvalo (suave vs enrolamiento) para no enviar frames
+    // condenados a NO_FACE en el servidor.
+    function meetsCombinedAccessCriteria(detection, resizedDetection, videoEl, ovalEl) {
         const det = getFaceDetection(detection);
         const resized = getFaceDetection(resizedDetection);
         if (!det || !resized || !resized.box) {
@@ -396,11 +447,37 @@ const TabletFaceUtils = (function () {
         if (resized.box.width < ACCESS_MIN_FACE_PX) {
             return false;
         }
-        // En acceso el óvalo es guía visual; validación suave para respuesta rápida.
         if (!ovalEl) {
             return true;
         }
+        if (getAccessOvalSizeStatus(resized.box, videoEl, ovalEl) !== "ok") {
+            return false;
+        }
         return faceCenterInOval(resized.box, videoEl, ovalEl);
+    }
+
+    // Guía de posicionamiento en acceso: mensaje correctivo a mostrar, o null
+    // cuando no hay cara válida o ya cumple criterio. Sin landmarks (CPU).
+    function getAccessHudMessage(detection, resizedDetection, videoEl, ovalEl) {
+        const det = getFaceDetection(detection);
+        const resized = getFaceDetection(resizedDetection);
+        if (!det || !resized || !resized.box || det.score < ACCESS_MIN_SCORE) {
+            return null;
+        }
+        if (resized.box.width < ACCESS_MIN_FACE_PX) {
+            return ENROLLMENT_COACH_APPROACH;
+        }
+        const sizeStatus = getAccessOvalSizeStatus(resized.box, videoEl, ovalEl);
+        if (sizeStatus === "too_small") {
+            return ENROLLMENT_COACH_APPROACH;
+        }
+        if (sizeStatus === "too_large") {
+            return ENROLLMENT_COACH_RECEDE;
+        }
+        if (!faceCenterInOval(resized.box, videoEl, ovalEl)) {
+            return ENROLLMENT_COACH_CENTER;
+        }
+        return null;
     }
 
     return {
@@ -414,10 +491,15 @@ const TabletFaceUtils = (function () {
         meetsCaptureCriteria: meetsCaptureCriteria,
         ENROLLMENT_COACH_CENTER: ENROLLMENT_COACH_CENTER,
         ENROLLMENT_COACH_HOLD: ENROLLMENT_COACH_HOLD,
+        ENROLLMENT_COACH_FRONT: ENROLLMENT_COACH_FRONT,
         ENROLLMENT_BUBBLE_CAPTURING: ENROLLMENT_BUBBLE_CAPTURING,
         getEnrollmentHudMessage: getEnrollmentHudMessage,
         createEnrollmentHudController: createEnrollmentHudController,
         meetsAccessCaptureCriteria: meetsAccessCaptureCriteria,
+        meetsCombinedAccessCriteria: meetsCombinedAccessCriteria,
+        getAccessHudMessage: getAccessHudMessage,
+        getPoseRatio: getPoseRatio,
+        isFrontalPose: isFrontalPose,
         detectorOptions: detectorOptions,
         accessDetectorOptions: accessDetectorOptions,
     };
