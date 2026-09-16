@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 FACE_ENCODING_MODEL = "large"
 # Menos = más estricto. 0.47 endurece frente a 0.5; multi-frame cubre flukes de un frame.
 TOLERANCE = 0.47
+# Margin 1º↔2º candidato por debajo del cual un MATCH se considera ambiguo
+# (dos ganadores plausibles bajo tolerancia). 0 desactiva el gate.
+AMBIGUITY_MARGIN = 0.03
+# Separación mínima entre las mejores verificaciones de dos candidatos
+# ambiguos para declarar ganador; debajo de esto el intento se deniega.
+DISAMBIGUATION_EPSILON = 0.02
 
 OUTCOME_MATCH = "MATCH"
 OUTCOME_NO_FACE = "NO_FACE"
@@ -314,6 +320,23 @@ def match_face(base64_image: str) -> FaceMatchResult:
     )
 
 
+def _verify_result(candidate, distance: float) -> FaceMatchResult:
+    outcome = OUTCOME_MATCH if distance <= TOLERANCE else OUTCOME_NO_MATCH
+    return FaceMatchResult(
+        client=candidate if outcome == OUTCOME_MATCH else None,
+        outcome=outcome,
+        best_distance=distance,
+        best_codigo=candidate.codigo_afiliado,
+        best_nombre=candidate.nombre,
+        second_distance=None,
+        second_codigo=None,
+        second_nombre=None,
+        margin=None,
+        tolerance=TOLERANCE,
+        model=FACE_ENCODING_MODEL,
+    )
+
+
 def verify_face(base64_image: str, candidate) -> FaceMatchResult:
     """Verifica un frame únicamente contra el candidato identificado previamente."""
     try:
@@ -335,20 +358,48 @@ def verify_face(base64_image: str, candidate) -> FaceMatchResult:
     distance = float(
         face_recognition.face_distance([known_embedding], frame_encodings[0])[0]
     )
-    outcome = OUTCOME_MATCH if distance <= TOLERANCE else OUTCOME_NO_MATCH
-    return FaceMatchResult(
-        client=candidate if outcome == OUTCOME_MATCH else None,
-        outcome=outcome,
-        best_distance=distance,
-        best_codigo=candidate.codigo_afiliado,
-        best_nombre=candidate.nombre,
-        second_distance=None,
-        second_codigo=None,
-        second_nombre=None,
-        margin=None,
-        tolerance=TOLERANCE,
-        model=FACE_ENCODING_MODEL,
-    )
+    return _verify_result(candidate, distance)
+
+
+def resolve_candidate_by_codigo(codigo):
+    """Resuelve un codigo_afiliado a su Client para verificación 1:1."""
+    from apps.clients.models import Client
+
+    if not codigo:
+        return None
+    return Client.objects.filter(codigo_afiliado=codigo).first()
+
+
+def verify_face_multi(base64_image: str, candidates) -> list:
+    """Verifica un frame contra varios candidatos con un solo encoding.
+
+    El costo dominante es el encoding del frame; cada distancia es trivial.
+    Retorna un FaceMatchResult por candidato, en el mismo orden recibido.
+    """
+    try:
+        rgb_image = _decode_base64_to_rgb(base64_image)
+    except ValueError as exc:
+        logger.warning("Frame de verificación inválido: %s", exc)
+        return [_empty_match_result(OUTCOME_INVALID_FRAME) for _ in candidates]
+
+    frame_encodings = face_recognition.face_encodings(rgb_image, model=FACE_ENCODING_MODEL)
+    if not frame_encodings:
+        return [_empty_match_result(OUTCOME_NO_FACE) for _ in candidates]
+
+    frame_embedding = frame_encodings[0]
+    results = []
+    for candidate in candidates:
+        try:
+            known_embedding = np.array(candidate.face_id_embeddings)
+        except (TypeError, ValueError):
+            logger.error("Embedding corrupto para afiliado %s.", candidate.nombre)
+            results.append(_empty_match_result(OUTCOME_NO_ENROLLED))
+            continue
+        distance = float(
+            face_recognition.face_distance([known_embedding], frame_embedding)[0]
+        )
+        results.append(_verify_result(candidate, distance))
+    return results
 
 
 def recognize_face(base64_image: str):

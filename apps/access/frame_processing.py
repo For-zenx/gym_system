@@ -1,4 +1,5 @@
 import datetime
+import logging
 
 from apps.access import ai_engine
 from apps.access.biometrics_audit import write_access_biometrics_log
@@ -12,6 +13,8 @@ from apps.access.services import (
 )
 
 PENDING_CONFIRM_TIMEOUT_SECONDS = 3.0
+
+logger = logging.getLogger(__name__)
 
 
 def _membership_data(client_obj):
@@ -293,6 +296,34 @@ def process_biometric_access_burst(images, last_unknown_log_time):
         confirm_stage="burst_identify",
     )
 
+    second_candidate = None
+    if (
+        ai_engine.AMBIGUITY_MARGIN > 0
+        and identification.margin is not None
+        and identification.second_distance is not None
+        and identification.second_distance <= ai_engine.TOLERANCE
+        and identification.margin < ai_engine.AMBIGUITY_MARGIN
+    ):
+        second_candidate = ai_engine.resolve_candidate_by_codigo(
+            identification.second_codigo
+        )
+        if second_candidate is None:
+            logger.warning(
+                "Margin-gate disparado pero el segundo candidato %s no existe; "
+                "se continúa con verificación normal.",
+                identification.second_codigo,
+            )
+
+    if second_candidate is not None:
+        return _disambiguate_burst(
+            frames,
+            identify_index,
+            candidate,
+            second_candidate,
+            identification,
+            last_unknown_log_time,
+        )
+
     last_verification = None
     for index, frame in enumerate(frames):
         if index == identify_index:
@@ -316,6 +347,69 @@ def process_biometric_access_burst(images, last_unknown_log_time):
         last_verification or identification,
         last_unknown_log_time,
         confirm_stage="burst_rejected",
+    )
+
+
+def _disambiguation_winner(best_distances):
+    """Índice del candidato ganador o None si la ráfaga no los separó."""
+    d1, d2 = best_distances
+    if d1 is not None and (d2 is None or d1 + ai_engine.DISAMBIGUATION_EPSILON <= d2):
+        return 0
+    if d2 is not None and (d1 is None or d2 + ai_engine.DISAMBIGUATION_EPSILON <= d1):
+        return 1
+    return None
+
+
+def _disambiguate_burst(
+    frames,
+    identify_index,
+    candidate,
+    second_candidate,
+    identification,
+    last_unknown_log_time,
+):
+    """Verifica los frames restantes contra ambos candidatos ambiguos.
+
+    Gana quien logre la menor distancia de verificación superando al otro
+    por al menos DISAMBIGUATION_EPSILON; un empate real se deniega.
+    """
+    candidates = (candidate, second_candidate)
+    best_distances = [None, None]
+    best_results = [None, None]
+    for index, frame in enumerate(frames):
+        if index == identify_index:
+            continue
+        results = ai_engine.verify_face_multi(frame, candidates)
+        for pos, result in enumerate(results):
+            write_access_biometrics_log(
+                result,
+                "PENDING",
+                "burst_candidate",
+                confirm_stage="burst_disambig_verify",
+            )
+            if (
+                result.outcome == ai_engine.OUTCOME_MATCH
+                and result.best_distance is not None
+                and (
+                    best_distances[pos] is None
+                    or result.best_distance < best_distances[pos]
+                )
+            ):
+                best_distances[pos] = result.best_distance
+                best_results[pos] = result
+
+    winner = _disambiguation_winner(best_distances)
+    if winner is not None:
+        return _finalize_matched_client(
+            candidates[winner],
+            best_results[winner],
+            last_unknown_log_time,
+            confirm_stage="burst_confirmed",
+        )
+    return _unknown_result(
+        best_results[0] or best_results[1] or identification,
+        last_unknown_log_time,
+        confirm_stage="burst_ambiguous_denied",
     )
 
 
