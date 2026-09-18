@@ -440,6 +440,8 @@
     border-bottom: 1px solid var(--border-color);
     color: var(--text-main);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .profile-mem-table tbody tr:last-child td {
@@ -448,32 +450,32 @@
 
 .profile-mem-table thead th:nth-child(1),
 .profile-mem-table tbody td:nth-child(1) {
-    width: 18%;
+    width: 14%;
 }
 
 .profile-mem-table thead th:nth-child(2),
 .profile-mem-table tbody td:nth-child(2) {
-    width: 6%;
+    width: 5%;
 }
 
 .profile-mem-table thead th:nth-child(3),
 .profile-mem-table tbody td:nth-child(3) {
-    width: 16%;
+    width: 21%;
 }
 
 .profile-mem-table thead th:nth-child(4),
 .profile-mem-table tbody td:nth-child(4) {
-    width: 9%;
+    width: 8%;
 }
 
 .profile-mem-table thead th:nth-child(5),
 .profile-mem-table tbody td:nth-child(5) {
-    width: 11%;
+    width: 10%;
 }
 
 .profile-mem-table thead th:nth-child(6),
 .profile-mem-table tbody td:nth-child(6) {
-    width: 14%;
+    width: 10%;
 }
 
 .profile-mem-table thead th:nth-child(7),
@@ -483,7 +485,12 @@
 
 .profile-mem-table thead th:nth-child(8),
 .profile-mem-table tbody td:nth-child(8) {
-    width: 8%;
+    width: 10%;
+}
+
+.profile-mem-table thead th:nth-child(9),
+.profile-mem-table tbody td:nth-child(9) {
+    width: 11%;
     text-align: center;
 }
 
@@ -524,17 +531,47 @@
 
 .profile-mem-table-group thead th:nth-child(1),
 .profile-mem-table-group tbody td:nth-child(1) {
-    width: 18%;
+    width: 14%;
 }
 
 .profile-mem-table-group thead th:nth-child(2),
 .profile-mem-table-group tbody td:nth-child(2) {
-    width: 14%;
+    width: 10%;
 }
 
 .profile-mem-table-group thead th:nth-child(3),
 .profile-mem-table-group tbody td:nth-child(3) {
-    width: 15%;
+    width: 19%;
+}
+
+.profile-mem-table-group thead th:nth-child(4),
+.profile-mem-table-group tbody td:nth-child(4) {
+    width: 8%;
+}
+
+.profile-mem-table-group thead th:nth-child(5),
+.profile-mem-table-group tbody td:nth-child(5) {
+    width: 10%;
+}
+
+.profile-mem-table-group thead th:nth-child(6),
+.profile-mem-table-group tbody td:nth-child(6) {
+    width: 10%;
+}
+
+.profile-mem-table-group thead th:nth-child(7),
+.profile-mem-table-group tbody td:nth-child(7) {
+    width: 10%;
+}
+
+.profile-mem-table-group thead th:nth-child(8),
+.profile-mem-table-group tbody td:nth-child(8) {
+    width: 10%;
+}
+
+.profile-mem-table-group thead th:nth-child(9),
+.profile-mem-table-group tbody td:nth-child(9) {
+    width: 9%;
 }
 
 .profile-mem-history {
@@ -549,6 +586,23 @@
 .profile-mem-col-invoice {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.75rem;
+}
+
+.profile-mem-col-dates {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.73rem;
+    line-height: 1.15;
+}
+
+.profile-mem-col-dates span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-mem-date-muted {
+    color: var(--text-muted);
+    font-size: 0.68rem;
 }
 
 .profile-mem-invoice-link {
@@ -572,6 +626,9 @@
 
 .profile-mem-action-link,
 .profile-mem-action-btn {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 0.72rem;
     font-weight: 600;
     color: var(--color-danger, #dc3545);

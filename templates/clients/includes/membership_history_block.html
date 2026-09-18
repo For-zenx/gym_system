@@ -14,6 +14,7 @@
                     <th>Periodo</th>
                     <th>Corte</th>
                     <th>Origen</th>
+                    <th>Reg./Anul.</th>
                     <th>Factura</th>
                     <th>Estado</th>
                     <th>Acción</th>
@@ -27,6 +28,12 @@
                     <td class="profile-mem-col-period">{{ row.fecha_inicio|date:"d/m/y" }} → {{ row.fecha_fin|date:"d/m/y" }}</td>
                     <td>{{ row.cut_display }}</td>
                     <td>{{ row.origen_label }}</td>
+                    <td class="profile-mem-col-dates" title="Registro: {{ row.registered_at|date:"d/m/Y" }}{% if row.cancelled_at %} · Anulación: {{ row.cancelled_at|date:"d/m/Y" }}{% endif %}">
+                        <span>{{ row.registered_at|date:"d/m/y" }}</span>
+                        {% if row.cancelled_at %}
+                        <span class="profile-mem-date-muted">Anul. {{ row.cancelled_at|date:"d/m/y" }}</span>
+                        {% endif %}
+                    </td>
                     <td class="profile-mem-col-invoice">
                         {% if row.invoice %}
                         {% if 'billing.view_invoice_detail' in user_permissions %}

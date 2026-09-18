@@ -469,6 +469,34 @@ def _membership_history_action_fields(membership, *, group=None):
     }
 
 
+def _membership_end_event_map(client_ids):
+    """Última fecha de cierre/anulación registrada por membresía."""
+    events = ClientBillingEvent.objects.filter(
+        client_id__in=client_ids,
+        event_type__in=[
+            ClientBillingEvent.EventType.MEMBERSHIP_VOIDED,
+            ClientBillingEvent.EventType.MEMBERSHIP_SOFT_CLOSED,
+        ],
+    ).order_by("-created_at", "-id")
+
+    ended_at = {}
+    for event in events:
+        membership_id = event.payload.get("membership_id")
+        if membership_id and membership_id not in ended_at:
+            ended_at[membership_id] = event.created_at
+    return ended_at
+
+
+def _membership_history_dates(membership, invoice, ended_at):
+    registered_at = membership.created_at or membership.fecha_inicio
+    cancelled_at = None
+    if invoice is not None and invoice.esta_anulada:
+        cancelled_at = invoice.fecha_anulacion
+    if cancelled_at is None:
+        cancelled_at = ended_at.get(membership.pk)
+    return registered_at, cancelled_at
+
+
 def get_client_membership_history_rows(client):
     """Filas para la tabla de historial de membresías del perfil."""
     memberships = list(
@@ -476,9 +504,13 @@ def get_client_membership_history_rows(client):
         .prefetch_related("invoices")
         .order_by("-fecha_inicio", "-id")
     )
+    ended_at = _membership_end_event_map([client.pk])
     rows = []
     for mem in memberships:
         actions = _membership_history_action_fields(mem)
+        registered_at, cancelled_at = _membership_history_dates(
+            mem, actions["invoice"], ended_at
+        )
 
         if mem.fecha_corte_dia:
             cut_display = "Corte {}".format(mem.fecha_corte_dia)
@@ -500,6 +532,8 @@ def get_client_membership_history_rows(client):
                 "billing_type_short": billing_short,
                 "fecha_inicio": mem.fecha_inicio,
                 "fecha_fin": mem.fecha_fin,
+                "registered_at": registered_at,
+                "cancelled_at": cancelled_at,
                 "cut_display": cut_display,
                 "status": mem.status,
                 "status_label": mem.get_status_display(),
@@ -538,9 +572,13 @@ def get_group_membership_history_rows(group):
         .prefetch_related("invoices")
         .order_by("-fecha_inicio", "-id")
     )
+    ended_at = _membership_end_event_map(client_ids)
     rows = []
     for mem in memberships:
         actions = _membership_history_action_fields(mem, group=group)
+        registered_at, cancelled_at = _membership_history_dates(
+            mem, actions["invoice"], ended_at
+        )
         # Revocar admin: una sola acción visible (fila del suscriptor).
         show_revoke = bool(
             actions["can_revoke_corporate_admin"]
@@ -578,6 +616,8 @@ def get_group_membership_history_rows(group):
                 "billing_type_short": "Corp",
                 "fecha_inicio": mem.fecha_inicio,
                 "fecha_fin": mem.fecha_fin,
+                "registered_at": registered_at,
+                "cancelled_at": cancelled_at,
                 "cut_display": cut_display,
                 "status": mem.status,
                 "status_label": mem.get_status_display(),
