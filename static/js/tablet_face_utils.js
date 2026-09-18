@@ -367,7 +367,7 @@ const TabletFaceUtils = (function () {
     // Tamaño del rostro relativo al óvalo en acceso — suave vs enrolamiento
     // (0.60/1.20) pero exige cara usable: óvalo tablet ≈300px → 0.40 ≈
     // ~150px de video → ~135px en el frame enviado (zona cómoda de dlib).
-    const ACCESS_OVAL_MIN_FACE_WIDTH_RATIO = 0.40;
+    const ACCESS_OVAL_MIN_FACE_WIDTH_RATIO = 0.43;
     const ACCESS_OVAL_MAX_FACE_WIDTH_RATIO = 1.20;
 
     function accessDetectorOptions() {

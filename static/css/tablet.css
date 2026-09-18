@@ -371,6 +371,34 @@ html, body {
     animation: enrollment-coach-pulse 1.4s ease-in-out infinite;
 }
 
+/* Spinner junto al texto grande del coach (modo "Procesando…" en acceso) */
+.coach-spinner {
+    display: none;
+    width: 0.9em;
+    height: 0.9em;
+    border: 0.14em solid rgba(255, 255, 255, 0.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s ease-in-out infinite;
+    margin-left: 2rem;
+    flex-shrink: 0;
+    font-size: clamp(2.75rem, 12vw, 5.5rem);
+}
+
+.enrollment-coach.processing {
+    align-items: center;
+}
+
+.enrollment-coach.processing .coach-spinner {
+    display: inline-block;
+}
+
+@media (orientation: landscape) {
+    .coach-spinner {
+        font-size: clamp(2.25rem, 7vw, 4.25rem);
+    }
+}
+
 @keyframes enrollment-coach-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }

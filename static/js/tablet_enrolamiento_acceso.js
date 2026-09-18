@@ -5,7 +5,7 @@ const WS_URL = window.TABLET_WS_URL;
 const RECONNECT_DELAY_MS = 3000;
 const ACCESS_CAPTURE_COOLDOWN_MS = 2000;
 const CONFIRM_CAPTURE_COOLDOWN_MS = 400;
-const ACCESS_FIRST_STABILITY_MS = 400;
+const ACCESS_FIRST_STABILITY_MS = 300;
 const ENROLLMENT_CAPTURE_COOLDOWN_MS = 2500;
 const RESULT_DISPLAY_MS = 4000;
 const RESULT_DISPLAY_DENIED_MS = 3200;
@@ -20,7 +20,7 @@ const CONFIRMING_MAX_MS = 4000;
 const CONFIRM_ABANDON_MS = 1200;
 const DETECT_WATCHDOG_MS = 15000;
 const ACCESS_BURST_INTERVAL_MS = 150;
-const ACCESS_BURST_SAMPLE_COUNT = 4;
+const ACCESS_BURST_SAMPLE_COUNT = 3;
 const ACCESS_BURST_MIN_SEPARATION_MS = 250;
 const ACCESS_FRAME_MAX_WIDTH = 1152;
 const ACCESS_FRAME_MAX_HEIGHT = 648;
@@ -28,6 +28,7 @@ const ACCESS_FRAME_JPEG_QUALITY = 0.85;
 const ACCESS_HUD_STICKY_MS = 400;
 const ACCESS_HUD_IDLE = "Coloque su rostro en el óvalo";
 const ACCESS_HUD_HOLD = "Mantenga la cara quieta…";
+const ACCESS_HUD_VERIFYING = "Procesando…";
 const ACCESS_UI_IDLE = "idle";
 const ACCESS_UI_HOLD_STILL = "hold_still";
 const ACCESS_UI_CAPTURING = "capturing";
@@ -537,7 +538,19 @@ function setAccessUiState(state, options) {
     }
 
     if (state === ACCESS_UI_VERIFYING) {
-        hideAccessCoach();
+        if (options.processingCoach) {
+            // Coach grande "Procesando…" + spinner: la persona puede dejar
+            // de posar apenas enviada la ráfaga; el banner de resultado
+            // sigue apareciendo abajo cuando llega la respuesta.
+            accessCoachShownMsg = ACCESS_HUD_VERIFYING;
+            accessCoachPendingMsg = null;
+            enrollmentCoach.classList.add("processing");
+            enrollmentHud.show(ACCESS_HUD_VERIFYING, Date.now(), { immediate: true });
+        } else {
+            // Confirmación legacy: la persona debe seguir frente a la
+            // cámara, no retirarse.
+            hideAccessCoach();
+        }
         hideProcessingOverlay();
         hudInstruction.classList.add("hidden");
         cancelQuickRetryIdleReset();
@@ -715,6 +728,7 @@ function hideAccessCoach() {
     accessCoachShownMsg = null;
     accessCoachPendingMsg = null;
     accessCoachPendingSince = 0;
+    enrollmentCoach.classList.remove("processing");
     enrollmentHud.hideCoach();
 }
 
@@ -733,6 +747,7 @@ function updateAccessCoach(desired, now) {
     if (now - accessCoachPendingSince >= ACCESS_COACH_SWITCH_MS) {
         accessCoachShownMsg = desired;
         accessCoachPendingMsg = null;
+        enrollmentCoach.classList.remove("processing");
         enrollmentHud.show(desired, now, { immediate: true });
     }
 }
@@ -852,6 +867,7 @@ function showAccessProcessing() {
     setAccessUiState(ACCESS_UI_VERIFYING, {
         title: "Verificando…",
         subtitle: "Un momento por favor",
+        processingCoach: true,
     });
 }
 
