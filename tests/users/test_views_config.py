@@ -8,7 +8,9 @@ CONFIG_HOME_PERMISSIONS = (
     "roles.manage",
     "settings.billing",
     "settings.grace",
+    "settings.access",
     "settings.reports",
+    "settings.printers",
 )
 
 
@@ -21,7 +23,9 @@ CONFIG_HOME_PERMISSIONS = (
         (True, ["roles.manage"]),
         (True, ["settings.billing"]),
         (True, ["settings.grace"]),
+        (True, ["settings.access"]),
         (True, ["settings.reports"]),
+        (True, ["settings.printers"]),
     ],
 )
 @pytest.mark.django_db

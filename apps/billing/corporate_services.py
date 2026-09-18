@@ -306,12 +306,14 @@ def remove_member_from_group(group, client, removed_by=None):
 
     - Cancela las membresías activas que el cliente tenga del plan del grupo.
     - Marca el CorporateGroupMember como is_active=False.
-    - Si el cliente es el suscriptor → dissolve_corporate_group().
+    - El suscriptor no se puede retirar desde este flujo.
     - NO afecta al resto de los miembros del grupo.
     """
     if client.pk == group.subscriber_id:
-        # El suscriptor sale → disolver el grupo
-        return dissolve_corporate_group(group, dissolved_by=removed_by)
+        raise ValidationError(
+            "El suscriptor no se puede retirar como sub-afiliado. "
+            "Use la acción protegida para disolver o eliminar el grupo."
+        )
 
     member = CorporateGroupMember.objects.filter(
         group=group, client=client, is_active=True

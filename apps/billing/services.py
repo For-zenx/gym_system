@@ -1912,14 +1912,6 @@ def update_report_email_settings(*, emails_raw, gym_location_raw=""):
 
 
 @transaction.atomic
-def delete_invoice(invoice):
-    # DEPRECATED: Eliminar facturas ya no está permitido en UI — reemplazado por anulación (void_invoice).
-    nro_control = invoice.nro_control
-    invoice.delete()
-    return nro_control
-
-
-@transaction.atomic
 def delete_membership_with_audit(membership, user):
     """DEPRECATED: hard delete — reemplazado por void_membership_without_invoice."""
     return void_membership_without_invoice(membership, user)

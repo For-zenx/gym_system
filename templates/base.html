@@ -86,7 +86,7 @@
                 {% endif %}
             </nav>
             <div class="sidebar-footer">
-                {% if 'users.view' in user_permissions or 'roles.manage' in user_permissions or 'settings.billing' in user_permissions or 'settings.reports' in user_permissions %}
+                {% if 'users.view' in user_permissions or 'roles.manage' in user_permissions or 'settings.billing' in user_permissions or 'settings.grace' in user_permissions or 'settings.access' in user_permissions or 'settings.reports' in user_permissions or 'settings.printers' in user_permissions %}
                 <a href="{% url 'users:config_home' %}" class="nav-item nav-item-config {% if '/configuracion/' in request.path %}active{% endif %}">Configuración de Sist.</a>
                 {% endif %}
                 <a href="{% url 'staff_profile' %}" class="nav-item {% if request.resolver_match.url_name == 'staff_profile' %}active{% endif %}">Mi perfil</a>

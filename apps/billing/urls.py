@@ -20,7 +20,6 @@ from .views import (
     InvoiceDetailView,
     InvoiceTicketPreviewView,
     PrintInvoiceActionView,
-    InvoiceDeleteView,
     VoidInvoiceView,
     UnbindFixedPlanView,
     GlobalPersonSearchView,
@@ -70,7 +69,6 @@ urlpatterns = [
     path('facturas/<int:pk>/preview-ticket/', InvoiceTicketPreviewView.as_view(), name='invoice_ticket_preview'),
     path('facturas/<int:pk>/imprimir/', PrintInvoiceActionView.as_view(), name='print_invoice'),
     path('facturas/<int:pk>/anular/', VoidInvoiceView.as_view(), name='invoice_void'),
-    path('facturas/<int:pk>/eliminar/', InvoiceDeleteView.as_view(), name='invoice_delete'),
     # DEPRECATED: reemplazado por cierre-fiscal/ y resumen/ (TASK-110)
     path('reportes/', ReportView.as_view(), name='report'),
     path('cierre-fiscal/', FiscalReportView.as_view(), name='fiscal_report'),

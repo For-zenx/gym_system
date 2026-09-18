@@ -20,7 +20,6 @@ from .models import Plan, Membership, ExchangeRate, Invoice, SaleItem
 from .services import (
     register_checkout,
     change_client_cut_date,
-    delete_invoice,
     parse_late_fee_from_post,
     parse_enrollment_fee_from_post,
     parse_payment_cut_from_post,
@@ -907,17 +906,6 @@ class PrintInvoiceActionView(PermissionRequiredMixin, View):
         return redirect(detail_url)
 
 
-class InvoiceDeleteView(PermissionRequiredMixin, View):
-    """DEPRECATED: Eliminar facturas — reemplazado por anulación (void_invoice)."""
-
-    required_permission = "billing.delete_invoice"
-
-    def post(self, request, pk):
-        raise PermissionDenied(
-            "Ya no se pueden eliminar facturas. Use anulación para conservar el registro."
-        )
-
-
 class VoidInvoiceView(PermissionRequiredMixin, View):
     required_permission = "billing.void_invoice"
 
@@ -1421,7 +1409,7 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
         members = group.members.select_related("client").order_by("joined_at")
         billing_context = get_corporate_group_billing_context(group)
         invoices = group.invoices.select_related("client").order_by("-fecha_emision")[:10]
-        can_manage_groups = has_permission(request.user, "corporate.manage_groups")
+        can_delete_groups = has_permission(request.user, "corporate.delete_groups")
         can_add_members = has_permission(request.user, "corporate.add_members")
         can_remove_members = has_permission(request.user, "corporate.remove_members")
         can_charge = has_permission(request.user, "billing.charge")
@@ -1442,7 +1430,7 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
             "members": members,
             "billing_context": billing_context,
             "invoices": invoices,
-            "can_manage_groups": can_manage_groups,
+            "can_delete_groups": can_delete_groups,
             "can_add_members": can_add_members,
             "can_remove_members": can_remove_members,
             "can_charge": can_charge,
@@ -1599,7 +1587,7 @@ class CorporateGroupRevokeAdminAccessView(PermissionRequiredMixin, View):
 
 
 class CorporateGroupDissolveView(PermissionRequiredMixin, View):
-    required_permission = "corporate.manage_groups"
+    required_permission = "corporate.delete_groups"
 
     def post(self, request, pk):
         from .models import CorporateGroup
