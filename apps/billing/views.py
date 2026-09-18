@@ -6,6 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.views import View
 from apps.users.mixins import PermissionRequiredMixin
+from apps.users.permissions import has_permission
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -671,13 +672,18 @@ class MembershipDeleteView(PermissionRequiredMixin, View):
         return redirect("clients:profile", codigo_afiliado=client_code)
 
 
-class DeleteMembershipActionView(PermissionRequiredMixin, View):
-    required_permission = "billing.delete_membership"
-
+class DeleteMembershipActionView(LoginRequiredMixin, View):
     def post(self, request, pk):
         from apps.billing.services import void_membership_without_invoice
 
         membership = get_object_or_404(Membership, pk=pk)
+        required_permission = (
+            "clients.grant_admin_access"
+            if membership.origen == Membership.Origin.ADMIN
+            else "billing.delete_membership"
+        )
+        if not has_permission(request.user, required_permission):
+            raise PermissionDenied("No tienes permiso para realizar esta acción.")
         client_code = membership.client.codigo_afiliado
 
         try:
@@ -1522,8 +1528,8 @@ class CorporateGroupGrantAdminAccessView(PermissionRequiredMixin, View):
         if request.POST.get("confirm_corporate_admin_access") != "1":
             messages.error(
                 request,
-                "Debes confirmar que entiendes que se eliminarán membresías anteriores "
-                "en todo el grupo y no se generará cobro.",
+                "Debes confirmar que el acceso no genera cobro y reemplaza únicamente "
+                "otro acceso administrativo vigente del grupo.",
             )
             return redirect(request.POST.get("next") or detail_url)
 
@@ -1541,7 +1547,7 @@ class CorporateGroupGrantAdminAccessView(PermissionRequiredMixin, View):
 
         messages.success(
             request,
-            "Acceso administrativo corporativo asignado a {} persona(s) del grupo hasta el {} (sin cobro).".format(
+            "Acceso administrativo corporativo asignado a {} persona(s) hasta el {} (sin cobro). Los cobros y la fecha de corte se conservaron.".format(
                 len(clients),
                 valid_until.strftime("%d/%m/%Y"),
             ),

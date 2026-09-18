@@ -10,6 +10,7 @@ from apps.billing.corporate_services import (
     remove_member_from_group,
 )
 from apps.billing.models import ClientBillingEvent, CorporateGroup, Invoice, Membership, Plan
+from apps.billing.services import register_checkout
 from tests import factories
 from tests.helpers import ACCESS_PARAMS, assert_access, login_if_needed
 
@@ -27,6 +28,11 @@ def test_grant_corporate_admin_access__cascade_to_active_members():
     add_member_to_group(group, member_b)
 
     valid_until = date.today() + timedelta(days=30)
+    original_cut_day = group.fecha_corte_dia
+    original_profiles = {
+        client.pk: (client.fixed_plan_id, client.fecha_corte_dia)
+        for client in (subscriber, member_a, member_b)
+    }
     staff = factories.create_staff_user(permissions=[CORP_ADMIN_PERMISSION])
 
     clients = grant_corporate_admin_access(group, valid_until, staff)
@@ -35,13 +41,13 @@ def test_grant_corporate_admin_access__cascade_to_active_members():
     for client in (subscriber, member_a, member_b):
         membership = Membership.objects.get(client=client, plan=plan)
         assert membership.fecha_fin == valid_until
+        assert membership.fecha_corte_dia is None
         client.refresh_from_db()
-        assert client.fixed_plan_id == plan.pk
-        assert client.fecha_corte_dia == min(valid_until.day, 28)
+        assert (client.fixed_plan_id, client.fecha_corte_dia) == original_profiles[client.pk]
 
     group.refresh_from_db()
     assert group.status == CorporateGroup.Status.ACTIVE
-    assert group.fecha_corte_dia == min(valid_until.day, 28)
+    assert group.fecha_corte_dia == original_cut_day
     assert not Invoice.objects.filter(corporate_group=group).exists()
 
 
@@ -64,7 +70,7 @@ def test_grant_corporate_admin_access__skips_removed_members():
 
 
 @pytest.mark.django_db
-def test_grant_corporate_admin_access__removes_flexible_membership():
+def test_grant_corporate_admin_access__preserves_flexible_membership():
     plan = factories.create_plan(billing_type=Plan.BillingType.CORPORATE, max_members=10)
     subscriber = factories.create_client()
     flex_plan = factories.create_plan(billing_type=Plan.BillingType.FLEXIBLE)
@@ -74,7 +80,8 @@ def test_grant_corporate_admin_access__removes_flexible_membership():
     valid_until = date.today() + timedelta(days=15)
     grant_corporate_admin_access(group, valid_until, None)
 
-    assert not Membership.objects.filter(client=subscriber, plan=flex_plan).exists()
+    flexible = Membership.objects.get(client=subscriber, plan=flex_plan)
+    assert flexible.status == Membership.Status.ACTIVE
     assert Membership.objects.filter(client=subscriber, plan=plan).exists()
 
 
@@ -135,6 +142,70 @@ def test_grant_corporate_admin_access__audits_each_member():
     ).latest("created_at")
     assert event.payload.get("corporate") is True
     assert event.payload.get("group_id") == group.pk
+
+
+@pytest.mark.django_db
+def test_grant_corporate_admin_access__preserves_paid_invoice_memberships_and_cut(
+    create_corporate_group,
+):
+    group = create_corporate_group()
+    member = factories.create_client()
+    add_member_to_group(group, member)
+    factories.create_exchange_rate()
+    paid = register_checkout(
+        group.subscriber,
+        plan=group.plan,
+        payment_cut_day=group.fecha_corte_dia,
+        payment_method=Invoice.PaymentMethod.CASH_VES,
+    )
+    original_cut_day = group.fecha_corte_dia
+    paid_membership_ids = set(
+        Membership.objects.filter(
+            client__in=[group.subscriber, member],
+            origen=Membership.Origin.CORPORATE,
+        ).values_list("pk", flat=True)
+    )
+
+    grant_corporate_admin_access(group, date.today() + timedelta(days=90), None)
+
+    paid.invoice.refresh_from_db()
+    group.refresh_from_db()
+    assert paid.invoice.esta_anulada is False
+    assert group.fecha_corte_dia == original_cut_day
+    assert set(
+        Membership.objects.for_coverage()
+        .filter(pk__in=paid_membership_ids)
+        .values_list("pk", flat=True)
+    ) == paid_membership_ids
+    assert Membership.objects.filter(
+        client__in=[group.subscriber, member],
+        origen=Membership.Origin.ADMIN,
+        status=Membership.Status.ACTIVE,
+    ).count() == 2
+
+
+@pytest.mark.django_db
+def test_grant_corporate_admin_access__replaces_only_previous_admin(
+    create_corporate_group,
+):
+    group = create_corporate_group()
+    first_until = date.today() + timedelta(days=30)
+    grant_corporate_admin_access(group, first_until, None)
+    first_admin = Membership.objects.get(
+        client=group.subscriber,
+        origen=Membership.Origin.ADMIN,
+        fecha_fin=first_until,
+    )
+
+    grant_corporate_admin_access(group, date.today() + timedelta(days=60), None)
+
+    first_admin.refresh_from_db()
+    assert first_admin.status == Membership.Status.CLOSED
+    assert Membership.objects.filter(
+        client=group.subscriber,
+        origen=Membership.Origin.ADMIN,
+        status=Membership.Status.ACTIVE,
+    ).count() == 1
 
 
 @pytest.mark.parametrize(

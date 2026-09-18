@@ -51,7 +51,7 @@ def is_subscription_suspended(client, today=None):
         today = date.today()
     from apps.billing.models import Plan
 
-    return not client.memberships.currently_valid(today).filter(
+    return not client.memberships.currently_valid_for_billing(today).filter(
         plan__billing_type=Plan.BillingType.FIXED,
     ).exists()
 
@@ -73,7 +73,7 @@ def unpaid_fixed_periods(client, today=None):
 
     cut_day = client.fecha_corte_dia
     fixed_memberships = list(
-        client.memberships.for_coverage()
+        client.memberships.for_billing()
         .filter(plan__billing_type=Plan.BillingType.FIXED)
         .order_by("fecha_inicio")
     )
@@ -128,7 +128,7 @@ def get_latest_fixed_membership_end(client):
     from apps.billing.models import Plan
 
     latest = (
-        client.memberships.for_coverage()
+        client.memberships.for_billing()
         .filter(plan__billing_type=Plan.BillingType.FIXED)
         .order_by("-fecha_fin")
         .first()

@@ -38,7 +38,7 @@ from .validation import (
     validate_guest_pass_dates,
     guest_pass_custom_mode_enabled,
 )
-from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent
+from apps.billing.models import Plan, ExchangeRate, Invoice, ClientBillingEvent, Membership
 from apps.billing.services import (
     get_chargeable_plans,
     get_client_membership_history_rows,
@@ -302,10 +302,14 @@ class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailV
             context['corp_group'] = corp_group
             context['is_corp_owner'] = corp_group.subscriber_id == self.object.pk
             today = date.today()
-            context['corp_has_paid_coverage'] = self.object.memberships.for_coverage().filter(
+            context['corp_has_paid_coverage'] = self.object.memberships.for_billing().filter(
                 plan_id=corp_group.plan_id,
                 fecha_fin__gte=today,
             ).exists()
+            context['corp_admin_access'] = self.object.memberships.currently_valid(today).filter(
+                plan_id=corp_group.plan_id,
+                origen=Membership.Origin.ADMIN,
+            ).order_by("-fecha_fin").first()
             context['can_grant_corporate_admin_access'] = (
                 not corp_group.is_dissolved
                 and has_permission(self.request.user, "corporate.grant_admin_access")
@@ -314,6 +318,7 @@ class ClientProfileView(ProfileNavigationMixin, PermissionRequiredMixin, DetailV
                 context['corp_admin_access_clients'] = collect_group_clients(corp_group)
         else:
             context['corp_has_paid_coverage'] = False
+            context['corp_admin_access'] = None
             context['can_grant_corporate_admin_access'] = False
             
         can_view_phone = has_permission(self.request.user, "clients.view_phone")
@@ -557,13 +562,6 @@ class ClientGrantAdminAccessView(PermissionRequiredMixin, View):
                 )
             )
 
-        if request.POST.get("confirm_admin_access") != "1":
-            messages.error(
-                request,
-                "Debes confirmar que entiendes que se eliminarán membresías anteriores y no se generará cobro.",
-            )
-            return redirect(profile_url)
-
         plan_id = (request.POST.get("plan_id") or "").strip()
         plan = Plan.objects.filter(
             pk=plan_id,
@@ -579,21 +577,32 @@ class ClientGrantAdminAccessView(PermissionRequiredMixin, View):
             messages.error(request, "Indique la fecha de vigencia.")
             return redirect(profile_url)
 
+        change_cut_date = request.POST.get("change_cut_date") == "1"
         try:
-            membership = grant_admin_access(client, plan, valid_until, request.user)
+            membership = grant_admin_access(
+                client,
+                plan,
+                valid_until,
+                request.user,
+                change_cut_date=change_cut_date,
+            )
         except ValidationError as exc:
             message = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
             messages.error(request, message)
             return redirect(profile_url)
 
-        cut_day = membership.client.fecha_corte_dia
+        cut_message = (
+            "La fecha de corte cambió al día {}.".format(valid_until.day)
+            if change_cut_date
+            else "La fecha de corte se conservó."
+        )
         messages.success(
             request,
             "Acceso administrativo asignado con plan {} hasta el {} (sin cobro). "
-            "Fecha de corte realineada al día {}.".format(
+            "Las membresías pagadas y facturas se conservaron. {}".format(
                 plan.nombre,
                 membership.fecha_fin.strftime("%d/%m/%Y"),
-                cut_day,
+                cut_message,
             ),
         )
         return redirect(profile_url)

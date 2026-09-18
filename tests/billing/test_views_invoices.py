@@ -150,7 +150,6 @@ def test_invoice_delete__access(
         "billing.delete_invoice",
         url,
         get_login_url,
-        success_status=302,
+        success_status=403,
     )
-    if is_logged_in and "billing.delete_invoice" in permissions:
-        assert invoice.pk is not None
+    invoice.refresh_from_db()

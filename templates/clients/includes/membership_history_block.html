@@ -63,7 +63,12 @@
                         </form>
                         {% elif row.show_remove_from_group_hint and row.group_pk and 'corporate.remove_members' in user_permissions %}
                         <a href="{% url 'billing:corporate_group_detail' pk=row.group_pk %}" class="profile-mem-action-link" title="Quite al afiliado del grupo para retirar su acceso">Ir al grupo</a>
-                        {% elif row.can_void_direct and 'billing.delete_membership' in user_permissions %}
+                        {% elif row.can_void_direct and row.membership.origen == 'ADMIN' and 'clients.grant_admin_access' in user_permissions %}
+                        <form method="POST" action="{% url 'billing:delete_membership_action' row.membership.id %}" onsubmit="return confirm('¿Cerrar este acceso administrativo? Quedará registrado como anulado en el historial.');">
+                            {% csrf_token %}
+                            <button type="submit" class="profile-mem-action-btn">Anular</button>
+                        </form>
+                        {% elif row.can_void_direct and row.membership.origen != 'ADMIN' and 'billing.delete_membership' in user_permissions %}
                         <form method="POST" action="{% url 'billing:delete_membership_action' row.membership.id %}" onsubmit="return confirm('¿Anular esta membresía? Quedará registrada como anulada en el historial.');">
                             {% csrf_token %}
                             <button type="submit" class="profile-mem-action-btn">Anular</button>

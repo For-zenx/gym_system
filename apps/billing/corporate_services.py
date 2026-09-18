@@ -267,7 +267,7 @@ def add_member_to_group(group, client, added_by=None):
     # Si el grupo está activo, generar membresía inmediatamente para este nuevo miembro
     if group.status == CorporateGroup.Status.ACTIVE:
         today = timezone.localdate()
-        subscriber_mem = group.subscriber.memberships.for_coverage().filter(
+        subscriber_mem = group.subscriber.memberships.for_billing().filter(
             plan=group.plan,
             fecha_fin__gte=today,
         ).order_by("-fecha_fin").first()
@@ -283,6 +283,19 @@ def add_member_to_group(group, client, added_by=None):
             Client.objects.filter(pk=client.pk).update(fixed_plan=group.plan, fecha_corte_dia=group.fecha_corte_dia)
             client.fixed_plan = group.plan
             client.fecha_corte_dia = group.fecha_corte_dia
+        admin_mem = group.subscriber.memberships.currently_valid(today).filter(
+            plan=group.plan,
+            origen=Membership.Origin.ADMIN,
+        ).order_by("-fecha_fin").first()
+        if admin_mem:
+            _create_corporate_membership_for_client(
+                client=client,
+                group=group,
+                fecha_inicio=today,
+                fecha_fin=admin_mem.fecha_fin,
+                acting_user=added_by,
+                origen=Membership.Origin.ADMIN,
+            )
 
     return warnings
 
@@ -411,7 +424,7 @@ def find_memberships_for_corporate_invoice(invoice):
     client_ids.add(group.subscriber_id)
 
     return list(
-        Membership.objects.for_coverage()
+        Membership.objects.for_billing()
         .filter(
             client_id__in=client_ids,
             plan_id=period.plan_id,
@@ -472,7 +485,7 @@ def apply_corporate_group_payment(
 
     hoy = timezone.localdate()
     latest = (
-        group.subscriber.memberships.for_coverage()
+        group.subscriber.memberships.for_billing()
         .filter(plan=group.plan)
         .order_by("-fecha_fin")
         .first()
@@ -547,73 +560,41 @@ def _group_has_open_plan_coverage(group, today):
     ).exists()
 
 
-def _clear_group_coverage_for_admin_access(group, user):
-    """Anula facturas corporativas LIFO; soft-cierra restos abiertos sin factura.
-
-    Retorna (voided_invoice_ids, soft_closed_membership_ids).
-    """
-    from .services import soft_close_membership, void_invoice
+def _replace_group_admin_access(group, user):
+    from .services import soft_close_membership
 
     today = timezone.localdate()
-    voided_invoice_ids = []
-    soft_closed_ids = []
-
-    while _group_has_open_plan_coverage(group, today):
-        invoice_to_void = (
-            Invoice.objects.filter(
-                corporate_group_id=group.pk,
-                esta_anulada=False,
-            )
-            .order_by("-fecha_emision", "-id")
-            .first()
-        )
-        if invoice_to_void is None:
-            break
-        void_invoice(
-            invoice_to_void,
-            user,
-            "Anulación automática por acceso administrativo corporativo",
-        )
-        voided_invoice_ids.append(invoice_to_void.pk)
-
     client_ids = [group.subscriber_id] + list(
         group.active_members.values_list("client_id", flat=True)
     )
-    open_memberships = list(
+    memberships = list(
         Membership.objects.for_coverage()
         .filter(
             client_id__in=client_ids,
+            plan_id=group.plan_id,
+            origen=Membership.Origin.ADMIN,
             fecha_fin__gte=today,
         )
         .select_related("plan")
-        .order_by("client_id", "fecha_inicio")
+        .order_by("client_id", "fecha_inicio", "id")
     )
-    for membership in open_memberships:
+    for membership in memberships:
         ClientServicePeriod.objects.filter(membership=membership).exclude(
             status=ClientServicePeriod.Status.CANCELLED
         ).update(status=ClientServicePeriod.Status.CANCELLED)
         soft_close_membership(
             membership,
             user,
-            motivo=(
-                "Cierre por acceso administrativo corporativo "
-                "(sin factura anulable, grupo #{})"
-            ).format(group.pk),
+            motivo="Reemplazo por acceso administrativo corporativo (grupo #{})".format(
+                group.pk
+            ),
         )
-        soft_closed_ids.append(membership.pk)
-
-    return voided_invoice_ids, soft_closed_ids
+    return [membership.pk for membership in memberships]
 
 
 @transaction.atomic
 def grant_corporate_admin_access(group, valid_until, user):
-    """Asigna acceso administrativo corporativo sin cobro a todo el grupo.
-
-    - Anula facturas corporativas del grupo en LIFO (cascada de membresías hermanas).
-    - Soft-cierra coberturas abiertas sin factura anulable.
-    - Crea Membership CORPORATE (origen ADMIN) con las mismas fechas para todos.
-    - Sincroniza fixed_plan y fecha_corte_dia en clientes y grupo.
-    """
+    """Asigna acceso administrativo sin cobro y preserva la cobertura pagada del grupo."""
     from datetime import date as date_cls
 
     from .services import log_billing_event
@@ -632,28 +613,16 @@ def grant_corporate_admin_access(group, valid_until, user):
     if not clients:
         raise ValidationError("El grupo no tiene miembros para asignar acceso.")
 
-    voided_invoice_ids, soft_closed_ids = _clear_group_coverage_for_admin_access(
-        group, user
-    )
-
-    cut_day = max(1, min(valid_until.day, 28))
+    replaced_admin_ids = _replace_group_admin_access(group, user)
     fecha_inicio = valid_until if valid_until < today else today
-    client_pks = [client.pk for client in clients]
 
     for client in clients:
-        ClientServicePeriod.objects.filter(client=client).filter(
-            status__in=(
-                ClientServicePeriod.Status.ACTIVE,
-                ClientServicePeriod.Status.QUEUED,
-            )
-        ).update(status=ClientServicePeriod.Status.CANCELLED)
-
         new_membership = Membership(
             client=client,
             plan=group.plan,
             fecha_inicio=fecha_inicio,
             fecha_fin=valid_until,
-            fecha_corte_dia=cut_day,
+            fecha_corte_dia=None,
             origen=Membership.Origin.ADMIN,
             created_by=user if getattr(user, "is_authenticated", False) else None,
         )
@@ -671,9 +640,9 @@ def grant_corporate_admin_access(group, valid_until, user):
                 "fecha_inicio": fecha_inicio.isoformat(),
                 "fecha_fin": valid_until.isoformat(),
                 "membership_id": new_membership.pk,
-                "voided_invoice_ids": voided_invoice_ids,
-                "soft_closed_membership_ids": soft_closed_ids,
-                "fecha_corte_dia": cut_day,
+                "replaced_admin_membership_ids": replaced_admin_ids,
+                "fixed_plan_preserved": True,
+                "fecha_corte_preserved": True,
                 "member_count": len(clients),
             },
             motivo="Acceso administrativo corporativo sin cobro (grupo #{}) por {}".format(
@@ -683,18 +652,9 @@ def grant_corporate_admin_access(group, valid_until, user):
             user=user,
         )
 
-    Client.objects.filter(pk__in=client_pks).update(
-        fixed_plan=group.plan,
-        fecha_corte_dia=cut_day,
-    )
-
-    group.refresh_from_db()
-    group.fecha_corte_dia = cut_day
-    update_fields = ["fecha_corte_dia", "updated_at"]
     if group.status == CorporateGroup.Status.SUSPENDED:
         group.status = CorporateGroup.Status.ACTIVE
-        update_fields.append("status")
-    group.save(update_fields=update_fields)
+        group.save(update_fields=["status", "updated_at"])
 
     return clients
 
@@ -804,7 +764,11 @@ def _create_corporate_membership_for_client(
         plan=group.plan,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
-        fecha_corte_dia=group.fecha_corte_dia or getattr(client, "fecha_corte_dia", None),
+        fecha_corte_dia=(
+            None
+            if origen == Membership.Origin.ADMIN
+            else group.fecha_corte_dia or getattr(client, "fecha_corte_dia", None)
+        ),
         origen=origen,
         created_by=acting_user if getattr(acting_user, "is_authenticated", False) else None,
     )
@@ -903,12 +867,12 @@ def get_corporate_group_billing_context(group):
     today = timezone.localdate()
 
     # Membresía que cubre hoy (puede ser solo el periodo actual, sin prepago).
-    active_membership = group.subscriber.memberships.currently_valid(today).filter(
+    active_membership = group.subscriber.memberships.currently_valid_for_billing(today).filter(
         plan=group.plan,
     ).order_by("-fecha_fin").first()
 
     # Cobertura total: el prepago puede dejar membresías futuras más allá de hoy.
-    last_membership = group.subscriber.memberships.for_coverage().filter(
+    last_membership = group.subscriber.memberships.for_billing().filter(
         plan=group.plan,
     ).order_by("-fecha_fin").first()
 

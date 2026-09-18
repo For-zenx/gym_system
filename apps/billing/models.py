@@ -349,10 +349,21 @@ class MembershipQuerySet(models.QuerySet):
     def for_coverage(self):
         return self.exclude(status__in=["VOIDED", "CLOSED"])
 
+    def for_billing(self):
+        return self.for_coverage().exclude(origen="ADMIN")
+
     def currently_valid(self, today=None):
         if today is None:
             today = timezone.localdate()
         return self.for_coverage().filter(
+            fecha_inicio__lte=today,
+            fecha_fin__gte=today,
+        )
+
+    def currently_valid_for_billing(self, today=None):
+        if today is None:
+            today = timezone.localdate()
+        return self.for_billing().filter(
             fecha_inicio__lte=today,
             fecha_fin__gte=today,
         )
@@ -365,8 +376,14 @@ class MembershipManager(models.Manager):
     def for_coverage(self):
         return self.get_queryset().for_coverage()
 
+    def for_billing(self):
+        return self.get_queryset().for_billing()
+
     def currently_valid(self, today=None):
         return self.get_queryset().currently_valid(today=today)
+
+    def currently_valid_for_billing(self, today=None):
+        return self.get_queryset().currently_valid_for_billing(today=today)
 
 
 class Membership(models.Model):

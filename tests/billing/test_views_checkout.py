@@ -214,7 +214,7 @@ def test_membership_delete__access(
 
 
 @pytest.mark.django_db
-def test_membership_delete__post_queued_deletes(client, create_staff_user, create_membership):
+def test_membership_delete__post_queued_voids(client, create_staff_user, create_membership):
     membership = create_membership(fecha_inicio=date.today() + timedelta(days=7))
     membership_pk = membership.pk
     affiliate = membership.client
@@ -229,7 +229,9 @@ def test_membership_delete__post_queued_deletes(client, create_staff_user, creat
         "clients:profile",
         kwargs={"codigo_afiliado": affiliate.codigo_afiliado},
     )
-    assert not Membership.objects.filter(pk=membership_pk).exists()
+    membership.refresh_from_db()
+    assert membership.status == Membership.Status.VOIDED
+    assert not Membership.objects.for_coverage().filter(pk=membership_pk).exists()
 
 
 @pytest.mark.django_db

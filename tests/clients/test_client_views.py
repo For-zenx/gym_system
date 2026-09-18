@@ -4,7 +4,9 @@ from django.urls import reverse
 from unittest.mock import MagicMock
 
 from apps.billing.models import Invoice, Membership, Plan, SaleItem
-from apps.billing.services import register_checkout
+from apps.access.services import evaluate_access_integrity
+from apps.billing.cycle import next_cut_on_or_after
+from apps.billing.services import grant_admin_access, preview_membership_period, register_checkout
 from apps.clients.models import Client
 from apps.clients.validation import split_cedula
 from tests.core.conftest import FAKE_PHOTO_B64
@@ -350,7 +352,6 @@ def test_grant_admin_access__post_grants_membership(
     response = client.post(
         url,
         {
-            "confirm_admin_access": "1",
             "plan_id": str(plan.pk),
             "valid_until": valid_until.isoformat(),
         },
@@ -361,3 +362,169 @@ def test_grant_admin_access__post_grants_membership(
     assert membership.plan_id == plan.pk
     assert membership.fecha_fin == valid_until
     assert not Invoice.objects.filter(client=affiliate).exists()
+
+
+@pytest.mark.django_db
+def test_grant_admin_access__optional_cut_date_change(
+    client,
+    create_staff_user,
+    create_client,
+    create_plan,
+):
+    affiliate = create_client()
+    affiliate.fecha_corte_dia = 16
+    affiliate.save(update_fields=["fecha_corte_dia"])
+    plan = create_plan(billing_type=Plan.BillingType.FIXED)
+    valid_until = date(2026, 12, 31)
+    staff = create_staff_user(permissions=[GRANT_ADMIN_PERMISSION])
+    client.force_login(staff)
+
+    response = client.post(
+        reverse(
+            "clients:grant_admin_access",
+            kwargs={"codigo_afiliado": affiliate.codigo_afiliado},
+        ),
+        {
+            "plan_id": str(plan.pk),
+            "valid_until": valid_until.isoformat(),
+            "change_cut_date": "1",
+        },
+    )
+
+    assert response.status_code == 302
+    affiliate.refresh_from_db()
+    assert affiliate.fecha_corte_dia == 31
+
+
+@pytest.mark.django_db
+def test_admin_access__only_grant_permission_can_revoke(
+    client,
+    create_staff_user,
+    create_client,
+    create_plan,
+):
+    affiliate = create_client()
+    plan = create_plan(billing_type=Plan.BillingType.FIXED)
+    membership = grant_admin_access(
+        affiliate,
+        plan,
+        date.today() + timedelta(days=30),
+        None,
+    )
+    url = reverse("billing:delete_membership_action", kwargs={"pk": membership.pk})
+    billing_staff = create_staff_user(permissions=["billing.delete_membership"])
+    client.force_login(billing_staff)
+
+    denied = client.post(url)
+
+    assert denied.status_code == 403
+    membership.refresh_from_db()
+    assert membership.status == Membership.Status.ACTIVE
+
+    admin_staff = create_staff_user(permissions=[GRANT_ADMIN_PERMISSION])
+    client.force_login(admin_staff)
+    allowed = client.post(url)
+
+    assert allowed.status_code == 302
+    membership.refresh_from_db()
+    assert membership.status == Membership.Status.VOIDED
+
+
+@pytest.mark.django_db
+def test_grant_admin_access__preserves_paid_membership_invoice_cut_and_next_charge(
+    create_client,
+    create_plan,
+    exchange_rate,
+):
+    affiliate = create_client()
+    paid_plan = create_plan(billing_type=Plan.BillingType.FIXED)
+    admin_plan = create_plan(billing_type=Plan.BillingType.FIXED)
+    paid = register_checkout(
+        affiliate,
+        plan=paid_plan,
+        payment_cut_day=16,
+        payment_method=Invoice.PaymentMethod.CASH_VES,
+    )
+    affiliate.refresh_from_db()
+    original_plan_id = affiliate.fixed_plan_id
+    original_cut_day = affiliate.fecha_corte_dia
+
+    admin_membership = grant_admin_access(
+        affiliate,
+        admin_plan,
+        date.today() + timedelta(days=90),
+        None,
+    )
+
+    paid.membership.refresh_from_db()
+    paid.invoice.refresh_from_db()
+    affiliate.refresh_from_db()
+    assert paid.membership.status == Membership.Status.ACTIVE
+    assert paid.invoice.esta_anulada is False
+    assert affiliate.fixed_plan_id == original_plan_id
+    assert affiliate.fecha_corte_dia == original_cut_day
+    assert admin_membership.origen == Membership.Origin.ADMIN
+    assert admin_membership.fecha_corte_dia is None
+
+    preview = preview_membership_period(affiliate, paid_plan)
+    assert preview["fecha_inicio"] == next_cut_on_or_after(
+        paid.membership.fecha_fin,
+        original_cut_day,
+    )
+    assert preview["fecha_inicio"] < admin_membership.fecha_fin
+
+
+@pytest.mark.django_db
+def test_grant_admin_access__replaces_only_previous_admin(create_client, create_plan):
+    affiliate = create_client()
+    plan = create_plan(billing_type=Plan.BillingType.FIXED)
+    paid_membership = Membership.objects.create(
+        client=affiliate,
+        plan=plan,
+        fecha_inicio=date.today(),
+        fecha_fin=date.today() + timedelta(days=30),
+        origen=Membership.Origin.UNKNOWN,
+    )
+    first_admin = grant_admin_access(
+        affiliate,
+        plan,
+        date.today() + timedelta(days=60),
+        None,
+    )
+
+    second_admin = grant_admin_access(
+        affiliate,
+        plan,
+        date.today() + timedelta(days=90),
+        None,
+    )
+
+    paid_membership.refresh_from_db()
+    first_admin.refresh_from_db()
+    assert paid_membership.status == Membership.Status.ACTIVE
+    assert first_admin.status == Membership.Status.CLOSED
+    assert second_admin.status == Membership.Status.ACTIVE
+    assert Membership.objects.for_billing().filter(pk=paid_membership.pk).exists()
+    assert not Membership.objects.for_billing().filter(pk=second_admin.pk).exists()
+
+
+@pytest.mark.django_db
+def test_admin_access__grants_entry_without_marking_paid_subscription_active(
+    create_client,
+    create_plan,
+):
+    affiliate = create_client()
+    affiliate.fecha_corte_dia = 16
+    affiliate.save(update_fields=["fecha_corte_dia"])
+    plan = create_plan(billing_type=Plan.BillingType.FIXED)
+    grant_admin_access(
+        affiliate,
+        plan,
+        date.today() + timedelta(days=30),
+        None,
+    )
+
+    granted, _ = evaluate_access_integrity(affiliate)
+
+    assert granted is True
+    assert affiliate.fixed_subscription_status == "SUSPENDED"
