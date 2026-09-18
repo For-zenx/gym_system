@@ -42,6 +42,8 @@ class FaceMatchResult:
     margin: Optional[float]
     tolerance: float
     model: str
+    # Vector 128-d del frame procesado (para galería adaptativa; no se persiste aquí).
+    embedding: Optional[np.ndarray] = None
 
 
 @dataclass(frozen=True)
@@ -81,8 +83,9 @@ def _get_embedding_gallery() -> EmbeddingGallery:
             "codigo_afiliado",
             "nombre",
             "face_id_embeddings",
+            "best_embeddings",
         )
-        for client_id, codigo, nombre, raw_embedding in rows:
+        for client_id, codigo, nombre, raw_embedding, raw_best in rows:
             try:
                 embedding = np.asarray(raw_embedding, dtype=np.float64)
                 if embedding.shape != (128,):
@@ -94,6 +97,24 @@ def _get_embedding_gallery() -> EmbeddingGallery:
             codigos.append(codigo)
             nombres.append(nombre)
             embeddings.append(embedding)
+
+            # Ancla adaptativa opcional del mismo afiliado; nunca desplaza al
+            # original. El top-2 deduplica por codigo para que no compitan.
+            if raw_best is None:
+                continue
+            try:
+                best = np.asarray(raw_best, dtype=np.float64)
+                if best.shape != (128,):
+                    raise ValueError("se esperaban 128 dimensiones")
+            except (TypeError, ValueError) as exc:
+                logger.error(
+                    "Best embedding corrupto para afiliado %s: %s", nombre, exc
+                )
+                continue
+            client_ids.append(client_id)
+            codigos.append(codigo)
+            nombres.append(nombre)
+            embeddings.append(best)
 
         matrix = (
             np.vstack(embeddings)
@@ -224,8 +245,20 @@ def update_client_embeddings(client) -> None:
 
     image_path = Path(settings.MEDIA_ROOT) / client.foto_frente.name
     embedding = generate_embedding(image_path)
+
+    # El nuevo enrolamiento es el único baseline: los vectores adaptativos
+    # derivados del enrolamiento anterior quedan obsoletos.
+    client.adaptive_embeddings.all().delete()
     client.face_id_embeddings = embedding
-    client.save(update_fields=["face_id_embeddings"])
+    client.best_embeddings = None
+    client.best_embeddings_score = None
+    client.save(
+        update_fields=[
+            "face_id_embeddings",
+            "best_embeddings",
+            "best_embeddings_score",
+        ]
+    )
     logger.info("Embedding actualizado para afiliado: %s", client.nombre)
 
 
@@ -247,13 +280,25 @@ def _empty_match_result(outcome: str) -> FaceMatchResult:
 
 def _top_two_matches(
     face_distances: np.ndarray,
-    client_list: list,
+    gallery: EmbeddingGallery,
 ) -> Tuple[int, Optional[int]]:
+    """Mejor ancla + mejor ancla de un codigo DISTINTO.
+
+    Con anclas adaptativas un mismo afiliado puede ocupar 1º y 2º lugar;
+    el margin debe comparar contra la siguiente persona real, no contra
+    su propio segundo embedding.
+    """
     if len(face_distances) == 0:
         return 0, None
     order = np.argsort(face_distances)
     best_index = int(order[0])
-    second_index = int(order[1]) if len(order) > 1 else None
+    best_codigo = gallery.codigos[best_index]
+    second_index = None
+    for idx in order[1:]:
+        idx = int(idx)
+        if gallery.codigos[idx] != best_codigo:
+            second_index = idx
+            break
     return best_index, second_index
 
 
@@ -264,6 +309,7 @@ def _build_match_result(
     second_index: Optional[int],
     outcome: str,
     matched_client=None,
+    embedding: Optional[np.ndarray] = None,
 ) -> FaceMatchResult:
     best_distance = float(face_distances[best_index])
     second_distance = (
@@ -286,6 +332,7 @@ def _build_match_result(
         margin=margin,
         tolerance=TOLERANCE,
         model=FACE_ENCODING_MODEL,
+        embedding=embedding,
     )
 
 
@@ -314,7 +361,7 @@ def match_face(base64_image: str) -> FaceMatchResult:
         return _empty_match_result(OUTCOME_NO_ENROLLED)
 
     face_distances = face_recognition.face_distance(gallery.embeddings, frame_embedding)
-    best_index, second_index = _top_two_matches(face_distances, gallery.client_ids)
+    best_index, second_index = _top_two_matches(face_distances, gallery)
     if face_distances[best_index] <= TOLERANCE:
         matched_client = Client.objects.filter(pk=gallery.client_ids[best_index]).first()
         if matched_client is None:
@@ -333,6 +380,7 @@ def match_face(base64_image: str) -> FaceMatchResult:
             second_index,
             OUTCOME_MATCH,
             matched_client=matched_client,
+            embedding=frame_embedding,
         )
 
     logger.debug("Sin coincidencia (mejor distancia: %.4f).", face_distances[best_index])
@@ -342,10 +390,13 @@ def match_face(base64_image: str) -> FaceMatchResult:
         best_index,
         second_index,
         OUTCOME_NO_MATCH,
+        embedding=frame_embedding,
     )
 
 
-def _verify_result(candidate, distance: float) -> FaceMatchResult:
+def _verify_result(
+    candidate, distance: float, embedding: Optional[np.ndarray] = None
+) -> FaceMatchResult:
     outcome = OUTCOME_MATCH if distance <= TOLERANCE else OUTCOME_NO_MATCH
     return FaceMatchResult(
         client=candidate if outcome == OUTCOME_MATCH else None,
@@ -359,7 +410,35 @@ def _verify_result(candidate, distance: float) -> FaceMatchResult:
         margin=None,
         tolerance=TOLERANCE,
         model=FACE_ENCODING_MODEL,
+        embedding=embedding,
     )
+
+
+def _candidate_anchors(candidate) -> list:
+    """Embeddings válidos del candidato: original + best adaptativo si existe.
+
+    La verificación 1:1 debe mirar las mismas anclas que pudo usar el
+    identify; si solo mirara el original, un match logrado vía best se
+    podría rechazar en verify (identify sí / verify no).
+    """
+    anchors = []
+    for raw in (
+        getattr(candidate, "face_id_embeddings", None),
+        getattr(candidate, "best_embeddings", None),
+    ):
+        if raw is None:
+            continue
+        try:
+            vec = np.asarray(raw, dtype=np.float64)
+            if vec.shape != (128,):
+                raise ValueError("se esperaban 128 dimensiones")
+        except (TypeError, ValueError) as exc:
+            logger.error(
+                "Embedding corrupto para afiliado %s: %s", candidate.nombre, exc
+            )
+            continue
+        anchors.append(vec)
+    return anchors
 
 
 def verify_face(base64_image: str, candidate) -> FaceMatchResult:
@@ -374,16 +453,14 @@ def verify_face(base64_image: str, candidate) -> FaceMatchResult:
     if not frame_encodings:
         return _empty_match_result(OUTCOME_NO_FACE)
 
-    try:
-        known_embedding = np.array(candidate.face_id_embeddings)
-    except (TypeError, ValueError):
-        logger.error("Embedding corrupto para afiliado %s.", candidate.nombre)
+    anchors = _candidate_anchors(candidate)
+    if not anchors:
         return _empty_match_result(OUTCOME_NO_ENROLLED)
 
     distance = float(
-        face_recognition.face_distance([known_embedding], frame_encodings[0])[0]
+        face_recognition.face_distance(anchors, frame_encodings[0]).min()
     )
-    return _verify_result(candidate, distance)
+    return _verify_result(candidate, distance, embedding=frame_encodings[0])
 
 
 def resolve_candidate_by_codigo(codigo):
@@ -414,16 +491,16 @@ def verify_face_multi(base64_image: str, candidates) -> list:
     frame_embedding = frame_encodings[0]
     results = []
     for candidate in candidates:
-        try:
-            known_embedding = np.array(candidate.face_id_embeddings)
-        except (TypeError, ValueError):
-            logger.error("Embedding corrupto para afiliado %s.", candidate.nombre)
+        anchors = _candidate_anchors(candidate)
+        if not anchors:
             results.append(_empty_match_result(OUTCOME_NO_ENROLLED))
             continue
         distance = float(
-            face_recognition.face_distance([known_embedding], frame_embedding)[0]
+            face_recognition.face_distance(anchors, frame_embedding).min()
         )
-        results.append(_verify_result(candidate, distance))
+        results.append(
+            _verify_result(candidate, distance, embedding=frame_embedding)
+        )
     return results
 
 

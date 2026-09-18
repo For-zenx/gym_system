@@ -311,8 +311,19 @@ def apply_front_photo_from_b64(client, foto_frente_b64):
     from django.core.files.base import ContentFile as DjangoContentFile
     client.foto_frente.name = final_saved_path
     client.save(update_fields=["foto_frente"])
+    # El nuevo enrolamiento es el único baseline: se descartan los vectores
+    # adaptativos derivados del enrolamiento anterior.
+    client.adaptive_embeddings.all().delete()
     client.face_id_embeddings = embedding
-    client.save(update_fields=["face_id_embeddings"])
+    client.best_embeddings = None
+    client.best_embeddings_score = None
+    client.save(
+        update_fields=[
+            "face_id_embeddings",
+            "best_embeddings",
+            "best_embeddings_score",
+        ]
+    )
     return client
 
 

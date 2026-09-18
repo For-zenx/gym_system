@@ -91,6 +91,16 @@ class Client(models.Model):
     foto_perfil_der = models.ImageField(upload_to='clients/enrollment/', blank=True, null=True)
 
     face_id_embeddings = SQLiteJSONField(blank=True, null=True)
+    best_embeddings = SQLiteJSONField(
+        blank=True,
+        null=True,
+        help_text="Embedding auxiliar promovido de los últimos accesos de alta confianza.",
+    )
+    best_embeddings_score = models.FloatField(
+        "Score de consistencia del best_embeddings (menor = mejor)",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         verbose_name = "Afiliado"
@@ -221,4 +231,35 @@ class GuestPass(models.Model):
             self.guest.nombre,
             self.sponsor.nombre,
             self.valid_until.strftime("%d/%m/%Y"),
+        )
+
+
+class ClientAdaptiveEmbedding(models.Model):
+    """Candidato de embedding adaptativo de un acceso de alta confianza.
+
+    Se conservan los últimos 3 por cliente; el más representativo se
+    promueve a Client.best_embeddings. No entra directo a la galería.
+    """
+
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name="adaptive_embeddings",
+        verbose_name="Afiliado",
+    )
+    embedding = SQLiteJSONField()
+    margin = models.FloatField("Margin del acceso que lo generó", null=True, blank=True)
+    best_distance = models.FloatField("Distancia del match que lo generó")
+    created_at = models.DateTimeField("Creado el", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["client", "-created_at"])]
+        verbose_name = "Embedding adaptativo"
+        verbose_name_plural = "Embeddings adaptativos"
+
+    def __str__(self):
+        return "{} — adaptive {}".format(
+            self.client.codigo_afiliado,
+            self.created_at.strftime("%d/%m/%Y %H:%M"),
         )

@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from apps.access import ai_engine
+from apps.access import adaptive_gallery, ai_engine
 from apps.access.biometrics_audit import write_access_biometrics_log
 from apps.access.services import (
     build_cooldown_denied_payload,
@@ -117,6 +117,15 @@ def _finalize_matched_client(client, match_result, last_unknown_log_time, confir
 
     mem_data = _membership_data(client)
     granted, detail = check_access_integrity(client)
+    if granted:
+        # Refuerzo adaptativo: nunca debe interrumpir el acceso concedido.
+        try:
+            adaptive_gallery.save_adaptive_embedding(client, match_result)
+        except Exception:
+            logger.exception(
+                "Fallo guardando embedding adaptativo de %s",
+                client.codigo_afiliado,
+            )
 
     tablet_response = build_tablet_access_payload(client, granted, detail, mem_data)
     write_access_biometrics_log(

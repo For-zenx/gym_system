@@ -130,8 +130,18 @@ class Command(BaseCommand):
                 )
                 continue
 
+            # Nuevo baseline: se descartan los vectores adaptativos previos.
+            client.adaptive_embeddings.all().delete()
             client.face_id_embeddings = embedding
-            client.save(update_fields=["face_id_embeddings"])
+            client.best_embeddings = None
+            client.best_embeddings_score = None
+            client.save(
+                update_fields=[
+                    "face_id_embeddings",
+                    "best_embeddings",
+                    "best_embeddings_score",
+                ]
+            )
             ok_count += 1
             lines.append(
                 "{0}\t{1}\tOK\tEmbedding actualizado\t{2}".format(
