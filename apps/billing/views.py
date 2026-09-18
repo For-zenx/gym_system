@@ -6,6 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.views import View
 from apps.users.mixins import PermissionRequiredMixin
+from apps.users.permissions import has_permission
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -19,7 +20,6 @@ from .models import Plan, Membership, ExchangeRate, Invoice, SaleItem
 from .services import (
     register_checkout,
     change_client_cut_date,
-    delete_invoice,
     parse_late_fee_from_post,
     parse_enrollment_fee_from_post,
     parse_payment_cut_from_post,
@@ -671,13 +671,18 @@ class MembershipDeleteView(PermissionRequiredMixin, View):
         return redirect("clients:profile", codigo_afiliado=client_code)
 
 
-class DeleteMembershipActionView(PermissionRequiredMixin, View):
-    required_permission = "billing.delete_membership"
-
+class DeleteMembershipActionView(LoginRequiredMixin, View):
     def post(self, request, pk):
         from apps.billing.services import void_membership_without_invoice
 
         membership = get_object_or_404(Membership, pk=pk)
+        required_permission = (
+            "clients.grant_admin_access"
+            if membership.origen == Membership.Origin.ADMIN
+            else "billing.delete_membership"
+        )
+        if not has_permission(request.user, required_permission):
+            raise PermissionDenied("No tienes permiso para realizar esta acción.")
         client_code = membership.client.codigo_afiliado
 
         try:
@@ -899,17 +904,6 @@ class PrintInvoiceActionView(PermissionRequiredMixin, View):
             messages.error(request, "Error al imprimir la factura: {}".format(str(e)))
 
         return redirect(detail_url)
-
-
-class InvoiceDeleteView(PermissionRequiredMixin, View):
-    """DEPRECATED: Eliminar facturas — reemplazado por anulación (void_invoice)."""
-
-    required_permission = "billing.delete_invoice"
-
-    def post(self, request, pk):
-        raise PermissionDenied(
-            "Ya no se pueden eliminar facturas. Use anulación para conservar el registro."
-        )
 
 
 class VoidInvoiceView(PermissionRequiredMixin, View):
@@ -1415,7 +1409,7 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
         members = group.members.select_related("client").order_by("joined_at")
         billing_context = get_corporate_group_billing_context(group)
         invoices = group.invoices.select_related("client").order_by("-fecha_emision")[:10]
-        can_manage_groups = has_permission(request.user, "corporate.manage_groups")
+        can_delete_groups = has_permission(request.user, "corporate.delete_groups")
         can_add_members = has_permission(request.user, "corporate.add_members")
         can_remove_members = has_permission(request.user, "corporate.remove_members")
         can_charge = has_permission(request.user, "billing.charge")
@@ -1436,7 +1430,7 @@ class CorporateGroupDetailView(PermissionRequiredMixin, View):
             "members": members,
             "billing_context": billing_context,
             "invoices": invoices,
-            "can_manage_groups": can_manage_groups,
+            "can_delete_groups": can_delete_groups,
             "can_add_members": can_add_members,
             "can_remove_members": can_remove_members,
             "can_charge": can_charge,
@@ -1522,8 +1516,8 @@ class CorporateGroupGrantAdminAccessView(PermissionRequiredMixin, View):
         if request.POST.get("confirm_corporate_admin_access") != "1":
             messages.error(
                 request,
-                "Debes confirmar que entiendes que se eliminarán membresías anteriores "
-                "en todo el grupo y no se generará cobro.",
+                "Debes confirmar que el acceso no genera cobro y reemplaza únicamente "
+                "otro acceso administrativo vigente del grupo.",
             )
             return redirect(request.POST.get("next") or detail_url)
 
@@ -1541,7 +1535,7 @@ class CorporateGroupGrantAdminAccessView(PermissionRequiredMixin, View):
 
         messages.success(
             request,
-            "Acceso administrativo corporativo asignado a {} persona(s) del grupo hasta el {} (sin cobro).".format(
+            "Acceso administrativo corporativo asignado a {} persona(s) hasta el {} (sin cobro). Los cobros y la fecha de corte se conservaron.".format(
                 len(clients),
                 valid_until.strftime("%d/%m/%Y"),
             ),
@@ -1593,7 +1587,7 @@ class CorporateGroupRevokeAdminAccessView(PermissionRequiredMixin, View):
 
 
 class CorporateGroupDissolveView(PermissionRequiredMixin, View):
-    required_permission = "corporate.manage_groups"
+    required_permission = "corporate.delete_groups"
 
     def post(self, request, pk):
         from .models import CorporateGroup

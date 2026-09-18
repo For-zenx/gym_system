@@ -159,7 +159,7 @@ class Client(models.Model):
 
         today = date.today()
         membership = (
-            self.memberships.for_coverage()
+            self.memberships.for_billing()
             .filter(
                 plan__billing_type=Plan.BillingType.FIXED,
                 fecha_fin__gte=today,
@@ -175,7 +175,7 @@ class Client(models.Model):
 
         if not self.fecha_corte_dia:
             return 'NONE'
-        if self.memberships.currently_valid().filter(
+        if self.memberships.currently_valid_for_billing().filter(
             plan__billing_type=Plan.BillingType.FIXED,
         ).exists():
             return 'ACTIVE'

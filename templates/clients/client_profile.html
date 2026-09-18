@@ -95,6 +95,9 @@
                                 Suspendida — requiere pago del dueño
                             {% endif %}
                         {% endif %}
+                        {% if corp_admin_access %}
+                            <span class="profile-caja-note" style="display: block; margin-top: 0.35rem;">Acceso administrativo vigente hasta {{ corp_admin_access.fecha_fin|date:"d/m/Y" }} (sin cobro).</span>
+                        {% endif %}
                         <a href="{% url 'billing:corporate_group_detail' corp_group.pk %}" class="profile-tab-link" style="display: block; margin-top: 0.5rem; font-size: 0.85rem;">Ver grupo corporativo</a>
                     </dd>
                 </div>
@@ -141,6 +144,13 @@
                     <dd>Sin suscripción mensual</dd>
                 </div>
                 {% endif %}
+                {% endif %}
+
+                {% if subscription_summary.admin_access and not corp_group %}
+                <div class="profile-caja-line profile-caja-line-active">
+                    <dt>Acceso administrativo</dt>
+                    <dd>{{ subscription_summary.admin_access.plan.nombre }} hasta <strong>{{ subscription_summary.admin_access.fecha_fin|date:"d/m/Y" }}</strong></dd>
+                </div>
                 {% endif %}
 
                 {% if subscription_summary.flexible_line %}
@@ -502,9 +512,9 @@
     <div class="modal-overlay" id="adminAccessModal">
         <div class="modal-content">
             {% include "includes/modal_header.html" with modal_title="Acceso administrativo" %}
-            <p class="profile-danger-text" style="margin-top: 0;">
-                Esto eliminará todas las membresías anteriores, reseteará la suscripción fija,
-                cancelará periodos de servicio vinculados y <strong>no generará cobro</strong>.
+            <p class="billing-field-hint" style="margin-top: 0;">
+                Este acceso <strong>no generará cobro</strong> y convivirá con las membresías pagadas.
+                No modificará facturas ni servicios. La fecha de corte solo cambiará si marcas la opción correspondiente. Si existe otro acceso administrativo vigente, lo reemplazará.
             </p>
             {% if admin_access_fixed_plans %}
             <form method="POST" action="{% url 'clients:grant_admin_access' client.codigo_afiliado %}" id="admin-access-form">
@@ -528,8 +538,8 @@
                     </p>
                 </div>
                 <label class="profile-danger-ack">
-                    <input type="checkbox" id="admin_access_ack" name="confirm_admin_access" value="1" required>
-                    <span>Entiendo que se borrarán membresías anteriores y no se generará un cobro.</span>
+                    <input type="checkbox" id="admin_access_change_cut" name="change_cut_date" value="1">
+                    <span id="admin-access-change-cut-label">Cambiar la fecha de corte al día {{ today|date:"j" }}.</span>
                 </label>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeAdminAccessModal()">Cancelar</button>
@@ -568,7 +578,8 @@
     (function () {
         var dateInput = document.getElementById('admin_access_valid_until');
         var summary = document.getElementById('admin-access-summary');
-        if (!dateInput || !summary) return;
+        var changeCutLabel = document.getElementById('admin-access-change-cut-label');
+        if (!dateInput || !summary || !changeCutLabel) return;
         var todayIso = '{{ today|date:"Y-m-d" }}';
         var todayDisplay = '{{ today|date:"d/m/Y" }}';
 
@@ -581,10 +592,7 @@
         function cutDayFromIso(isoDate) {
             if (!isoDate || isoDate.length < 10) return null;
             var day = parseInt(isoDate.split('-')[2], 10);
-            if (isNaN(day)) return null;
-            if (day < 1) return 1;
-            if (day > 28) return 28;
-            return day;
+            return isNaN(day) ? null : day;
         }
 
         function updateSummary() {
@@ -592,10 +600,10 @@
             var untilDisplay = formatVe(untilIso);
             var cutDay = cutDayFromIso(untilIso);
             var startDisplay = (untilIso && untilIso < todayIso) ? untilDisplay : todayDisplay;
-            var cutText = cutDay
-                ? ' La fecha de corte quedará el día ' + cutDay + ' de cada mes.'
-                : '';
-            summary.textContent = 'Acceso desde ' + startDisplay + ' hasta ' + untilDisplay + '.' + cutText;
+            summary.textContent = 'Acceso desde ' + startDisplay + ' hasta ' + untilDisplay + '.';
+            changeCutLabel.textContent = cutDay
+                ? 'Cambiar la fecha de corte al día ' + cutDay + '.'
+                : 'Cambiar la fecha de corte según la vigencia.';
         }
 
         dateInput.addEventListener('change', updateSummary);

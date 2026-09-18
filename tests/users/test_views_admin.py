@@ -1,7 +1,17 @@
 import pytest
 from django.urls import reverse
 
+from apps.users.permissions import ALL_PERMISSION_CODES, CASHIER_PERMISSION_CODES, validate_permissions
 from tests.helpers import ACCESS_PARAMS, assert_access, login_if_needed
+
+
+def test_permission_catalog__corporate_delete_is_manual_and_invoice_delete_is_removed():
+    assert "corporate.delete_groups" in ALL_PERMISSION_CODES
+    assert "corporate.delete_groups" not in CASHIER_PERMISSION_CODES
+    assert "billing.delete_invoice" not in ALL_PERMISSION_CODES
+    assert validate_permissions(["billing.delete_invoice", "corporate.delete_groups"]) == [
+        "corporate.delete_groups"
+    ]
 
 
 @pytest.mark.parametrize(

@@ -107,7 +107,7 @@ def get_client_billing_context(client):
     unpaid = unpaid_fixed_periods(client)
     
     hoy = timezone.localdate()
-    has_active = client.memberships.currently_valid(hoy).filter(
+    has_active = client.memberships.currently_valid_for_billing(hoy).filter(
         plan__billing_type=Plan.BillingType.FIXED,
     ).exists()
 
@@ -233,6 +233,11 @@ def get_profile_subscription_summary(client):
     memberships = list(
         client.memberships.for_coverage().select_related("plan").order_by("fecha_inicio")
     )
+    billing_memberships = [
+        membership
+        for membership in memberships
+        if membership.origen != Membership.Origin.ADMIN
+    ]
 
     active_memberships = [
         m for m in memberships if m.fecha_inicio <= today <= m.fecha_fin
@@ -241,7 +246,7 @@ def get_profile_subscription_summary(client):
     has_access = bool(active_memberships) or in_grace
 
     fixed_groups = group_consecutive_fixed_memberships(
-        memberships, today, cut_day=client.fecha_corte_dia
+        billing_memberships, today, cut_day=client.fecha_corte_dia
     )
     current_fixed_group = None
     for group in fixed_groups:
@@ -253,7 +258,7 @@ def get_profile_subscription_summary(client):
     fixed_line = {"kind": "none"}
     if in_grace and client.fecha_corte_dia:
         expired_fixed = [
-            m for m in memberships
+            m for m in billing_memberships
             if m.plan.billing_type == Plan.BillingType.FIXED and m.fecha_fin < today
         ]
         last_paid_end = (
@@ -274,7 +279,7 @@ def get_profile_subscription_summary(client):
         }
     elif fixed_status == "SUSPENDED" and client.fecha_corte_dia:
         expired_fixed = [
-            m for m in memberships
+            m for m in billing_memberships
             if m.plan.billing_type == Plan.BillingType.FIXED and m.fecha_fin < today
         ]
         last_paid_end = (
@@ -322,12 +327,22 @@ def get_profile_subscription_summary(client):
         )
         next_charge_hint = next_cut.strftime("%d/%m/%Y")
 
+    active_admin = next(
+        (
+            membership
+            for membership in active_memberships
+            if membership.origen == Membership.Origin.ADMIN
+        ),
+        None,
+    )
+
     return {
         "has_access": has_access,
         "cut_date_display": cut_date_display,
         "fixed_line": fixed_line,
         "flexible_line": flexible_line,
         "fixed_groups_detail": fixed_groups,
+        "admin_access": active_admin,
         "next_charge_hint": next_charge_hint,
         "show_unpaid_detail": fixed_status == "SUSPENDED" or in_grace,
         "in_grace": in_grace,
@@ -347,7 +362,10 @@ def _latest_invoice_for_membership(membership):
 
 def _resolve_corporate_period_invoice(membership, group=None):
     """Factura del periodo grupal aunque la membresía no tenga FK (alta mid-cycle)."""
-    if membership.plan.billing_type != Plan.BillingType.CORPORATE:
+    if (
+        membership.plan.billing_type != Plan.BillingType.CORPORATE
+        or membership.origen == Membership.Origin.ADMIN
+    ):
         return None
 
     if group is None:
@@ -451,6 +469,34 @@ def _membership_history_action_fields(membership, *, group=None):
     }
 
 
+def _membership_end_event_map(client_ids):
+    """Última fecha de cierre/anulación registrada por membresía."""
+    events = ClientBillingEvent.objects.filter(
+        client_id__in=client_ids,
+        event_type__in=[
+            ClientBillingEvent.EventType.MEMBERSHIP_VOIDED,
+            ClientBillingEvent.EventType.MEMBERSHIP_SOFT_CLOSED,
+        ],
+    ).order_by("-created_at", "-id")
+
+    ended_at = {}
+    for event in events:
+        membership_id = event.payload.get("membership_id")
+        if membership_id and membership_id not in ended_at:
+            ended_at[membership_id] = event.created_at
+    return ended_at
+
+
+def _membership_history_dates(membership, invoice, ended_at):
+    registered_at = membership.created_at or membership.fecha_inicio
+    cancelled_at = None
+    if invoice is not None and invoice.esta_anulada:
+        cancelled_at = invoice.fecha_anulacion
+    if cancelled_at is None:
+        cancelled_at = ended_at.get(membership.pk)
+    return registered_at, cancelled_at
+
+
 def get_client_membership_history_rows(client):
     """Filas para la tabla de historial de membresías del perfil."""
     memberships = list(
@@ -458,9 +504,13 @@ def get_client_membership_history_rows(client):
         .prefetch_related("invoices")
         .order_by("-fecha_inicio", "-id")
     )
+    ended_at = _membership_end_event_map([client.pk])
     rows = []
     for mem in memberships:
         actions = _membership_history_action_fields(mem)
+        registered_at, cancelled_at = _membership_history_dates(
+            mem, actions["invoice"], ended_at
+        )
 
         if mem.fecha_corte_dia:
             cut_display = "Corte {}".format(mem.fecha_corte_dia)
@@ -482,6 +532,8 @@ def get_client_membership_history_rows(client):
                 "billing_type_short": billing_short,
                 "fecha_inicio": mem.fecha_inicio,
                 "fecha_fin": mem.fecha_fin,
+                "registered_at": registered_at,
+                "cancelled_at": cancelled_at,
                 "cut_display": cut_display,
                 "status": mem.status,
                 "status_label": mem.get_status_display(),
@@ -520,9 +572,13 @@ def get_group_membership_history_rows(group):
         .prefetch_related("invoices")
         .order_by("-fecha_inicio", "-id")
     )
+    ended_at = _membership_end_event_map(client_ids)
     rows = []
     for mem in memberships:
         actions = _membership_history_action_fields(mem, group=group)
+        registered_at, cancelled_at = _membership_history_dates(
+            mem, actions["invoice"], ended_at
+        )
         # Revocar admin: una sola acción visible (fila del suscriptor).
         show_revoke = bool(
             actions["can_revoke_corporate_admin"]
@@ -560,6 +616,8 @@ def get_group_membership_history_rows(group):
                 "billing_type_short": "Corp",
                 "fecha_inicio": mem.fecha_inicio,
                 "fecha_fin": mem.fecha_fin,
+                "registered_at": registered_at,
+                "cancelled_at": cancelled_at,
                 "cut_display": cut_display,
                 "status": mem.status,
                 "status_label": mem.get_status_display(),
@@ -591,12 +649,17 @@ def get_membership_feed_lines(client):
         is_owner = corp_group.subscriber_id == client.pk
         role_suffix = " (Suscriptor)" if is_owner else " (Grupo)"
 
-        corp_membership = client.memberships.currently_valid(today).filter(
+        corp_membership = client.memberships.currently_valid_for_billing(today).filter(
             plan=corp_group.plan,
         ).order_by("-fecha_fin").first()
+        admin_membership = client.memberships.currently_valid(today).filter(
+            plan=corp_group.plan,
+            origen=Membership.Origin.ADMIN,
+        ).order_by("-fecha_fin").first()
 
+        lines = []
         if corp_membership:
-            return [
+            lines.append(
                 {
                     "status": "active",
                     "title": "Plan Corporativo",
@@ -607,18 +670,28 @@ def get_membership_feed_lines(client):
                     ),
                     "secondary": None,
                 }
-            ]
+            )
         else:
-            # El grupo existe pero no hay membresía activa (suspendido/requiere pago)
-            group_status = corp_group.get_status_display() if hasattr(corp_group, "get_status_display") else corp_group.status
-            return [
+            lines.append(
                 {
                     "status": "suspended",
                     "title": "Plan Corporativo",
-                    "primary": "{}{} — {}".format(plan_name, role_suffix, group_status),
+                    "primary": "{}{} — Sin cobertura pagada".format(plan_name, role_suffix),
                     "secondary": "Requiere pago del grupo" if not is_owner else None,
                 }
-            ]
+            )
+        if admin_membership:
+            lines.append(
+                {
+                    "status": "active",
+                    "title": "Acceso administrativo",
+                    "primary": "Vigente hasta {}".format(
+                        admin_membership.fecha_fin.strftime("%d/%m/%Y")
+                    ),
+                    "secondary": "Sin cobro",
+                }
+            )
+        return lines
 
     summary = get_profile_subscription_summary(client)
     lines = []
@@ -711,6 +784,20 @@ def get_membership_feed_lines(client):
             }
         )
 
+    admin_access = summary.get("admin_access")
+    if admin_access:
+        lines.append(
+            {
+                "status": "active",
+                "title": "Acceso administrativo",
+                "primary": "{} hasta {}".format(
+                    admin_access.plan.nombre,
+                    admin_access.fecha_fin.strftime("%d/%m/%Y"),
+                ),
+                "secondary": "Sin cobro",
+            }
+        )
+
     if not summary.get("has_access") and len(lines) == 1 and lines[0]["status"] == "none":
         return [
             {
@@ -763,7 +850,7 @@ def preview_membership_period(client, plan, cut_day_override=None, roll_forward=
         latest = None
         if group:
             latest = (
-                group.subscriber.memberships.for_coverage()
+                group.subscriber.memberships.for_billing()
                 .filter(plan=group.plan)
                 .order_by("-fecha_fin")
                 .first()
@@ -1723,7 +1810,7 @@ def _resolve_fixed_period(client, hoy, cut_day=None, previous_cut_day=None):
         cut_day = client.fecha_corte_dia or hoy.day
 
     latest_fixed = (
-        client.memberships.for_coverage()
+        client.memberships.for_billing()
         .filter(plan__billing_type=Plan.BillingType.FIXED)
         .order_by("-fecha_fin")
         .first()
@@ -1862,14 +1949,6 @@ def update_report_email_settings(*, emails_raw, gym_location_raw=""):
     settings_obj.gym_location = gym_location
     settings_obj.save(update_fields=["recipient_emails", "gym_location", "updated_at"])
     return settings_obj
-
-
-@transaction.atomic
-def delete_invoice(invoice):
-    # DEPRECATED: Eliminar facturas ya no está permitido en UI — reemplazado por anulación (void_invoice).
-    nro_control = invoice.nro_control
-    invoice.delete()
-    return nro_control
 
 
 @transaction.atomic
@@ -2182,87 +2261,32 @@ def void_invoice(invoice, user, reason):
     return invoice
 
 
-def _clear_active_coverage_for_admin_access(client, user):
-    """Anula facturas LIFO / soft-cierra membresías activas-encoladas; no toca vencidas.
-
-    Facturas corporativas no se anulan aquí (cascada pendiente): se soft-cierra la membresía.
-    """
+def _replace_admin_access_memberships(client, user):
     today = timezone.localdate()
-    voided_invoice_ids = []
-    soft_closed_ids = []
-
-    while True:
-        open_memberships = list(
-            client.memberships.for_coverage()
-            .filter(fecha_fin__gte=today)
-            .select_related("plan")
-            .order_by("-fecha_fin", "-id")
+    memberships = list(
+        client.memberships.for_coverage()
+        .filter(
+            origen=Membership.Origin.ADMIN,
+            fecha_fin__gte=today,
         )
-        if not open_memberships:
-            break
-
-        invoice_to_void = None
-        for membership in open_memberships:
-            inv = (
-                Invoice.objects.filter(
-                    membership=membership,
-                    esta_anulada=False,
-                )
-                .order_by("-fecha_emision", "-id")
-                .first()
-            )
-            if inv is None:
-                continue
-            if inv.corporate_group_id:
-                continue
-            if invoice_to_void is None or (inv.fecha_emision, inv.pk) > (
-                invoice_to_void.fecha_emision,
-                invoice_to_void.pk,
-            ):
-                invoice_to_void = inv
-
-        if invoice_to_void is not None:
-            void_invoice(
-                invoice_to_void,
-                user,
-                "Anulación automática por acceso administrativo",
-            )
-            voided_invoice_ids.append(invoice_to_void.pk)
-            continue
-
-        for membership in open_memberships:
-            ClientServicePeriod.objects.filter(membership=membership).exclude(
-                status=ClientServicePeriod.Status.CANCELLED
-            ).update(status=ClientServicePeriod.Status.CANCELLED)
-            soft_close_membership(
-                membership,
-                user,
-                motivo="Cierre por acceso administrativo (sin factura anulable)",
-            )
-            soft_closed_ids.append(membership.pk)
-        break
-
-    ClientServicePeriod.objects.filter(client=client).filter(
-        status__in=(
-            ClientServicePeriod.Status.ACTIVE,
-            ClientServicePeriod.Status.QUEUED,
+        .select_related("plan")
+        .order_by("fecha_inicio", "id")
+    )
+    for membership in memberships:
+        ClientServicePeriod.objects.filter(membership=membership).exclude(
+            status=ClientServicePeriod.Status.CANCELLED
+        ).update(status=ClientServicePeriod.Status.CANCELLED)
+        soft_close_membership(
+            membership,
+            user,
+            motivo="Reemplazo por un nuevo acceso administrativo",
         )
-    ).update(status=ClientServicePeriod.Status.CANCELLED)
-
-    return voided_invoice_ids, soft_closed_ids
+    return [membership.pk for membership in memberships]
 
 
 @transaction.atomic
-def grant_admin_access(client, plan, valid_until, user):
-    """Asigna acceso administrativo sin cobro.
-
-    - Solo afiliados MEMBER y planes FIXED activos.
-    - Anula facturas con membresía activa/encolada (LIFO) o soft-cierra huérfanas.
-    - No borra membresías ya vencidas.
-    - Conserva registro vía facturas anuladas / filas soft-cerradas.
-    - Vincula fixed_plan y realinea fecha_corte_dia al día de valid_until (1–28).
-    - No crea Invoice.
-    """
+def grant_admin_access(client, plan, valid_until, user, change_cut_date=False):
+    """Asigna acceso administrativo sin cobro y preserva la cobertura pagada."""
     from datetime import date as date_cls
 
     if not getattr(client, "is_member", False):
@@ -2278,23 +2302,23 @@ def grant_admin_access(client, plan, valid_until, user):
     if not isinstance(valid_until, date_cls):
         raise ValidationError("La fecha de vigencia no es válida.")
 
-    voided_invoice_ids, soft_closed_ids = _clear_active_coverage_for_admin_access(
-        client, user
-    )
-
-    cut_day = max(1, min(valid_until.day, 28))
+    replaced_admin_ids = _replace_admin_access_memberships(client, user)
+    previous_cut_day = client.fecha_corte_dia
+    if change_cut_date:
+        change_client_cut_date(
+            client,
+            valid_until.day,
+            motivo="Cambio opcional al asignar acceso administrativo",
+            user=user,
+        )
     fecha_inicio = valid_until if valid_until < today else today
-
-    client.fixed_plan = plan
-    client.fecha_corte_dia = cut_day
-    client.save(update_fields=["fixed_plan", "fecha_corte_dia"])
 
     new_membership = Membership(
         client=client,
         plan=plan,
         fecha_inicio=fecha_inicio,
         fecha_fin=valid_until,
-        fecha_corte_dia=cut_day,
+        fecha_corte_dia=None,
         origen=Membership.Origin.ADMIN,
         created_by=user if getattr(user, "is_authenticated", False) else None,
     )
@@ -2309,9 +2333,11 @@ def grant_admin_access(client, plan, valid_until, user):
             "fecha_inicio": fecha_inicio.isoformat(),
             "fecha_fin": valid_until.isoformat(),
             "membership_id": new_membership.pk,
-            "voided_invoice_ids": voided_invoice_ids,
-            "soft_closed_membership_ids": soft_closed_ids,
-            "fecha_corte_dia": cut_day,
+            "replaced_admin_membership_ids": replaced_admin_ids,
+            "fixed_plan_preserved": True,
+            "fecha_corte_changed": change_cut_date,
+            "previous_fecha_corte_dia": previous_cut_day,
+            "new_fecha_corte_dia": client.fecha_corte_dia,
         },
         motivo="Acceso administrativo sin cobro por {}".format(
             user.username if user else "sistema"

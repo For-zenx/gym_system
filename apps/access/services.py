@@ -172,7 +172,7 @@ def evaluate_access_integrity(client):
             from apps.billing.models import Plan
 
             latest_fixed = (
-                client.memberships.for_coverage()
+                client.memberships.for_billing()
                 .filter(plan__billing_type=Plan.BillingType.FIXED)
                 .select_related("plan")
                 .order_by("-fecha_fin")
@@ -237,7 +237,7 @@ def _suspended_since_display(client, today=None):
     from apps.billing.models import Plan
 
     latest_fixed = (
-        client.memberships.for_coverage()
+        client.memberships.for_billing()
         .filter(
             plan__billing_type=Plan.BillingType.FIXED,
             fecha_fin__lt=today,

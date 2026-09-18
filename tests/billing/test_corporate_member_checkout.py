@@ -4,6 +4,8 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
+from apps.billing.corporate_services import grant_corporate_admin_access
+from apps.billing.cycle import next_cut_on_or_after
 from apps.billing.models import CorporateGroup, Membership, Plan
 from apps.billing.services import preview_membership_period, register_checkout
 from tests import factories
@@ -45,6 +47,7 @@ def test_register_checkout__owner_pays_corporate_group_regression(create_corpora
         plan=group.plan,
         payment_cut_day=31,
         payment_method="MOBILE",
+        payment_splits=[{"type": "MOBILE", "reference": "1234"}],
     )
 
     assert result.invoice.client_id == group.subscriber_id
@@ -142,3 +145,44 @@ def test_corporate_prepaid_advances_to_next_period(create_corporate_group):
     )
     assert result.membership.fecha_fin > covered_until
     assert result.membership.fecha_inicio >= covered_until
+
+
+@pytest.mark.django_db
+def test_corporate_checkout__admin_access_does_not_move_paid_period(
+    create_corporate_group,
+):
+    group = create_corporate_group()
+    group.fecha_corte_dia = 20
+    group.save(update_fields=["fecha_corte_dia"])
+    group.subscriber.fecha_corte_dia = 20
+    group.subscriber.save(update_fields=["fecha_corte_dia"])
+    factories.create_exchange_rate()
+    today = date.today()
+    paid_end = today + timedelta(days=10)
+    Membership.objects.create(
+        client=group.subscriber,
+        plan=group.plan,
+        fecha_inicio=today,
+        fecha_fin=paid_end,
+        origen=Membership.Origin.CORPORATE,
+    )
+    admin_until = today + timedelta(days=90)
+    grant_corporate_admin_access(group, admin_until, None)
+    expected_start = next_cut_on_or_after(paid_end, group.fecha_corte_dia)
+
+    preview = preview_membership_period(
+        group.subscriber,
+        group.plan,
+        cut_day_override=group.fecha_corte_dia,
+        corp_group=group,
+    )
+    result = register_checkout(
+        group.subscriber,
+        plan=group.plan,
+        payment_cut_day=group.fecha_corte_dia,
+        payment_method="ZELLE",
+    )
+
+    assert preview["fecha_inicio"] == expected_start
+    assert result.membership.fecha_inicio == expected_start
+    assert result.membership.fecha_inicio < admin_until

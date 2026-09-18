@@ -123,34 +123,3 @@ def test_invoice_ticket_preview__edit_allowed_with_permission(
 
     assert response.status_code == 200
     assert response.json()["monto_total"] == str(new_amount)
-
-
-@pytest.mark.parametrize(
-    ("is_logged_in", "permissions"),
-    ACCESS_PARAMS + [(True, ["billing.delete_invoice"])],
-)
-@pytest.mark.django_db
-def test_invoice_delete__access(
-    client,
-    create_staff_user,
-    create_invoice,
-    get_login_url,
-    is_logged_in,
-    permissions,
-):
-    invoice = create_invoice()
-    login_if_needed(client, create_staff_user, is_logged_in, permissions)
-
-    url = reverse("billing:invoice_delete", kwargs={"pk": invoice.pk})
-    response = client.post(url, {"confirm_delete": "0"})
-    assert_access(
-        response,
-        is_logged_in,
-        permissions,
-        "billing.delete_invoice",
-        url,
-        get_login_url,
-        success_status=302,
-    )
-    if is_logged_in and "billing.delete_invoice" in permissions:
-        assert invoice.pk is not None

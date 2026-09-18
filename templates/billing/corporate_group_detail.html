@@ -154,7 +154,7 @@
                     <td style="font-weight:600;">{{ group.subscriber.nombre }}</td>
                     <td><span class="role-badge-owner">Suscriptor</span></td>
                     <td><span class="badge badge-success">Activo</span></td>
-                    {% if can_manage_groups and not group.is_dissolved %}
+                    {% if can_delete_groups and not group.is_dissolved %}
                     <td style="text-align:right;">
                         <div class="member-actions">
                             {% if 'clients.view_profile' in user_permissions %}
@@ -279,7 +279,7 @@
 {% endif %}
 
 <!-- Danger zone -->
-{% if can_manage_groups %}
+{% if can_delete_groups %}
 <div class="danger-zone">
     <p class="danger-zone-title">Zona de peligro</p>
     <form method="POST" action="{% url 'billing:corporate_group_dissolve' group.id %}"

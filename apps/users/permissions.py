@@ -50,8 +50,8 @@ PERMISSION_GROUPS = {
             ("billing.charge", "Registrar cobro"),
             ("billing.change_cut_date", "Cambiar fecha de corte"),
             ("billing.view_audit", "Ver auditoría en perfil"),
-            ("billing.delete_queued_membership", "Eliminar membresía encolada"),
-            ("billing.delete_membership", "Eliminar cualquier membresía"),
+            ("billing.delete_queued_membership", "Anular membresía encolada"),
+            ("billing.delete_membership", "Anular cualquier membresía"),
         ],
     },
     "billing_invoices": {
@@ -62,8 +62,6 @@ PERMISSION_GROUPS = {
             ("billing.print_invoice", "Imprimir factura"),
             ("billing.edit_invoice", "Editar montos de factura antes de imprimir"),
             ("billing.void_invoice", "Anular facturas"),
-            # DEPRECATED: Eliminar facturas — reemplazado por anulación (void_invoice). Se mantiene el código para no romper roles en BD.
-            ("billing.delete_invoice", "Eliminar facturas (obsoleto)"),
         ],
     },
     "plans": {
@@ -117,7 +115,8 @@ PERMISSION_GROUPS = {
         "label": "Planes Corporativos",
         "permissions": [
             ("corporate.view", "Ver grupos corporativos"),
-            ("corporate.manage_groups", "Crear, disolver y gestionar grupos"),
+            ("corporate.manage_groups", "Crear y configurar grupos"),
+            ("corporate.delete_groups", "Disolver o eliminar grupos"),
             ("corporate.add_members", "Agregar miembros a grupos"),
             ("corporate.remove_members", "Retirar miembros de grupos"),
             ("corporate.grant_admin_access", "Asignar acceso administrativo corporativo sin cobro"),
