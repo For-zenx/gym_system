@@ -168,6 +168,8 @@ const TabletFaceUtils = (function () {
     const ENROLLMENT_COACH_FRONT = "Mire de frente";
     const ENROLLMENT_COACH_HOLD = "Quédese quieto…";
     const ENROLLMENT_BUBBLE_CAPTURING = "Capturando...";
+    // Acceso: escalación cuando la persona no corrige la pose tras ráfagas fallidas.
+    const ACCESS_COACH_FRONT_ESCALATED = "Póngase de frente a la cámara";
     const ENROLLMENT_COACH_MESSAGES = {
         "Centre su cara": true,
         "Acérquese": true,
@@ -177,6 +179,8 @@ const TabletFaceUtils = (function () {
         // Acceso (tablet combinada): toda la guía del flujo va por el coach.
         "Coloque su rostro en el óvalo": true,
         "Mantenga la cara quieta…": true,
+        "Procesando…": true,
+        "Póngase de frente a la cámara": true,
     };
 
     function isEnrollmentCoachMessage(message) {
@@ -492,6 +496,7 @@ const TabletFaceUtils = (function () {
         ENROLLMENT_COACH_CENTER: ENROLLMENT_COACH_CENTER,
         ENROLLMENT_COACH_HOLD: ENROLLMENT_COACH_HOLD,
         ENROLLMENT_COACH_FRONT: ENROLLMENT_COACH_FRONT,
+        ACCESS_COACH_FRONT_ESCALATED: ACCESS_COACH_FRONT_ESCALATED,
         ENROLLMENT_BUBBLE_CAPTURING: ENROLLMENT_BUBBLE_CAPTURING,
         getEnrollmentHudMessage: getEnrollmentHudMessage,
         createEnrollmentHudController: createEnrollmentHudController,

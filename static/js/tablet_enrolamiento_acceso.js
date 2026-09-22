@@ -35,7 +35,13 @@ const ACCESS_UI_CAPTURING = "capturing";
 const ACCESS_UI_VERIFYING = "verifying";
 const ACCESS_UI_RESULT = "result";
 const ACCESS_QUICK_RETRY_SUBTITLE = "Intente de nuevo";
-const ACCESS_POSE_HINT_MS = 1200;
+// Re-chequeo de pose con landmarks mientras la persona está bloqueada por
+// pose — solo cuando el resto del criterio ya cumple.
+const ACCESS_POSE_RECHECK_MS = 400;
+// Ráfagas fallidas por pose antes de escalar el mensaje del coach.
+const ACCESS_POSE_ESCALATE_AFTER = 2;
+// Ticks consecutivos sin criterio antes de perder la estabilidad acumulada.
+const ACCESS_CRITERIA_MISS_TOLERANCE = 2;
 // Un mensaje nuevo debe sostenerse 250ms para reemplazar al coach actual —
 // mata el jitter de detección sin sentirse lento.
 const ACCESS_COACH_SWITCH_MS = 250;
@@ -99,10 +105,14 @@ let accessUiState = ACCESS_UI_IDLE;
 let accessHudPending = null;
 let accessHudPendingSince = 0;
 let accessHudShown = null;
-let accessPoseHintUntil = 0;
 let accessCoachShownMsg = null;
 let accessCoachPendingMsg = null;
 let accessCoachPendingSince = 0;
+// Coach inteligente: bloqueo persistente por pose y escalación tras ráfagas fallidas.
+let accessPoseBlocked = false;
+let accessPoseFailStreak = 0;
+let accessCriteriaMissStreak = 0;
+let lastAccessPoseCheckAt = 0;
 
 // OPS_AUDIT
 function sendOpsEvent(event, reason, detail) {
@@ -555,6 +565,12 @@ function setAccessUiState(state, options) {
         hudInstruction.classList.add("hidden");
         cancelQuickRetryIdleReset();
         setFaceGuideVariant("processing");
+        if (options.processingCoach) {
+            // Una sola voz: solo el coach grande; el banner de abajo vuelve
+            // con el resultado (Bienvenido, denegado, etc.).
+            hideBottomBanner();
+            return;
+        }
         const title = options.title || "Verificando…";
         const subtitle = options.subtitle || "Un momento por favor";
         if (isQuickRetryMode && !accessBottomBanner.classList.contains("hidden")) {
@@ -752,8 +768,17 @@ function updateAccessCoach(desired, now) {
     }
 }
 
+// Mensaje de bloqueo por pose: normal o escalado tras ráfagas fallidas.
+function accessPoseCoachMessage() {
+    return accessPoseFailStreak >= ACCESS_POSE_ESCALATE_AFTER
+        ? TabletFaceUtils.ACCESS_COACH_FRONT_ESCALATED
+        : TabletFaceUtils.ENROLLMENT_COACH_FRONT;
+}
+
 function clearAccessResult() {
-    accessPoseHintUntil = 0;
+    accessPoseBlocked = false;
+    accessCriteriaMissStreak = 0;
+    lastAccessPoseCheckAt = 0;
     hideAccessCoach();
     accessBurstGeneration += 1;
     isCollectingAccessBurst = false;
@@ -1145,17 +1170,15 @@ async function collectAndSendAccessBurst() {
             setAccessUiState(ACCESS_UI_IDLE, { immediate: true });
             isCooldown = false;
             if (sawPoseFail) {
-                accessPoseHintUntil = Date.now() + ACCESS_POSE_HINT_MS;
-                accessCoachShownMsg = TabletFaceUtils.ENROLLMENT_COACH_FRONT;
-                accessCoachPendingMsg = null;
-                enrollmentHud.show(
-                    TabletFaceUtils.ENROLLMENT_COACH_FRONT,
-                    Date.now(),
-                    { immediate: true }
-                );
+                // Bloqueo persistente: el coach muestra "Mire de frente"
+                // (o el escalado tras ráfagas repetidas) hasta que la pose
+                // pase el gate del loop — no un hint que desaparece.
+                accessPoseFailStreak += 1;
+                accessPoseBlocked = true;
             }
             return;
         }
+        accessPoseFailStreak = 0;
         showAccessProcessing();
         sendAccessBurst(samples.map(function (candidate) { return candidate.image; }));
     } catch (err) {
@@ -1213,11 +1236,31 @@ async function accessDetectLoop() {
         }
 
         if (detection && cooldownOk && !isProcessingAccess && !isCooldown && meetsCriteria) {
-            accessPoseHintUntil = 0;
+            accessCriteriaMissStreak = 0;
+
             if (accessStableSince === null) {
-                accessStableSince = now;
-            }
-            if (now - accessStableSince >= ACCESS_FIRST_STABILITY_MS) {
+                // Gate de pose: una sola detección con landmarks antes de
+                // contar estabilidad. Mientras dure el bloqueo se re-chequea
+                // cada ACCESS_POSE_RECHECK_MS; sin landmarks => fail-open.
+                if (accessPoseBlocked && now - lastAccessPoseCheckAt < ACCESS_POSE_RECHECK_MS) {
+                    setAccessUiState(ACCESS_UI_IDLE);
+                    updateAccessCoach(accessPoseCoachMessage(), now);
+                } else {
+                    lastAccessPoseCheckAt = now;
+                    const detailed = await faceapi
+                        .detectSingleFace(cameraFeed, TabletFaceUtils.accessDetectorOptions())
+                        .withFaceLandmarks();
+                    if (detailed && !isAccessFrontalPose(detailed)) {
+                        accessPoseBlocked = true;
+                        setAccessUiState(ACCESS_UI_IDLE);
+                        updateAccessCoach(accessPoseCoachMessage(), now);
+                    } else {
+                        accessPoseBlocked = false;
+                        accessPoseFailStreak = 0;
+                        accessStableSince = now;
+                    }
+                }
+            } else if (now - accessStableSince >= ACCESS_FIRST_STABILITY_MS) {
                 resetAccessStability();
                 await collectAndSendAccessBurst();
                 lastAccessCaptureTime = now;
@@ -1226,22 +1269,30 @@ async function accessDetectLoop() {
                 updateAccessCoach(ACCESS_HUD_HOLD, now);
             }
         } else {
-            resetAccessStability();
+            // Histéresis: el criterio debe fallar 2 ticks seguidos para
+            // perder la estabilidad — un flicker de score no la mata.
+            accessCriteriaMissStreak += 1;
+            if (accessCriteriaMissStreak >= ACCESS_CRITERIA_MISS_TOLERANCE) {
+                resetAccessStability();
+            }
+            // La persona se movió/fue: el bloqueo de pose ya no aplica.
+            accessPoseBlocked = false;
+            if (!detection) {
+                accessPoseFailStreak = 0;
+            }
             if (!isProcessingAccess && !isCooldown && accessUiState !== ACCESS_UI_RESULT) {
-                if (now < accessPoseHintUntil) {
-                    // Hint "Mire de frente" tras ráfaga sin muestras; no tocar HUD.
-                } else {
-                    setAccessUiState(ACCESS_UI_IDLE);
-                    const desiredCoach = detection
-                        ? (TabletFaceUtils.getAccessHudMessage(
+                setAccessUiState(ACCESS_UI_IDLE);
+                let desiredCoach = ACCESS_HUD_IDLE;
+                if (detection) {
+                    desiredCoach =
+                        TabletFaceUtils.getAccessHudMessage(
                             detection,
                             resizedDetection,
                             cameraFeed,
                             faceGuideOval
-                        ) || ACCESS_HUD_IDLE)
-                        : ACCESS_HUD_IDLE;
-                    updateAccessCoach(desiredCoach, now);
+                        ) || TabletFaceUtils.ENROLLMENT_COACH_HOLD;
                 }
+                updateAccessCoach(desiredCoach, now);
             }
         }
 
